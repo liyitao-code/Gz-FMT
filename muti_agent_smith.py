@@ -1044,7 +1044,10 @@ class SmithUnit:
         action_queue = [-1]
         state = SimulatorState(os.path.join(exp_dir, "a.sdf"), action_queue, self.cov_old.calculate_total_coverage())  # 初始状态的sdf为a.sdf
         
-
+        # 存储每个智能体的状态、动作和奖励信息
+        states = []
+        actions = []
+        rewards = []
 
         print("DEBUG: before command range")
         for i in range(self.num_seq):
@@ -1107,7 +1110,7 @@ class SmithUnit:
 
 
             # 更新状态
-            next_state = SimulatorState(world_file, action_queue, self.cov_new.calculate_total_coverage())  # 更新后的SDF文件
+            next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), action_queue, self.cov_new.calculate_total_coverage())  # 更新后的SDF文件
             # 如果当前sdf不存在或者没有内容，则用上一次的状态来代替当前状态
             if not next_state.is_valid:
                 print("Using previous state due to invalid SDF.")
@@ -1115,20 +1118,24 @@ class SmithUnit:
 
             # 计算激励
             reward = calculate_reward(state, next_state, "", diff.new_line / self.cov_new.get_total_line())
+
+            states.append(state_vector)
+            actions.append(action)
+            rewards.append(reward)
             # print("!!!DEBUG: reward input is " + str(out + err))
-            next_state_vector = torch.FloatTensor(next_state.to_vector())
-            _, next_value = model(next_state_vector)
-            # advantage = torch.tensor(reward + (1.0 - done) * gamma * next_value.item() - value.item())
-            advantage = torch.tensor(reward + gamma * next_value.item() - value.item())
+            # next_state_vector = torch.FloatTensor(next_state.to_vector())
+            # _, next_value = model(next_state_vector)
+            # # advantage = torch.tensor(reward + (1.0 - done) * gamma * next_value.item() - value.item())
+            # advantage = torch.tensor(reward + gamma * next_value.item() - value.item())
 
-            critic_loss = advantage.pow(2)
-            actor_loss = -torch.log(policy[action]) * advantage
+            # critic_loss = advantage.pow(2)
+            # actor_loss = -torch.log(policy[action]) * advantage
 
-            loss = actor_loss + critic_loss
+            # loss = actor_loss + critic_loss
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
 
             state = next_state
 
@@ -1154,7 +1161,7 @@ class SmithUnit:
         process.wait()
         print("DEBUG: after process.wait")
 
-
+        flag = 0
 
         # 4. collect coverage
         try:
@@ -1169,7 +1176,7 @@ class SmithUnit:
                 print(f"DEBUG: killing child: {child.pid}")
                 child.kill()
             process.kill()
-            return None
+            
         except:
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
@@ -1188,8 +1195,8 @@ class SmithUnit:
             if self.check_new_crash(f"{self.directory}/gz.err"):
                 print(f"DEBUG: crash rewards: {i}")
                 # TODO: dump crash to file
-                for j in range(i):
-                    self.crash_rewards[j] = 1
+                # for j in range(i):
+                #     self.crash_rewards[j] = 1
 
                 print(f"DEBUG: {self.crash_rewards}")
             
@@ -1200,36 +1207,27 @@ class SmithUnit:
                     # 为找到了崩溃额外给一次激励
                     reward = calculate_reward(next_state, next_state, "crash", 0)
                     print("!!!DEBUG: reward of crash is " + str(reward))
-                    next_state_vector = torch.FloatTensor(next_state.to_vector())
-                    _, next_value = model(next_state_vector)
-                    # advantage = torch.tensor(reward + (1.0 - done) * gamma * next_value.item() - value.item())
-                    advantage = torch.tensor(reward + gamma * next_value.item() - value.item())
-
-                    critic_loss = advantage.pow(2)
-                    actor_loss = -torch.log(policy[action]) * advantage
-
-                    loss = actor_loss + critic_loss
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    rewards[-1] += reward
                 else:
                     print("DEBUG: crash but no world sdf")
-                
+            flag = 1
+            
+        # 新增：在回合结束后执行反向传播
+        for state_vec, action, reward in zip(states, actions, rewards):
+            policy, value = model(state_vec)
+            advantage = torch.tensor(reward + gamma * value.item() - value.item())
+            critic_loss = advantage.pow(2)
+            actor_loss = -torch.log(policy[action]) * advantage
 
-            # if self.bandits:
-            #     ### for i in range(len(func_names)):
-            #     ###     index = self.funcs.index(func_names[i])  
-            #     ###     self.bandits[i].reward(index)
-            #     if diff.new_line > 0:
-            #         rewards = [(1 if idx <= i else 0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
-            #     else:
-            #         rewards = [(0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
+            loss = actor_loss + critic_loss
 
-            #     print(rewards)
-            #     self.bandits.update(actions, rewards=rewards)
-
-            return diff
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+        if flag == 0:
+            return None
+        else:
+            return diff 
 
     # 复制随机的sdf文件
     def copy_random_sdf(self):
