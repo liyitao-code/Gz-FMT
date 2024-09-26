@@ -105,8 +105,10 @@ class SimulatorState:
         self.action = action_queue
         self.is_valid = self.extract_sdf_state()
         self.cover_rate = cover
+
         self.last_act = action_queue[-1]
-        self.num_act = len(action_queue)
+        self.action_count = [0] * 6
+        self.update_action_count()
 
 
     def extract_sdf_state(self):
@@ -152,14 +154,14 @@ class SimulatorState:
         return len(plugins)
 
     def get_code_coverage(self):
-        # 这里是一个示例 API 以供您实现覆盖率获取
         # 返回代码覆盖率百分比（0到1之间）
         return self.cover_rate
 
-    def get_action_sequence(self):
-        # 这里是一个示例 API 以供您实现动作序列的获取
-        # 返回一个包含动作序列的列表
-        return self.action
+    def update_action_count(self):
+        '''更新动作计数列表，计算每个算子在序列中的执行次数'''
+        for action in self.action:
+            if 0 <= action < len(self.action_count):
+                self.action_count[action] += 1
 
     def to_vector(self):
         # 将状态转换为特征向量表示
@@ -168,10 +170,10 @@ class SimulatorState:
             self.num_complex_models,
             self.num_plugins,
             self.get_code_coverage(),
-            self.last_act,
-            self.num_act - 1
         ]
-        # vector.extend(self.get_action_sequence())
+
+        # 将动作计数列表添加到特征向量中
+        vector.extend(self.action_count)
         
         # 可选的归一化步骤，如果需要
         # total_models = self.num_basic_models + self.num_complex_models
@@ -214,9 +216,9 @@ def calculate_reward(state, next_state, action_result, coverage_increase = 0, co
     global sum_reward
     # 崩溃奖励
     if action_result == "crash":
-        reward += 100  # 动作导致模拟器崩溃，给一个大的奖励
+        reward += 150  # 动作导致模拟器崩溃，给一个大的奖励
         # 根据当前算子序列长度给予效率奖励，序列越短奖励越多
-        reward += max(0, efficiency_coefficient * (10 - state.num_act))  # 假设最大步骤为10
+        reward += max(0, efficiency_coefficient * (11 - state.num_act))  # 假设最大步骤为10
 
     # 覆盖率奖励
     if coverage_increase > 0:
@@ -224,9 +226,19 @@ def calculate_reward(state, next_state, action_result, coverage_increase = 0, co
 
     # 多样化奖励
     diversity_reward = 0
-    if next_state.last_act is not state.last_act :
-        diversity_reward = 10
-    reward += diversity_reward
+
+    # 更新选择频率
+    state.action_count[next_state.last_act] += 1
+
+    # 平滑选择频率
+    smoothed_action_count = [count + 1 for count in state.action_count]  # 增加一个常数进行平滑
+
+    # 奖励较少被选择的动作
+    total_actions = sum(smoothed_action_count)
+    if total_actions > 0:
+        inverse_frequency = 1.0 / smoothed_action_count[next_state.last_act]  # 选择次数的倒数
+        diversity_reward = inverse_frequency * 3  # 奖励系数可以调整
+        reward += diversity_reward
 
     sum_reward += reward
     return reward
@@ -292,11 +304,42 @@ class ActorCriticNetwork(nn.Module):
         return policy, value
 
 
-def select_action(policy):
-    '''选择动作'''
+def select_action(policy, epsilon=1.0):
+    '''
+    选择动作，带有 ε-greedy 策略的探索
+    :param policy: 动作概率分布
+    :param epsilon: 探索率，即选择随机动作的概率
+    :return: 选择的动作
+    '''
     action_prob = policy.detach().numpy()
-    action = np.random.choice(len(action_prob), p=action_prob)
+
+    # 生成一个随机数，决定是否进行探索
+    if random.random() < epsilon:
+        # 探索：随机选择一个动作
+        action = np.random.choice(len(action_prob))
+    else:
+        # 利用：根据概率分布选择动作
+        action = np.random.choice(len(action_prob), p=action_prob)
+
     return action
+
+def select_action_with_exploration(state, policy, epsilon=0.1):
+    '''带有ε-greedy策略和频率平滑的动作选择函数'''
+    # 通过增加平滑因子1来避免未选择过的动作被忽略
+    smoothed_action_count = [count + 1 for count in state.action_count]
+
+    # 计算选择概率
+    total = sum(smoothed_action_count)
+    action_probabilities = [count / total for count in smoothed_action_count]
+
+    # ε-greedy策略：以epsilon的概率进行随机选择
+    if random.random() < epsilon:
+        action = np.random.choice(len(action_probabilities))
+    else:
+        action = np.random.choice(len(policy), p=action_probabilities)
+
+    return action
+
 
 # 保证data的utf8编码正确
 def safe_utf8_encode(data):
@@ -1006,8 +1049,8 @@ class SmithUnit:
 
 
     # 生成和测试命令，train版
-    def generate_and_test_commands(self, gamma = 0.99):
-        state_dim = 6  # 状态共有6维：简单模型个数、复杂模型个数、插件个数、覆盖率、最后执行的算子、算子序列长度
+    def generate_and_test_commands(self, gamma = 0.9):
+        state_dim = 10  # 状态共有6维：简单模型个数、复杂模型个数、插件个数、覆盖率、最后执行的算子、算子序列长度
         action_dim = 6  # 6种不同的算子
         model = ActorCriticNetwork(state_dim, action_dim)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -1036,9 +1079,9 @@ class SmithUnit:
 
         print("DEBUG: before loop gz commands")
         func_names = []
-        if self.bandits:
-            actions, probs = self.bandits.predict(n_samples=self.num_seq)
-            # print(probs)
+        # if self.bandits:
+        #     actions, probs = self.bandits.predict(n_samples=self.num_seq)
+        #     # print(probs)
 
         # 设置初始状态
         action_queue = [-1]
@@ -1055,7 +1098,7 @@ class SmithUnit:
             state_vector = torch.FloatTensor(state.to_vector())
             policy, value = model(state_vector)
             # 选出算子
-            action = select_action(policy)
+            action = select_action_with_exploration(state, policy)
             # 翻译为函数
             func_name = SimulatorAction.perform_action(action, unit)
             action_queue.append(action)
@@ -1122,20 +1165,6 @@ class SmithUnit:
             states.append(state_vector)
             actions.append(action)
             rewards.append(reward)
-            # print("!!!DEBUG: reward input is " + str(out + err))
-            # next_state_vector = torch.FloatTensor(next_state.to_vector())
-            # _, next_value = model(next_state_vector)
-            # # advantage = torch.tensor(reward + (1.0 - done) * gamma * next_value.item() - value.item())
-            # advantage = torch.tensor(reward + gamma * next_value.item() - value.item())
-
-            # critic_loss = advantage.pow(2)
-            # actor_loss = -torch.log(policy[action]) * advantage
-
-            # loss = actor_loss + critic_loss
-
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
 
             state = next_state
 
@@ -1211,8 +1240,10 @@ class SmithUnit:
                 else:
                     print("DEBUG: crash but no world sdf")
             flag = 1
-            
-        # 新增：在回合结束后执行反向传播
+        
+        print("DEBUG: this turn actions is " + str(actions))
+        print("DEBUG: this turn rewards is " + str(rewards))
+        # 在回合结束后执行反向传播
         for state_vec, action, reward in zip(states, actions, rewards):
             policy, value = model(state_vec)
             advantage = torch.tensor(reward + gamma * value.item() - value.item())
@@ -1608,7 +1639,7 @@ if __name__ == "__main__":
     parser.add_option("-i", "--iteration", dest="iteration", type="int", default=10, help="max iteration")
     parser.add_option("-m", "--mode", dest="mode", help="one_shot or loop", default="loop")
     parser.add_option("-s", "--seed", dest="seed", type="int", default=0, help="seed for RNG")
-    parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=10, help="number of gz commands")
+    parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=20, help="number of gz commands")
     parser.add_option("-p", "--plugin", dest="plugin", action="store_true", help="enable mined plugin")
     parser.add_option("-t", "--timeout", dest="timeout", type="int", default=10000, help="timeout")
 
@@ -1647,7 +1678,7 @@ if __name__ == "__main__":
         # unit.create_sdf()
         unit.copy_random_sdf()
         print("DEBUG: before generate_and_test_commands")
-        print("id = " + str(i + 1))
+        print("id = " + str(i))
         unit.cov_old.collect()
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
         diff = unit.generate_and_test_commands()
