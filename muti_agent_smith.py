@@ -52,6 +52,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from collections import deque
+
+# import tensorflow as tf
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.optimizers import Adam
+
+from search_plugin_in_model import retrieve_plugin_by_index
+from search_plugin_in_world import retrieve_plugin_in_world_by_index
+from search_model_with_plugin import retrieve_model_by_index
 
 import csv
 
@@ -97,32 +108,25 @@ def save_training_metrics(filename, epoch, cumulative_reward, policy_change, los
 
 
 class SimulatorState:
-    def __init__(self, sdf_file_path, action_queue, cover = 0):
+    def __init__(self, sdf_file_path, cover=0, ):
         self.sdf_file_path = sdf_file_path
         self.num_basic_models = 0
         self.num_complex_models = 0
         self.num_plugins = 0
-        self.action = action_queue
-        self.is_valid = self.extract_sdf_state()
         self.cover_rate = cover
+        # self.sequence_history = sequence_history
 
-        self.last_act = action_queue[-1]
-        self.action_count = [0] * 6
-        self.update_action_count()
-
+        # 提取SDF文件的状态信息
+        self.is_valid = self.extract_sdf_state()
 
     def extract_sdf_state(self):
-        # 检查文件是否存在且不为空
         if not os.path.exists(self.sdf_file_path) or os.path.getsize(self.sdf_file_path) == 0:
             print(f"Warning: SDF file {self.sdf_file_path} does not exist or is empty.")
             return False
 
         try:
-            # 解析 SDF 文件
             tree = ET.parse(self.sdf_file_path)
             root = tree.getroot()
-
-            # 提取模型和插件信息
             self.num_basic_models, self.num_complex_models = self.extract_models(root)
             self.num_plugins = self.extract_plugins(root)
             return True
@@ -134,72 +138,64 @@ class SimulatorState:
         basic_models = 0
         complex_models = 0
 
-        # 查找所有模型标签
         for model in root.findall('.//model'):
-            # 检查是否有嵌套模型或者包括引用
             if model.findall('.//model') or model.findall('.//include'):
                 complex_models += 1
             else:
                 basic_models += 1
 
-        # 查找所有 include 标签
         for include in root.findall('.//include'):
             complex_models += 1
 
         return basic_models, complex_models
 
     def extract_plugins(self, root):
-        # 查找所有插件，无论它们位于 world 还是 model 标签下
         plugins = root.findall('.//plugin')
         return len(plugins)
 
-    def get_code_coverage(self):
-        # 返回代码覆盖率百分比（0到1之间）
-        return self.cover_rate
-
-    def update_action_count(self):
-        '''更新动作计数列表，计算每个算子在序列中的执行次数'''
-        for action in self.action:
-            if 0 <= action < len(self.action_count):
-                self.action_count[action] += 1
-
     def to_vector(self):
-        # 将状态转换为特征向量表示
+        # 计算序列历史多样性度量
+        # diversity_score = self.calculate_diversity_score()
+
+        # 使用简单模型、复杂模型、插件数量、初始覆盖率、序列多样性度量作为状态
         vector = [
             self.num_basic_models,
             self.num_complex_models,
             self.num_plugins,
-            self.get_code_coverage(),
+            self.cover_rate,
+            # diversity_score
         ]
 
-        # 将动作计数列表添加到特征向量中
-        vector.extend(self.action_count)
-        
-        # 可选的归一化步骤，如果需要
-        # total_models = self.num_basic_models + self.num_complex_models
-        # if total_models > 0:
-        #     vector[0] /= total_models
-        #     vector[1] /= total_models
-        # vector[2] = self.num_plugins / max(1, len(root.findall('.//plugin')))  # 归一化插件数量
-
         return vector
+
+    # def calculate_diversity_score(self):
+    #     # 这里可以是计算序列与历史序列的多样性的一种方法
+    #     # 简化为返回一个固定值，实际应用中应实现多样性度量算法
+    #     return np.random.rand()  # 只是一个占位符
 
 
 class SimulatorAction:
     '''动作空间'''
     RANDOM_LOAD_MODEL = 0
-    RANDOM_ADD_PLUGIN = 1
-    RANDOM_REMOVE_MODEL = 2
-    RANDOM_EXEC_SERVICE = 3
-    RANDOM_EXEC_TOPIC = 4
-    RANDOM_SET_POSE = 5
+    RANDOM_LOAD_MODEL_XML = 1
+    RANDOM_ADD_PLUGIN = 2
+    RANDOM_ADD_PLUGIN_XML = 3
+    RANDOM_REMOVE_MODEL = 4
+    RANDOM_EXEC_SERVICE = 5
+    RANDOM_EXEC_TOPIC = 6
+    RANDOM_SET_POSE = 7
+    RANDOM_ADD_MODEL_WITH_PLUGIN = 8
 
     @staticmethod
-    def perform_action(action, unit):
+    def perform_action(action):
         if action == SimulatorAction.RANDOM_LOAD_MODEL:
             return "func_add_random_model"
+        elif action == SimulatorAction.RANDOM_LOAD_MODEL_XML:
+            return "func_add_random_model_xml"
         elif action == SimulatorAction.RANDOM_ADD_PLUGIN:
             return "func_add_random_plugin_to_model"
+        elif action == SimulatorAction.RANDOM_ADD_PLUGIN_XML:
+            return "func_add_random_plugin_to_model_xml"
         elif action == SimulatorAction.RANDOM_REMOVE_MODEL:
             return "func_remove_random_model"
         elif action == SimulatorAction.RANDOM_EXEC_SERVICE:
@@ -208,40 +204,98 @@ class SimulatorAction:
             return "func_random_topic"
         elif action == SimulatorAction.RANDOM_SET_POSE:
             return "func_random_pose"
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN:
+            return "fund_add_random_model_with_plugin"
 
+class SequenceManager:
+    def __init__(self, max_history_length=10000):
+        self.sequence_history = deque(maxlen=max_history_length)
 
-def calculate_reward(state, next_state, action_result, coverage_increase = 0, coverage_coefficient = 30, efficiency_coefficient = 10):
+    def add_sequence(self, sequence):
+        self.sequence_history.append(sequence)
+
+    def calculate_similarity(self, current_sequence):
+        if not self.sequence_history:
+            return 0  # 没有历史序列时，相似性为0
+        current_vector = np.array(current_sequence).reshape(1, -1)
+        history_vectors = np.array([np.array(seq) for seq in self.sequence_history])
+        similarities = cosine_similarity(current_vector, history_vectors)
+        max_similarity = similarities.max()
+        return max_similarity
+
+def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager):
     '''奖励函数'''
     reward = 0
-    global sum_reward
-    # 崩溃奖励
-    if action_result == "crash":
-        reward += 150  # 动作导致模拟器崩溃，给一个大的奖励
-        # 根据当前算子序列长度给予效率奖励，序列越短奖励越多
-        reward += max(0, efficiency_coefficient * (11 - state.num_act))  # 假设最大步骤为10
+    # global sum_reward
+    crash_reward = 0
+    cov_reward = 0
 
-    # 覆盖率奖励
+    # 崩溃激励
+    if crash_occurred:
+        crash_reward = 100  # 如果发生崩溃，给予一个大的奖励
+
+    # 覆盖率激励
     if coverage_increase > 0:
-        reward += coverage_increase * coverage_coefficient  # 根据覆盖率增加给予奖励
+        cov_reward = coverage_increase * 50  # 根据覆盖率增加给予奖励
 
-    # 多样化奖励
-    diversity_reward = 0
+    # 多样性激励
+    diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
+    reward = diversity_reward + crash_reward + cov_reward
 
-    # 更新选择频率
-    state.action_count[next_state.last_act] += 1
-
-    # 平滑选择频率
-    smoothed_action_count = [count + 1 for count in state.action_count]  # 增加一个常数进行平滑
-
-    # 奖励较少被选择的动作
-    total_actions = sum(smoothed_action_count)
-    if total_actions > 0:
-        inverse_frequency = 1.0 / smoothed_action_count[next_state.last_act]  # 选择次数的倒数
-        diversity_reward = inverse_frequency * 3  # 奖励系数可以调整
-        reward += diversity_reward
-
-    sum_reward += reward
+    # sum_reward += reward
+    print(f"DEBUG: crash reward is {crash_reward} , coverage reward is {cov_reward}, disversity reward is {diversity_reward}")
     return reward
+
+# 计算多样性
+def calculate_diversity_reward(action_sequence, sequence_manager):
+    similarity = sequence_manager.calculate_similarity(action_sequence)
+    diversity_reward = (1 - similarity) * 30
+    return diversity_reward
+
+# 双方的agent
+class ActorCriticNetwork(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(ActorCriticNetwork, self).__init__()
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, action_dim),
+            nn.Softmax(dim=-1)
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1)
+        )
+
+    def forward(self, state):
+        policy = self.actor(state)
+        value = self.critic(state)
+        return policy, value
+    
+# 生成整个算子操作序列
+def generate_action_sequence(state, model, num_actions):
+    state_tensor = torch.FloatTensor(state.to_vector()).unsqueeze(0)
+    policy, _ = model(state_tensor)
+    action_sequence = []
+    action_log_probs = []  # 存储每个动作的对数概率
+    for _ in range(num_actions):
+        action, log_prob = select_action(policy)
+        action_sequence.append(action)
+        action_log_probs.append(log_prob)
+    return action_sequence, action_log_probs
+
+# 动作选择函数，结合ε-greedy策略
+def select_action(policy, epsilon=0.1):
+    action_prob = policy.detach().numpy().flatten()
+    action_prob = np.nan_to_num(action_prob, nan=1e-10)  # 用一个小正数替换 NaN
+    action_prob /= np.sum(action_prob)  # 归一化
+    if random.random() < epsilon:
+        action = np.random.choice(len(action_prob))
+    else:
+        action = np.random.choice(len(action_prob), p=action_prob)
+    log_prob = torch.log(policy.squeeze(0)[action])
+    return action, log_prob
 
 def find_largest_non_empty_world_file(tar_dir):
     """
@@ -281,64 +335,23 @@ def find_largest_non_empty_world_file(tar_dir):
     return ans
 
 
-class ActorCriticNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(ActorCriticNetwork, self).__init__()
-        # 演员
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_dim),
-            nn.Softmax(dim=-1)
-        )
-        # 评论员
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
-        )
 
-    def forward(self, state):
-        policy = self.actor(state)
-        value = self.critic(state)
-        return policy, value
+# def select_action_with_exploration(state, policy, epsilon=0.1):
+#     '''带有ε-greedy策略和频率平滑的动作选择函数'''
+#     # 通过增加平滑因子1来避免未选择过的动作被忽略
+#     smoothed_action_count = [count + 1 for count in state.action_count]
 
+#     # 计算选择概率
+#     total = sum(smoothed_action_count)
+#     action_probabilities = [count / total for count in smoothed_action_count]
 
-def select_action(policy, epsilon=1.0):
-    '''
-    选择动作，带有 ε-greedy 策略的探索
-    :param policy: 动作概率分布
-    :param epsilon: 探索率，即选择随机动作的概率
-    :return: 选择的动作
-    '''
-    action_prob = policy.detach().numpy()
+#     # ε-greedy策略：以epsilon的概率进行随机选择
+#     if random.random() < epsilon:
+#         action = np.random.choice(len(action_probabilities))
+#     else:
+#         action = np.random.choice(len(policy), p=action_probabilities)
 
-    # 生成一个随机数，决定是否进行探索
-    if random.random() < epsilon:
-        # 探索：随机选择一个动作
-        action = np.random.choice(len(action_prob))
-    else:
-        # 利用：根据概率分布选择动作
-        action = np.random.choice(len(action_prob), p=action_prob)
-
-    return action
-
-def select_action_with_exploration(state, policy, epsilon=0.1):
-    '''带有ε-greedy策略和频率平滑的动作选择函数'''
-    # 通过增加平滑因子1来避免未选择过的动作被忽略
-    smoothed_action_count = [count + 1 for count in state.action_count]
-
-    # 计算选择概率
-    total = sum(smoothed_action_count)
-    action_probabilities = [count / total for count in smoothed_action_count]
-
-    # ε-greedy策略：以epsilon的概率进行随机选择
-    if random.random() < epsilon:
-        action = np.random.choice(len(action_probabilities))
-    else:
-        action = np.random.choice(len(policy), p=action_probabilities)
-
-    return action
+#     return action
 
 
 # 保证data的utf8编码正确
@@ -1045,15 +1058,17 @@ class SmithUnit:
         # print("DEBUG: before stop_gazebo")
         # self.stop_gazebo(True)
         # print("DEBUG: after stop_gazebo")
+        
+    def generate_and_test_commands_train(self, state, sequence_manager, model, optimizer):
 
+        state_dim = 4  # 状态共有4维：简单模型个数、复杂模型个数、插件个数、覆盖率
+        action_dim = 9  # 9种不同的算子
+        optimizer.zero_grad()
 
+        # 生成算子序列
+        action_sequence, action_log_probs = generate_action_sequence(state, model, self.num_seq)
 
-    # 生成和测试命令，train版
-    def generate_and_test_commands(self, gamma = 0.9):
-        state_dim = 10  # 状态共有6维：简单模型个数、复杂模型个数、插件个数、覆盖率、最后执行的算子、算子序列长度
-        action_dim = 6  # 6种不同的算子
-        model = ActorCriticNetwork(state_dim, action_dim)
-        optimizer = optim.Adam(model.parameters(), lr=1e-3)
+        print("DEBUG: action sequence is " + str(action_sequence))
 
         # 0. collect coverage info
         print("DEBUG: before cov")
@@ -1065,7 +1080,7 @@ class SmithUnit:
             process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         except:
             print("DEBUG: subprocess launch gz error")
-            return None
+            return 0
 
         process_status = psutil.Process(process.pid)
         time.sleep(5)
@@ -1075,40 +1090,23 @@ class SmithUnit:
             self.world_name = response.data[0]
         except:
             print("DEBUG: gz process not alive")
-            return None
+            return 0
 
         print("DEBUG: before loop gz commands")
         func_names = []
-        # if self.bandits:
-        #     actions, probs = self.bandits.predict(n_samples=self.num_seq)
-        #     # print(probs)
-
-        # 设置初始状态
-        action_queue = [-1]
-        state = SimulatorState(os.path.join(exp_dir, "a.sdf"), action_queue, self.cov_old.calculate_total_coverage())  # 初始状态的sdf为a.sdf
-        
-        # 存储每个智能体的状态、动作和奖励信息
-        states = []
-        actions = []
-        rewards = []
 
         print("DEBUG: before command range")
-        for i in range(self.num_seq):
+        i = 0
+        for act in action_sequence:
 
-            state_vector = torch.FloatTensor(state.to_vector())
-            policy, value = model(state_vector)
-            # 选出算子
-            action = select_action_with_exploration(state, policy)
-            # 翻译为函数
-            func_name = SimulatorAction.perform_action(action, unit)
-            action_queue.append(action)
-
-
-            func_names.append(func_name)
+            # 1. 随机选择一个func_函数执行
+            func_name = SimulatorAction.perform_action(act)
             func = getattr(self, func_name)
             # 2. apply the action
             print(func_name)
+
             command = func()
+            
             self.gz_cmds.append(command)
             if self.use_text:
                 cmd_filename = f"{self.directory}/cmd_{i}.sh"
@@ -1126,48 +1124,16 @@ class SmithUnit:
             with open(world_file, "w") as f:
                 f.write(world)
 
-            # if self.diversity:
-            #     flag, dist = self.diversity.add_and_check(world_file)
-            #     self.diversity_rewards[i] = 1 if flag else 0
+            if self.diversity:
+                flag, dist = self.diversity.add_and_check(world_file)
+                self.diversity_rewards[i] = 1 if flag else 0
 
 
             with open(f"{self.directory}/id", "w") as f:
                 f.write(f"{i}")
-
+            i += 1
             # TODO: check gz liveness, if not, check f"{self.directory}/gz.err" for stack trace
             # check the status of the process
-            
-            # 每执行一次算子收集一下覆盖率
-            try:
-                self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
-                self.cov_new.collect()
-                diff = CoverageDiff()
-                diff.compare(self.cov_new, self.cov_old)
-
-                self.cov_old = self.cov_new
-
-                print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
-
-            except:
-                print("DEBUG: exception during coverage collection")
-
-
-            # 更新状态
-            next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), action_queue, self.cov_new.calculate_total_coverage())  # 更新后的SDF文件
-            # 如果当前sdf不存在或者没有内容，则用上一次的状态来代替当前状态
-            if not next_state.is_valid:
-                print("Using previous state due to invalid SDF.")
-                next_state = state
-
-            # 计算激励
-            reward = calculate_reward(state, next_state, "", diff.new_line / self.cov_new.get_total_line())
-
-            states.append(state_vector)
-            actions.append(action)
-            rewards.append(reward)
-
-            state = next_state
-
             if process_status.status() == psutil.STATUS_ZOMBIE:
                 print("DEBUG: gz process not alive")
                 break
@@ -1190,7 +1156,9 @@ class SmithUnit:
         process.wait()
         print("DEBUG: after process.wait")
 
-        flag = 0
+        crash_occurred = False  # 模拟检查是否发生崩溃
+        coverage_increase = 0.1  # 模拟增加的覆盖率
+        next_state = state  # 假设状态更新后为 next_state
 
         # 4. collect coverage
         try:
@@ -1205,7 +1173,7 @@ class SmithUnit:
                 print(f"DEBUG: killing child: {child.pid}")
                 child.kill()
             process.kill()
-            
+            # return None
         except:
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
@@ -1214,51 +1182,55 @@ class SmithUnit:
             diff.compare(self.cov_new, self.cov_old)
 
             with open(f"{self.directory}/gz.out", "w") as f:
-                # f.write(process.stdout.read().decode("utf-8"))
                 f.write(out)
             with open(f"{self.directory}/gz.err", "w") as f:
-                # f.write(process.stderr.read().decode("utf-8"))
                 f.write(err)
             print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
-            if self.check_new_crash(f"{self.directory}/gz.err"):
-                print(f"DEBUG: crash rewards: {i}")
+            
+
+            # if self.check_new_crash(f"{self.directory}/gz.err"):
+            #     print(f"DEBUG: crash rewards: {i}")
                 # TODO: dump crash to file
                 # for j in range(i):
                 #     self.crash_rewards[j] = 1
-
-                print(f"DEBUG: {self.crash_rewards}")
-            
+                # crash_occurred = True
+                # print(f"DEBUG: {self.crash_rewards}")
             if self.check_crash(f"{self.directory}/gz.err"):
-                largest_world_file = find_largest_non_empty_world_file(self.directory)
-                if largest_world_file is not None:
-                    next_state = SimulatorState(largest_world_file, action_queue, 0)
-                    # 为找到了崩溃额外给一次激励
-                    reward = calculate_reward(next_state, next_state, "crash", 0)
-                    print("!!!DEBUG: reward of crash is " + str(reward))
-                    rewards[-1] += reward
-                else:
-                    print("DEBUG: crash but no world sdf")
-            flag = 1
-        
-        print("DEBUG: this turn actions is " + str(actions))
-        print("DEBUG: this turn rewards is " + str(rewards))
-        # 在回合结束后执行反向传播
-        for state_vec, action, reward in zip(states, actions, rewards):
-            policy, value = model(state_vec)
-            advantage = torch.tensor(reward + gamma * value.item() - value.item())
-            critic_loss = advantage.pow(2)
-            actor_loss = -torch.log(policy[action]) * advantage
+                crash_occurred = True
+                print(f"DEBUG: crash rewards: {i}")
+                print(f"DEBUG: {self.crash_rewards}")
 
-            loss = actor_loss + critic_loss
+            # 计算增加的覆盖率
+            total_line = self.cov_new.get_total_line()
+            if total_line != 0:
+                coverage_increase = diff.new_line / total_line 
+            else:
+                coverage_increase = 0
+            print(f"Diff coverage increase: {coverage_increase}")
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        if flag == 0:
-            return None
-        else:
-            return diff 
+            
+            # return diff
+        print("DEBUG: now crash occurred is ", crash_occurred)
+        # next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), initial_coverage, sequence_history)
+        # 计算激励
+        reward = calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager)
+        print("DEBUG: train begin")
+        # 反向传播和优化
+        _, value = model(torch.FloatTensor(state.to_vector()).unsqueeze(0))
+        advantage = reward - value.item()  # 计算优势
+        actor_loss = -sum(action_log_probs) * advantage
+        critic_loss = advantage ** 2
+        loss = actor_loss + critic_loss
+        loss.backward()
+        optimizer.step()
+        print("DEBUG: train end")
+        # 将当前序列添加到历史
+        sequence_manager.add_sequence(action_sequence)
+        with open(f"{self.directory}/action.txt", 'a', encoding='utf-8') as file:
+            file.write(str(action_sequence) + '\n')
+        return reward
+
 
     # 复制随机的sdf文件
     def copy_random_sdf(self):
@@ -1297,14 +1269,18 @@ class SmithUnit:
 
     # 添加随机模型
     def func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False)
+        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False, False)
 
-    # 以true调用helper_func_add_random_model
-    def func_add_mined_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, True)
+    # 添加带扰动的随机模型
+    def func_add_random_model_xml(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False, True)
+    
+    # 添加带有plugin的不带扰动的随机模型
+    def fund_add_random_model_with_plugin(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, True, False)
 
     # 添加模型
-    def helper_func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False):
+    def helper_func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
         # def create_model(world, name, x, y, z, sdf_content=None):
 
         scene, reserved_models = self.get_scene()
@@ -1322,11 +1298,13 @@ class SmithUnit:
                 sdf_content = root.to_string().encode("utf-8")
             else:
                 sdf_content = self.plugin_miner.random_model_with_root()
-        
-        new_sdf = perturb_xml(str(sdf_content))
-        if new_sdf is not None:
-            request.sdf = new_sdf
-            # print("!!!DEBUG: add model request change success")
+        if xml_random is True:
+            new_sdf = perturb_xml(str(sdf_content))
+            if new_sdf is not None:
+                request.sdf = new_sdf
+                # print("!!!DEBUG: add model request change success")
+            else:
+                request.sdf = sdf_content
         else:
             request.sdf = sdf_content
         request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
@@ -1367,8 +1345,14 @@ class SmithUnit:
         result, response = node.request(service_name, request, Empty, Scene, self.timeout)
         return response, reserved_models
 
-    # 随机给模型添加组件
     def func_add_random_plugin_to_model(self):
+        return self.helper_func_add_random_plugin_to_model(False)
+    
+    def func_add_random_plugin_to_model_xml(self):
+        return self.helper_func_add_random_plugin_to_model(True)
+
+    # 随机给模型添加组件
+    def helper_func_add_random_plugin_to_model(self, random_xml = False):
         # print("DEBUG: begin func_add_random_plugin_to_model")
         # 0. get world name
         try:
@@ -1401,29 +1385,17 @@ class SmithUnit:
         plugin_pb.filename = filename
         # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
         plugin_pb.name = name
-        new_innerxml = perturb_xml(str(innerxml))
-        if(new_innerxml is not None) :
-            print("DEBUG: change plugin success")
-            plugin_pb.innerxml = new_innerxml
+        if random_xml is True:
+            new_innerxml = perturb_xml(str(innerxml))
+            if(new_innerxml is not None) :
+                print("DEBUG: change plugin success")
+                plugin_pb.innerxml = new_innerxml
+            else:
+                plugin_pb.innerxml = innerxml
         else:
             plugin_pb.innerxml = innerxml
         entity_plugin_pb.entity.id = model_id
         entity_plugin_pb.plugins.append(plugin_pb)
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG: plugin_pb name is %s" %(plugin_pb.name))
-        # print("!!!DEBUG: old plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
-
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG entity_pulgin_pb begin")
-        # print(type(entity_plugin_pb))
-        # print("!!!DEBUG entity_pulgin_pb end")
-
-        # new_request = perturb_protobuf_like_text(str(entity_plugin_pb))
-        # if new_request is not None :
-        #     entity_plugin_pb = new_request
-        #     print("DEBUG: new_request success")
-        
-        # print("!!!DEBUG: new plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
 
         # 3. generate gz command
         service_name = f"/world/{world_name}/entity/system/add"
@@ -1593,24 +1565,54 @@ class SmithUnit:
             return None
             # return "", None, None
 
-    # def init_train_gz(self):
-    #     # 1. 运行 gz sim a.sdf
-    #     gz_sim = f"gz sim {self.directory}/{self.sdf_name} --seed {self.seed} -v 0 -r -s --headless-rendering"
-    #     print("DEBUG: before subprocess gz sim")
-    #     try:
-    #         process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-    #     except:
-    #         print("DEBUG: subprocess launch gz error")
-    #         return None
-    #     process_status = psutil.Process(process.pid)
-    #     time.sleep(5)
-
-    #     try:
-    #         result, response = self.get_world()
-    #         self.world_name = response.data[0]
-    #     except:
-    #         print("DEBUG: gz process not alive")
-    #         return None
+# 用DQN方法实现强化学习优化sdf文件选择
+# class DQNSdfAgent:
+#     def __init__(self, num_files, state_size):
+#         self.num_files = num_files
+#         self.state_size = state_size
+#         self.memory = deque(maxlen=2000)
+#         self.gamma = 0.95  # 折扣因子
+#         self.epsilon = 1.0  # 探索率
+#         self.epsilon_min = 0.01
+#         self.epsilon_decay = 0.995
+#         self.learning_rate = 0.001
+#         self.model = self._build_model()
+# 
+#     def _build_model(self):
+#         # 构建神经网络模型
+#         model = Sequential()
+#         model.add(Dense(24, input_dim=self.state_size, activation='relu'))
+#         model.add(Dense(24, activation='relu'))
+#         model.add(Dense(self.num_files, activation='linear'))
+#         model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+#         return model
+# 
+#     def remember(self, state, action, reward, next_state, done):
+#         self.memory.append((state, action, reward, next_state, done))
+# 
+#     def act(self, state):
+#         if np.random.rand() <= self.epsilon:
+#             return random.randrange(self.num_files)
+#         act_values = self.model.predict(state)
+#         return np.argmax(act_values[0])
+# 
+#     def replay(self, batch_size):
+#         minibatch = random.sample(self.memory, batch_size)
+#         for state, action, reward, next_state, done in minibatch:
+#             target = reward
+#             if not done:
+#                 target = (reward + self.gamma *
+#                         np.amax(self.model.predict(next_state)[0]))
+#             target_f = self.model.predict(state)
+#             target_f[0][action] = target
+#             self.model.fit(state, target_f, epochs=1, verbose=0)
+#         if self.epsilon > self.epsilon_min:
+#             self.epsilon *= self.epsilon_decay
+# 
+# 获取sdf的状态
+# def get_sdf_initial_state():
+#     # 初始化状态
+#     return np.zeros((1, state_size))  # 根据你的状态特征定义
 
 def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
@@ -1621,6 +1623,9 @@ if __name__ == "__main__":
     exp_dir = "/tmp/exp"
     if not os.path.exists(exp_dir):
         os.mkdir(exp_dir)
+    print("DEBUG: clean cov")
+    os.system('/home/liyitao/workspace/rezilla-modelsmith-fb63e64b5fab/cleanup.sh')
+
     logging.basicConfig(level=logging.DEBUG, filename='/tmp/exp/log', filemode='a')
     logging.config.dictConfig({
         'version': 1,
@@ -1664,26 +1669,50 @@ if __name__ == "__main__":
 
     start = datetime.now().timestamp()
     stop = False
+
+    # 初始化环境和模型
+    state_dim = 4  # 状态维度
+    action_dim = 9  # 动作维度
+    model = ActorCriticNetwork(state_dim, action_dim)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # 创建序列管理器
+    sequence_manager = SequenceManager()
     mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
-    diversity = SdfDiversity("./models")
+    initial_coverage = 0.0
+    # diversity = SdfDiversity("./models")
     crashes = set()
     i = 0
+
+    state_size = 1
+    # sdf_agent = DQNSdfAgent(num_files = 307, state_size = state_size)
+
+    total_reward = 0
     while not stop:
         now = datetime.now().timestamp()
-        if now - start >= 60 * 60 * 10:
+        if now - start >= 60 * 60 * 24:
             stop = True
-        print("!!!DEBUG: now reward is " + str(sum_reward))
+        print("!!!DEBUG: now reward is " + str(total_reward))
         exp_dir = f"{options.directory}_{i}"
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, mab, diversity, crashes) # bandits)
+
+        # sdf_state = get_sdf_initial_state()
+
         # unit.create_sdf()
+        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, mab, diversity, crashes) # bandits)
         unit.copy_random_sdf()
+        state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
+
+        
         print("DEBUG: before generate_and_test_commands")
         print("id = " + str(i))
         unit.cov_old.collect()
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
-        diff = unit.generate_and_test_commands()
+        reward = unit.generate_and_test_commands_train(state, sequence_manager, model, optimizer)
+        # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
+        total_reward += reward
+        print("DEBUG: now total reward is ", total_reward)
         i += 1
         # very dirty, just try it for now
         subprocess.run("pkill -9 ruby", shell=True)
+        
     print("End of servicesmith.py")
 
