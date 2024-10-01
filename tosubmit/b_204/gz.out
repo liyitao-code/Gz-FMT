@@ -1,0 +1,26 @@
+Stack trace (most recent call last):
+#22   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#21   Object "gz sim b_204/a.sdf -v 0 -r -s --headless-rendering", at 0x55ec760321c4, in _start
+#20   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f03e0629e3f, in __libc_start_main
+#19   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f03e0629d8f, in 
+#18   Object "gz sim b_204/a.sdf -v 0 -r -s --headless-rendering", at 0x55ec7603217e, in 
+#17   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0aa8e19, in ruby_run_node
+#16   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0aa5317, in 
+#15   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0c3a30c, in rb_vm_exec
+#14   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0c34c96, in 
+#13   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0c31fc5, in 
+#12   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0c2fc34, in 
+#11   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f03e0da844b, in 
+#10   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f03e0bfd088, in rb_nogvl
+#9    Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f03e0da7d6b, in 
+#8    Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f03e0d82492, in 
+#7    Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f03e0d85e2d, in 
+#6    Object "/data/play/robot/workspace/install/lib/libgz-sim8-gz.so.8.1.0", at 0x7f03e08a635d, in runServer
+#5    Object "/data/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f03db615dd9, in 
+#4    Object "/data/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f03db628782, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#3    Object "/data/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f03db627e60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#2    Object "/data/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f03db61f739, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#1    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-logicalaudiosensorplugin-system.so", at 0x7f03cc1b8b91, in gz::sim::v8::systems::LogicalAudioSensorPlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#0    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-logicalaudiosensorplugin-system.so", at 0x7f03cc1b8a84, in gz::sim::v8::systems::LogicalAudioSensorPluginPrivate::DurationExceeded(gz::sim::v8::UpdateInfo const&, gz::sim::v8::logical_audio::SourcePlayInfo const&)
+Segmentation fault (Address not mapped to object [0x10])
+Segmentation fault (core dumped)

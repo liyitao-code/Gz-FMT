@@ -1,0 +1,19 @@
+Stack trace (most recent call last) in thread 253348:
+#16   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#15   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7926d232684f, in 
+#14   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7926d2294ac2, in 
+#13   Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7926ce0dc252, in 
+#12   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb3ae99, in 
+#11   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb3aed9, in 
+#10   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb3af4d, in 
+#9    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb3b01f, in 
+#8    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb3b0b7, in 
+#7    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7926cbb2b247, in 
+#6    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-tracked-vehicle-system.so", at 0x79267d3ae312, in gz::sim::v8::systems::TrackedVehicle::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+#5    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-tracked-vehicle-system.so", at 0x79267d3afb7f, in gz::sim::v8::systems::TrackedVehiclePrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+#4    Object "/home/ren/play/robot/workspace/install/lib/libgz-math7.so.7", at 0x7926c62558e9, in gz::math::v7::SpeedLimiter::Limit(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+#3    Object "/home/ren/play/robot/workspace/install/lib/libgz-math7.so.7", at 0x7926c6255e0e, in gz::math::v7::SpeedLimiter::LimitJerk(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+#2    Object "/home/ren/play/robot/workspace/install/lib/libgz-math7.so.7", at 0x7926c6256341, in std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::operator->() const
+#1    Object "/home/ren/play/robot/workspace/install/lib/libgz-math7.so.7", at 0x7926c6256531, in std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::get() const
+#0    Object "/home/ren/play/robot/workspace/install/lib/libgz-math7.so.7", at 0x7926c6256680, in std::__uniq_ptr_impl<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::_M_ptr() const
+Segmentation fault (Address not mapped to object [(nil)])

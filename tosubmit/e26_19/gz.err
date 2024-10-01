@@ -1,0 +1,32 @@
+Stack trace (most recent call last):
+#29   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#28   Object "gz sim ../e26_19/a.sdf --seed 1720359200 -v 0 -r -s --headless-rendering", at 0x5576d4b991c4, in _start
+#27   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f3bd2e3de3f, in __libc_start_main
+#26   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f3bd2e3dd8f, in 
+#25   Object "gz sim ../e26_19/a.sdf --seed 1720359200 -v 0 -r -s --headless-rendering", at 0x5576d4b9917e, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd30e5e19, in ruby_run_node
+#23   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd30e2317, in 
+#22   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd327733c, in rb_vm_exec
+#21   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd3271cc6, in 
+#20   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd326eff5, in 
+#19   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd326cc64, in 
+#18   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f3bcee1a44b, in 
+#17   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f3bd323a0b8, in rb_nogvl
+#16   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f3bcee19d6b, in 
+#15   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f3bcee0b492, in 
+#14   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f3bcee0ee2d, in 
+#13   Object "/data/play/robot/workspace/install/lib/libgz-sim8-gz.so.8.5.0", at 0x7f3bce162d7d, in runServer
+#12   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc872fee, in gz::sim::v8::Server::Run(bool, unsigned long, bool)
+#11   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc89ea63, in 
+#10   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc8cf740, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#9    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc8d055e, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#8    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc8cc8e6, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#7    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-lift-drag-system.so", at 0x7f3b8f6fd8a1, in gz::sim::v8::systems::LiftDrag::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#6    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-lift-drag-system.so", at 0x7f3b8f6f7e5e, in gz::sim::v8::systems::LiftDragPrivate::Load(gz::sim::v8::EntityComponentManager const&, std::shared_ptr<sdf::v14::Element> const&)
+#5    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc6f4b08, in std::pair<double, bool> sdf::v14::Element::Get<double>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, double const&) const
+#4    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7f3bcc6ff46e, in std::pair<double, bool> sdf::v14::Element::Get<double>(std::vector<sdf::v14::Error, std::allocator<sdf::v14::Error> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, double const&) const
+#3    Object "/home/ren/play/robot/workspace/install/lib/libsdformat14.so.14", at 0x7f3bca5c6daa, in sdf::v14::Element::GetAttribute(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+#2    Object "/home/ren/play/robot/workspace/install/lib/libsdformat14.so.14", at 0x7f3bca514c63, in 
+#1    Object "/home/ren/play/robot/workspace/install/lib/libsdformat14.so.14", at 0x7f3bca5229bb, in 
+#0    Object "/home/ren/play/robot/workspace/install/lib/libsdformat14.so.14", at 0x7f3bca52ad9e, in 
+Segmentation fault (Address not mapped to object [0x18])

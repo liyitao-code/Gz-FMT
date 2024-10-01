@@ -1,0 +1,203 @@
+[Msg] Gazebo Sim GUI    v8.6.0
+[Dbg] [gz.cc:166] Subscribing to [/gazebo/starting_world].
+[Dbg] [gz.cc:168] Waiting for a world to be set from the GUI...
+[Dbg] [Gui.cc:275] Waiting for subscribers to [/gazebo/starting_world]...
+[Msg] Received world [a.txt] from the GUI.
+[Dbg] [gz.cc:172] Unsubscribing from [/gazebo/starting_world].
+[Msg] Gazebo Sim Server v8.6.0
+[Msg] Loading SDF world file[/data/play/robot/modelsmith/tosubmit/tactile_sensor/a.txt].
+[Dbg] [Application.cc:96] Initializing application.
+[Dbg] [Application.cc:170] Qt using OpenGL graphics interface
+[GUI] [Dbg] [Application.cc:657] Create main window
+[Msg] Serving entity system service on [/entity/system/add]
+[GUI] [Dbg] [PathManager.cc:68] Requesting resource paths through [/gazebo/resource_paths/get]
+[Dbg] [Physics.cc:870] Loaded [gz::physics::dartsim::Plugin] from library [/data/play/robot/workspace/install/lib/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so]
+[Dbg] [SystemManager.cc:80] Loaded system [gz::sim::systems::Physics] for entity [1]
+[Dbg] [SystemManager.cc:80] Loaded system [gz::sim::systems::Contact] for entity [1]
+[Dbg] [Sensors.cc:530] Configuring Sensors system
+[Dbg] [Sensors.cc:449] SensorsPrivate::Run
+[Dbg] [SystemManager.cc:80] Loaded system [gz::sim::systems::Sensors] for entity [1]
+[Dbg] [Sensors.cc:425] SensorsPrivate::RenderThread started
+[Dbg] [Sensors.cc:265] Waiting for init
+[Msg] Topic publishing normal forces [/optical_tactile_sensor/normal_forces]
+[Msg] Service to enable tactile sensor [/optical_tactile_sensor/enable]
+[Dbg] [SystemManager.cc:80] Loaded system [gz::sim::systems::OpticalTactilePlugin] for entity [8]
+[Msg] Loaded level [default]
+[Msg] Serving world controls on [/world/optical_tactile_plugin/control], [/world/optical_tactile_plugin/control/state] and [/world/optical_tactile_plugin/playback/control]
+[Msg] Serving GUI information on [/world/optical_tactile_plugin/gui/info]
+[Msg] World [optical_tactile_plugin] initialized with [fast] physics profile.
+[Msg] Serving world SDF generation service on [/world/optical_tactile_plugin/generate_world_sdf]
+[Msg] Serving world names on [/gazebo/worlds]
+[Msg] Resource path add service on [/gazebo/resource_paths/add].
+[Msg] Resource path get service on [/gazebo/resource_paths/get].
+[Msg] Resource path resolve service on [/gazebo/resource_paths/resolve].
+[Msg] Resource paths published on [/gazebo/resource_paths].
+[Msg] Server control service on [/server_control].
+[GUI] [Dbg] [Gui.cc:355] GUI requesting list of world names. The server may be busy downloading resources. Please be patient.
+[GUI] [Dbg] [PathManager.cc:57] Received resource paths.
+[GUI] [Dbg] [Gui.cc:413] Requesting GUI from [/world/optical_tactile_plugin/gui/info]...
+[GUI] [Dbg] [GuiRunner.cc:149] Requesting initial state from [/world/optical_tactile_plugin/state]...
+[GUI] [Msg] Loading config [/home/ren/.gz/sim/8/gui.config]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [MinimalScene]
+[GUI] [Dbg] [MinimalScene.cc:802] Creating gz-rendering interface for OpenGL
+[GUI] [Dbg] [MinimalScene.cc:802] Creating gz-rendering interface for OpenGL
+[GUI] [Dbg] [MinimalScene.cc:986] Creating render thread interface for OpenGL
+[GUI] [Dbg] [MinimalScene.cc:802] Creating gz-rendering interface for OpenGL
+[GUI] [Dbg] [MinimalScene.cc:986] Creating render thread interface for OpenGL
+[GUI] [Msg] Added plugin [3D View] to main window
+[GUI] [Msg] Loaded plugin [MinimalScene] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libMinimalScene.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [EntityContextMenuPlugin]
+[GUI] [Msg] Currently tracking topic on [/gui/currently_tracked]
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Msg] Added plugin [Entity Context Menu] to main window
+[GUI] [Msg] Loaded plugin [EntityContextMenuPlugin] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libEntityContextMenuPlugin.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [GzSceneManager]
+[GUI] [Msg] Added plugin [Scene Manager] to main window
+[GUI] [Msg] Loaded plugin [GzSceneManager] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libGzSceneManager.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [InteractiveViewControl]
+[GUI] [Msg] Camera view controller topic advertised on [/gui/camera/view_control]
+[GUI] [Msg] Camera reference visual topic advertised on [/gui/camera/view_control/reference_visual]
+[GUI] [Msg] Camera view control sensitivity advertised on [/gui/camera/view_control/sensitivity]
+[GUI] [Msg] Added plugin [Interactive view control] to main window
+[GUI] [Msg] Loaded plugin [InteractiveViewControl] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libInteractiveViewControl.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [CameraTracking]
+[GUI] [Msg] Added plugin [Camera tracking] to main window
+[GUI] [Msg] Loaded plugin [CameraTracking] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libCameraTracking.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [MarkerManager]
+[GUI] [Msg] Listening to stats on [/world/optical_tactile_plugin/stats]
+[GUI] [Msg] Added plugin [Marker Manager] to main window
+[GUI] [Msg] Loaded plugin [MarkerManager] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libMarkerManager.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [SelectEntities]
+[GUI] [Msg] Added plugin [Select entities] to main window
+[GUI] [Msg] Loaded plugin [SelectEntities] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libSelectEntities.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [Spawn]
+[GUI] [Msg] Added plugin [Spawn] to main window
+[GUI] [Msg] Loaded plugin [Spawn] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libSpawn.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [VisualizationCapabilities]
+[GUI] [Msg] View as transparent service on [/gui/view/transparent]
+[GUI] [Msg] View as wireframes service on [/gui/view/wireframes]
+[GUI] [Msg] View center of mass service on [/gui/view/com]
+[GUI] [Msg] View inertia service on [/gui/view/inertia]
+[GUI] [Msg] View collisions service on [/gui/view/collisions]
+[GUI] [Msg] View joints service on [/gui/view/joints]
+[GUI] [Msg] View frames service on [/gui/view/frames]
+[GUI] [Msg] Added plugin [Visualization capabilities] to main window
+[GUI] [Msg] Loaded plugin [VisualizationCapabilities] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libVisualizationCapabilities.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [WorldControl]
+[GUI] [Msg] Using world control service [/world/optical_tactile_plugin/control]
+[GUI] [Msg] Listening to stats on [/world/optical_tactile_plugin/stats]
+[GUI] [Dbg] [WorldControl.cc:237] Using an event to share WorldControl msgs with the server
+[GUI] [Msg] Added plugin [World control] to main window
+[GUI] [Msg] Loaded plugin [WorldControl] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libWorldControl.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [WorldStats]
+[GUI] [Msg] Listening to stats on [/world/optical_tactile_plugin/stats]
+[GUI] [Msg] Added plugin [World stats] to main window
+[GUI] [Msg] Loaded plugin [WorldStats] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libWorldStats.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [Shapes]
+[GUI] [Msg] Added plugin [Shapes] to main window
+[GUI] [Msg] Loaded plugin [Shapes] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libShapes.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [Lights]
+[GUI] [Msg] Added plugin [Lights] to main window
+[GUI] [Msg] Loaded plugin [Lights] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libLights.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [TransformControl]
+[GUI] [Msg] Added plugin [Transform control] to main window
+[GUI] [Msg] Loaded plugin [TransformControl] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libTransformControl.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [Screenshot]
+[GUI] [Msg] Screenshot service on [/gui/screenshot]
+[GUI] [Msg] Added plugin [Screenshot] to main window
+[GUI] [Msg] Loaded plugin [Screenshot] from path [/data/play/robot/workspace/install/lib/gz-gui-8/plugins/libScreenshot.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [CopyPaste]
+[GUI] [Msg] Added plugin [Copy/Paste] to main window
+[GUI] [Msg] Loaded plugin [CopyPaste] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libCopyPaste.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [ComponentInspector]
+[GUI] [Msg] Added plugin [Component inspector] to main window
+[GUI] [Msg] Loaded plugin [ComponentInspector] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libComponentInspector.so]
+[GUI] [Dbg] [Application.cc:528] Loading plugin [EntityTree]
+[GUI] [Msg] Currently tracking topic on [/gui/currently_tracked]
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityTree/EntityTree.qml:148:7: QML ToolButton: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Msg] Added plugin [Entity tree] to main window
+[GUI] [Msg] Loaded plugin [EntityTree] from path [/data/play/robot/workspace/install/lib/gz-sim-8/plugins/gui/libEntityTree.so]
+[GUI] [Dbg] [Application.cc:398] Loading window config
+[GUI] [Msg] Using server control service [/server_control]
+[GUI] [Dbg] [Application.cc:671] Applying config
+[GUI] [Wrn] [Application.cc:908] [QT] file::/WorldStats/WorldStats.qml:53:3: QML RowLayout: Binding loop detected for property "x"
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:52:3: QML RenderWindowOverlay: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Wrn] [Application.cc:908] [QT] file::/EntityContextMenuPlugin/EntityContextMenuPlugin.qml:67:3: QML EntityContextMenu: Detected anchors on an item that is managed by a layout. This is undefined behavior; use Layout.alignment instead.
+[GUI] [Dbg] [MinimalScene.cc:802] Creating gz-rendering interface for OpenGL
+[GUI] [Dbg] [MinimalScene.cc:986] Creating render thread interface for OpenGL
+[GUI] [Msg] Loading plugin [gz-rendering-ogre2]
+[GUI] [Dbg] [MinimalScene.cc:749] Create scene [scene]
+[GUI] [Dbg] [MinimalScene.cc:1037] Creating texture node render interface for OpenGL
+[GUI] [Dbg] [TransformControl.cc:453] TransformControl plugin is using camera [scene::Camera(65527)]
+[GUI] [Dbg] [Spawn.cc:308] Spawn plugin is using camera [scene::Camera(65527)]
+[GUI] [Dbg] [SelectEntities.cc:452] SelectEntities plugin is using camera [scene::Camera(65527)]
+[GUI] [Dbg] [MarkerManager.cc:169] Advertise /marker/list service.
+[GUI] [Dbg] [MarkerManager.cc:179] Advertise /marker/list.
+[GUI] [Dbg] [MarkerManager.cc:189] Advertise /marker_array.
+[GUI] [Dbg] [CameraTracking.cc:205] CameraTrackingPrivate plugin is moving camera [scene::Camera(65527)]
+[GUI] [Msg] Move to service on [/gui/move_to]
+[GUI] [Msg] Follow service on [/gui/follow] (deprecated)
+[GUI] [Msg] Tracking topic on [/gui/track]
+[GUI] [Msg] Tracking status topic on [/gui/currently_tracked]
+[GUI] [Msg] Move to pose service on [/gui/move_to/pose]
+[GUI] [Msg] Camera pose topic advertised on [/gui/camera/pose]
+[GUI] [Msg] Follow offset service on [/gui/follow/offset] (deprecated)
+[GUI] [Dbg] [InteractiveViewControl.cc:176] InteractiveViewControl plugin is moving camera [scene::Camera(65527)]
+[GUI] [Dbg] [EntityContextMenuPlugin.cc:79] Entity context menu plugin is using camera [scene::Camera(65527)]
+[Msg] Found no publishers on /stats, adding root stats topic
+[Msg] Found no publishers on /clock, adding root clock topic
+[Dbg] [SimulationRunner.cc:533] Creating PostUpdate worker threads: 4
+[Dbg] [SimulationRunner.cc:544] Creating postupdate worker thread (0)
+[Dbg] [SimulationRunner.cc:544] Creating postupdate worker thread (1)
+[Dbg] [SimulationRunner.cc:544] Creating postupdate worker thread (2)
+[Msg] Contact system publishing on world/optical_tactile_plugin/model/tactile_sensor/link/contact_surface/sensor/contact_sensor/contact
+[Dbg] [Sensors.cc:703] Initialization needed
+[Dbg] [Sensors.cc:277] Initializing render context
+[Msg] Loading plugin [gz-rendering-ogre2]
+[Dbg] [RenderUtil.cc:2643] Create scene [scene]
+[Dbg] [Sensors.cc:297] Rendering Thread initialized
+[Dbg] [Sensors.cc:703] Initialization needed
+[Dbg] [DepthCameraSensor.cc:283] Depth images for [tactile_sensor::contact_surface::depth_camera] advertised on [depth_camera]
+[Dbg] [CameraSensor.cc:688] Camera info for [tactile_sensor::contact_surface::depth_camera] advertised on [/camera_info]
+[Dbg] [DepthCameraSensor.cc:311] Points for [tactile_sensor::contact_surface::depth_camera] advertised on [depth_camera/points]
+Stack trace (most recent call last) in thread 10577:
+#23   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in
+#22   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f3c288a484f, in
+#21   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f3c28812ac2, in
+#20   Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7f3c2454f252, in
+#19   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1ef19e3d, in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> > >::_M_run()
+#18   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1ef19f4d, in std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> >::operator()()
+#17   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1ef1a232, in void std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> >::_M_invoke<0ul, 1ul>(std::_Index_tuple<0ul, 1ul>)
+#16   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1ef1a7d2, in std::__invoke_result<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>::type std::__invoke<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+#15   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1ef1acc2, in void std::__invoke_impl<void, void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(std::__invoke_memfun_deref, void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+#14   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1eeafe5c, in gz::transport::v13::NodeShared::RunReceptionTask()
+#13   Object "/home/ren/play/robot/workspace/install/lib/libgz-transport13.so.13", at 0x7f3c1eeb4709, in gz::transport::v13::NodeShared::RecvSrvRequest()
+#12   Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3db75e4, in gz::transport::v13::RepHandler<gz::msgs::Boolean, gz::msgs::Empty>::RunCallback(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)
+#11   Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3dbb9b2, in std::function<bool (gz::msgs::Boolean const&, gz::msgs::Empty&)>::operator()(gz::msgs::Boolean const&, gz::msgs::Empty&) const
+#10   Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d5973f, in std::_Function_handler<bool (gz::msgs::Boolean const&, gz::msgs::Empty&), gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}>::_M_invoke(std::_Any_data const&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+#9    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d6999d, in std::enable_if<is_invocable_r_v<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>, bool>::type std::__invoke_r<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>(gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+#8    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d75d81, in bool std::__invoke_impl<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>(std::__invoke_other, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+#7    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d3fa2e, in gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}::operator()(gz::msgs::Boolean const&, gz::msgs::Empty&) const
+#6    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d48cf7, in void std::_Bind<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*(gz::sim::v8::systems::OpticalTactilePluginPrivate*, std::_Placeholder<1>))(gz::msgs::Boolean const&)>::operator()<gz::msgs::Boolean const&, void>(gz::msgs::Boolean const&)
+#5    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d595a3, in void std::_Bind<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*(gz::sim::v8::systems::OpticalTactilePluginPrivate*, std::_Placeholder<1>))(gz::msgs::Boolean const&)>::__call<void, gz::msgs::Boolean const&, 0ul, 1ul>(std::tuple<gz::msgs::Boolean const&>&&, std::_Index_tuple<0ul, 1ul>)
+#4    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d69789, in std::__invoke_result<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>::type std::__invoke<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>(void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&)
+#3    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d75c63, in void std::__invoke_impl<void, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>(std::__invoke_memfun_deref, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&)
+#2    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3d255e2, in gz::sim::v8::systems::OpticalTactilePluginPrivate::Enable(gz::msgs::Boolean const&)
+#1    Object "/data/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7f3be3dd4c71, in gz::sim::v8::systems::optical_tactile_sensor::OpticalTactilePluginVisualization::RemoveNormalForcesAndContactsMarkers()
+#0    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7f3c245c1d85, in std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > std::operator+<char, std::char_traits<char>, std::allocator<char> >(char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+Segmentation fault (Address not mapped to object [0x18])
+[GUI] [Dbg] [SignalHandler.cc:142] Received signal[2].
+[GUI] [Dbg] [Gui.cc:535] Shutting down gz-sim-gui
+[GUI] [Dbg] [Application.cc:237] Terminating application.
+[GUI] [Dbg] [MinimalScene.cc:841] Destroy scene [scene]

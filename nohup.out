@@ -1,0 +1,153 @@
+WARNING (pytensor.tensor.blas): Using NumPy C-API based implementation for BLAS functions.
+rm: 无法删除 'gcov/*.json.gz': 没有那个文件或目录
+DEBUG: clean cov
+12345
+!!!DEBUG: now reward is 0
+DEBUG: before generate_and_test_commands
+id = 0
+DEBUG: action sequence is [0, 4, 1, 1, 5, 2, 2, 5, 3, 2]
+DEBUG: before cov
+DEBUG: before subprocess gz sim
+DEBUG: before loop gz commands
+DEBUG: before command range
+func_add_random_model
+Node: <lower>
+Original: -inf
+Mutated: bDlb
+DEBUG: before execute command 0
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 0
+func_random_topic
+DEBUG: before execute command 1
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 1
+func_add_random_plugin_to_model
+world_name: test_world
+Node: <right_joint>
+Original: front_right_wheel_joint
+Mutated: xGkab6mwi3hLTIhfa0D7VoM
+DEBUG: change plugin success
+DEBUG: gz_command :gz service --timeout 10000 -s /world/test_world/entity/system/add --reptype gz.msgs.Boolean --reqtype gz.msgs.EntityPlugin_V --req 'entity {
+  id: 4
+}
+plugins {
+  name: "gz::sim::systems::DiffDrive"
+  filename: "gz-sim-diff-drive-system"
+  innerxml: "<left_joint>front_left_wheel_joint</left_joint>\n        \n<left_joint>rear_left_wheel_joint</left_joint>\n        \n<right_joint>xGkab6mwi3hLTIhfa0D7VoM</right_joint>\n        \n<right_joint>rear_right_wheel_joint</right_joint>\n        \n<wheel_separation>1.25</wheel_separation>\n        \n<wheel_radius>0.3</wheel_radius>\n        \n<topic>cmd_vel</topic>"
+}
+'
+DEBUG: before execute command 2
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 2
+func_add_random_plugin_to_model
+world_name: test_world
+Node: <output>
+Original: data: 1.0
+Mutated: 10.0
+DEBUG: change plugin success
+DEBUG: gz_command :gz service --timeout 10000 -s /world/test_world/entity/system/add --reptype gz.msgs.Boolean --reqtype gz.msgs.EntityPlugin_V --req 'entity {
+  id: 4
+}
+plugins {
+  name: "gz::sim::systems::TriggeredPublisher"
+  filename: "gz-sim-triggered-publisher-system"
+  innerxml: "<input type=\"gz.msgs.Int32\" topic=\"/keyboard/keypress\">\n                    <match field=\"data\">87</match>\n                </input>\n                \n<output type=\"gz.msgs.Double\" topic=\"/model/conveyor/link/base_link/track_cmd_vel\">10.0</output>"
+}
+'
+DEBUG: before execute command 3
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 3
+func_random_pose
+DEBUG: before execute command 4
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 4
+func_remove_random_model
+world_name: test_world
+DEBUG: before execute command 5
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 5
+func_remove_random_model
+world_name: test_world
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 6
+func_random_pose
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 7
+func_random_service
+DEBUG: got here 
+['/server_control'] /server_control
+DEBUG: should not be here
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 8
+func_remove_random_model
+world_name: test_world
+DEBUG: before dump_sdf
+DEBUG: before
+DEBUG: before dump world 9
+DEBUG: before psutil
+DEBUG: before process.terminate
+DEBUG: before process.wait
+DEBUG: after process.wait
+DEBUG: before coverage
+Diff new line: 0, new file: 0
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/psutil/_common.py", line 441, in wrapper
+    ret = self._cache[fun]
+AttributeError: 'Process' object has no attribute '_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/psutil/_pslinux.py", line 1661, in wrapper
+    return fun(self, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/psutil/_common.py", line 444, in wrapper
+    return fun(self)
+  File "/usr/lib/python3/dist-packages/psutil/_pslinux.py", line 1703, in _parse_stat_file
+    with open_binary("%s/%s/stat" % (self._procfs_path, self.pid)) as f:
+  File "/usr/lib/python3/dist-packages/psutil/_common.py", line 711, in open_binary
+    return open(fname, "rb", **kwargs)
+FileNotFoundError: [Errno 2] No such file or directory: '/proc/122864/stat'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3/dist-packages/psutil/__init__.py", line 361, in _init
+    self.create_time()
+  File "/usr/lib/python3/dist-packages/psutil/__init__.py", line 717, in create_time
+    self._create_time = self._proc.create_time()
+  File "/usr/lib/python3/dist-packages/psutil/_pslinux.py", line 1661, in wrapper
+    return fun(self, *args, **kwargs)
+  File "/usr/lib/python3/dist-packages/psutil/_pslinux.py", line 1873, in create_time
+    ctime = float(self._parse_stat_file()['create_time'])
+  File "/usr/lib/python3/dist-packages/psutil/_pslinux.py", line 1668, in wrapper
+    raise NoSuchProcess(self.pid, self._name)
+psutil.NoSuchProcess: process no longer exists (pid=122864)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/liyitao/workspace/rezilla-modelsmith-fb63e64b5fab/muti_agent_smith.py", line 1150, in generate_and_test_commands_train
+    process_status = psutil.Process(process.pid)
+  File "/usr/lib/python3/dist-packages/psutil/__init__.py", line 332, in __init__
+    self._init(pid)
+  File "/usr/lib/python3/dist-packages/psutil/__init__.py", line 373, in _init
+    raise NoSuchProcess(pid, msg='process PID not found')
+psutil.NoSuchProcess: process PID not found (pid=122864)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/liyitao/workspace/rezilla-modelsmith-fb63e64b5fab/muti_agent_smith.py", line 1615, in <module>
+    reward = unit.generate_and_test_commands_train(state, sequence_manager, model, optimizer)
+  File "/home/liyitao/workspace/rezilla-modelsmith-fb63e64b5fab/muti_agent_smith.py", line 1185, in generate_and_test_commands_train
+    coverage_increase = diff.new_line / self.cov_new.get_total_line()
+ZeroDivisionError: division by zero

@@ -1,0 +1,991 @@
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+      <background_color>1.0 1.0 1.0</background_color>
+    </plugin>
+
+<plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
+    </plugin>
+
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+        </plugin>
+
+<plugin filename="gz-sim-logical-camera-system" name="gz::sim::systems::LogicalCamera">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+<plugin filename="gz-sim-triggered-publisher-system" name="gz::sim::systems::TriggeredPublisher">
+      <input type="gz.msgs.Empty" topic="/reset_robot" />
+      <output type="gz.msgs.Twist" topic="/cmd_vel">
+          linear: {x: 0}
+      </output>
+      <service name="/world/triggered_publisher/set_pose" reqType="gz.msgs.Pose" repType="gz.msgs.Boolean" timeout="3000" reqMsg="name: 'vehicle_blue', position: {x: -3, z: 0.325}">
+      </service>
+    </plugin>
+
+<plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact">
+    </plugin>
+
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+<plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat">
+    </plugin>
+
+<plugin name="gz::sim::systems::Physics" filename="gz-sim-physics-system" />
+
+<plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
+        </plugin>
+
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+<plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <graded_buoyancy>
+        <default_density>1000</default_density>
+        <density_change>
+          <above_depth>0</above_depth>
+          <density>1</density>
+        </density_change>
+      </graded_buoyancy>
+
+      
+      <enable>lighter_than_water::ball::body</enable>
+
+      
+      <enable>lighter_than_water::box</enable>
+
+      
+      <enable>balloon_lighter_than_air</enable>
+      <enable>box_neutral_buoyancy</enable>
+      <enable>box_neutral_buoyancy_collision_offset</enable>
+      <enable>multi_collision_neutral_buoyancy</enable>
+      <enable>box_negative_buoyancy</enable>
+    </plugin>
+
+<plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer">
+    </plugin>
+
+<plugin name="gz::sim::systems::SceneBroadcaster" filename="gz-sim-scene-broadcaster-system" />
+
+<plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu">
+    </plugin>
+
+<plugin filename="gz-sim-triggered-publisher-system" name="gz::sim::systems::TriggeredPublisher">
+      <input type="gz.msgs.Empty" topic="/start" />
+      <output type="gz.msgs.Twist" topic="/cmd_vel">
+          linear: {x: 3}
+      </output>
+    </plugin>
+
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+    </plugin>
+
+<plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact">
+    </plugin>
+
+<plugin filename="gz-sim-collada-world-exporter-system" name="gz::sim::systems::ColladaWorldExporter">
+    </plugin>
+
+<plugin filename="gz-sim-wind-effects-system" name="gz::sim::systems::WindEffects">
+      <force_approximation_scaling_factor>1</force_approximation_scaling_factor>
+      <horizontal>
+        <magnitude>
+          <time_for_rise>10</time_for_rise>
+          <sin>
+            <amplitude_percent>0.05</amplitude_percent>
+            <period>60</period>
+          </sin>
+          <noise type="gaussian">
+           <mean>0</mean>
+           <stddev>0.0002</stddev>
+          </noise>
+        </magnitude>
+        <direction>
+          <time_for_rise>30</time_for_rise>
+          <sin>
+            <amplitude>5</amplitude>
+            <period>20</period>
+          </sin>
+          <noise type="gaussian">
+           <mean>0</mean>
+           <stddev>0.03</stddev>
+          </noise>
+        </direction>
+      </horizontal>
+      <vertical>
+        <noise type="gaussian">
+         <mean>0</mean>
+         <stddev>0.03</stddev>
+        </noise>
+      </vertical>
+    </plugin>
+
+<plugin name="gz::sim" filename="dummy">
+
+    <level name="level0">
+      <pose>20 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_1</ref>
+    </level>
+
+    <level name="level1">
+      <pose>20 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_2</ref>
+    </level>
+
+    <level name="level3">
+      <pose>20 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_4</ref>
+    </level>
+
+    <level name="level4">
+      <pose>20 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_5</ref>
+    </level>
+
+    <level name="level5">
+      <pose>40 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_6</ref>
+    </level>
+
+    <level name="level6">
+      <pose>40 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_7</ref>
+    </level>
+
+    <level name="level7">
+      <pose>40 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_8</ref>
+    </level>
+
+    <level name="level8">
+      <pose>40 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_9</ref>
+    </level>
+
+    <level name="level9">
+      <pose>40 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_10</ref>
+    </level>
+
+    <level name="level10">
+      <pose>60 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_11</ref>
+    </level>
+
+    <level name="level11">
+      <pose>60 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_12</ref>
+    </level>
+
+    <level name="level12">
+      <pose>60 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_13</ref>
+    </level>
+
+    <level name="level13">
+      <pose>60 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_14</ref>
+    </level>
+
+    <level name="level14">
+      <pose>60 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_15</ref>
+    </level>
+
+    <level name="level15">
+      <pose>80 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_16</ref>
+    </level>
+
+    <level name="level16">
+      <pose>80 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_17</ref>
+    </level>
+
+    <level name="level17">
+      <pose>80 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_18</ref>
+    </level>
+
+    <level name="level18">
+      <pose>80 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_19</ref>
+    </level>
+
+    <level name="level19">
+      <pose>80 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_20</ref>
+    </level>
+  </plugin>
+
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+    </plugin>
+
+<plugin name="gz::sim" filename="dummy">
+
+    <performer name="perf_vehicle_blue">
+      <ref>vehicle_blue</ref>
+      <geometry>
+        <box>
+          <size>2 2 2</size>
+        </box>
+      </geometry>
+    </performer>
+
+  </plugin>
+
+<plugin filename="gz-sim-acoustic-comms-system" name="gz::sim::systems::AcousticComms">
+      <max_range>6</max_range>
+      <speed_of_sound>1400</speed_of_sound>
+
+      
+      
+      <propagation_model>
+        <source_power>0.001</source_power>
+        <noise_level>150</noise_level>
+        <spectral_efficiency>7</spectral_efficiency>
+        <seed>0</seed>
+      </propagation_model>
+
+    </plugin>
+
+<plugin name="gz::sim" filename="dummy">
+
+    <performer name="perf_vehicle_red">
+      <ref>vehicle_red</ref>
+      <geometry>
+        <box>
+          <size>2 2 2</size>
+        </box>
+      </geometry>
+    </performer>
+
+    <performer name="perf_vehicle_blue">
+      <ref>vehicle_blue</ref>
+      <geometry>
+        <box>
+          <size>2 2 2</size>
+        </box>
+      </geometry>
+    </performer>
+
+
+
+    <level name="level0">
+      <pose>20 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_1</ref>
+    </level>
+
+    <level name="level1">
+      <pose>20 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_2</ref>
+    </level>
+
+    <level name="level3">
+      <pose>20 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_4</ref>
+    </level>
+
+    <level name="level4">
+      <pose>20 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_5</ref>
+    </level>
+
+    <level name="level5">
+      <pose>40 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_6</ref>
+    </level>
+
+    <level name="level6">
+      <pose>40 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_7</ref>
+    </level>
+
+    <level name="level7">
+      <pose>40 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_8</ref>
+    </level>
+
+    <level name="level8">
+      <pose>40 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_9</ref>
+    </level>
+
+    <level name="level9">
+      <pose>40 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_10</ref>
+    </level>
+
+    <level name="level10">
+      <pose>60 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_11</ref>
+    </level>
+
+    <level name="level11">
+      <pose>60 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_12</ref>
+    </level>
+
+    <level name="level12">
+      <pose>60 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_13</ref>
+    </level>
+
+    <level name="level13">
+      <pose>60 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_14</ref>
+    </level>
+
+    <level name="level14">
+      <pose>60 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_15</ref>
+    </level>
+
+    <level name="level15">
+      <pose>80 -40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_16</ref>
+    </level>
+
+    <level name="level16">
+      <pose>80 -20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_17</ref>
+    </level>
+
+    <level name="level17">
+      <pose>80 0 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_18</ref>
+    </level>
+
+    <level name="level18">
+      <pose>80 20 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_19</ref>
+    </level>
+
+    <level name="level19">
+      <pose>80 40 2.5 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>40 40 1000</size>
+        </box>
+      </geometry>
+      <ref>tile_20</ref>
+    </level>
+
+
+
+  </plugin>
+
+<plugin filename="gz-sim-forcetorque-system" name="gz::sim::systems::ForceTorque">
+    </plugin>
+
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+<plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure">
+    </plugin>
+
+<plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
+    </plugin>
+
+<plugin filename="gz-sim-acoustic-comms-system" name="gz::sim::systems::AcousticComms">
+      <max_range>6</max_range>
+      <speed_of_sound>1400</speed_of_sound>
+    </plugin>
+
+<plugin filename="gz-sim-acoustic-comms-system" name="gz::sim::systems::AcousticComms">
+      <max_range>6</max_range>
+      <speed_of_sound>1400</speed_of_sound>
+      <collision_time_per_byte>1</collision_time_per_byte>
+      <collision_time_packet_drop>0.1</collision_time_packet_drop>
+    </plugin>
+
+<plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <uniform_fluid_density>1000</uniform_fluid_density>
+    </plugin>
+
+<plugin filename="gz-sim-acoustic-comms-system" name="gz::sim::systems::AcousticComms">
+      <max_range>2500</max_range>
+      <speed_of_sound>3</speed_of_sound>
+    </plugin>
+
+<plugin filename="gz-sim-triggered-publisher-system" name="gz::sim::systems::TriggeredPublisher">
+      <input type="gz.msgs.Boolean" topic="/trigger/touched">
+        <match>data: true</match>
+      </input>
+      <output type="gz.msgs.Empty" topic="/box1/detach" />
+    </plugin>
+
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+    </plugin>
+
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+      <background_color>0.8 0.8 0.8</background_color>
+    </plugin>
+
+<plugin filename="gz-sim-log-system" name="gz::sim::systems::LogRecord">
+      <record_resources>1</record_resources>
+      <compress>0</compress>
+    </plugin>
+
+<plugin filename="gz-sim-rf-comms-system" name="gz::sim::systems::RFComms">
+      <range_config>
+        <max_range>500000.0</max_range>
+        <fading_exponent>2.6</fading_exponent>
+        <l0>40</l0>
+        <sigma>10.0</sigma>
+      </range_config>
+      <radio_config>
+        <capacity>1000000</capacity>
+        <tx_power>20</tx_power>
+        <noise_floor>-90</noise_floor>
+        <modulation>QPSK</modulation>
+      </radio_config>
+    </plugin>
+
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+        </plugin>
+
+<plugin filename="gz-sim-acoustic-comms-system" name="gz::sim::systems::AcousticComms">
+      <speed_of_sound>1400</speed_of_sound>
+    </plugin>
+
+<plugin filename="gz-sim-altimeter-system" name="gz::sim::systems::Altimeter">
+    </plugin>
+
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+    </plugin>
+
+<plugin name="gz::sim" filename="dummy">
+      <performer name="perf_x1">
+        <ref>vehicle</ref>
+        <geometry><box><size>2 2 2</size></box></geometry>
+      </performer>
+
+      <level name="level0">
+        <ref>staging_area</ref>
+        <ref>base_station</ref>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry><box><size>80 80 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+      <level name="level1">
+        <ref>tile_0</ref>
+        <ref>tile_1</ref>
+        <ref>tile_2</ref>
+        <ref>tile_3</ref>
+        <ref>tile_5</ref>
+        <ref>radio_1</ref>
+        <ref>tile_6</ref>
+        <ref>tile_15</ref>
+        <ref>tile_16</ref>
+        <ref>tile_17</ref>
+        <ref>tile_19</ref>
+        <ref>tile_20</ref>
+        <ref>tile_21</ref>
+        <ref>tile_22</ref>
+        <ref>tile_23</ref>
+        <ref>phone_1</ref>
+        <ref>tile_25</ref>
+        <ref>tile_26</ref>
+        <ref>tile_27</ref>
+        <ref>toolbox_1</ref>
+        <ref>tile_31</ref>
+        <ref>tile_32</ref>
+
+        <pose>295 190 0 0 0 0</pose>
+        <geometry><box><size>140 110 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level2">
+        <ref>tile_4</ref>
+        <ref>tile_5</ref>
+        <ref>radio_1</ref>
+        <ref>tile_7</ref>
+        <ref>tile_8</ref>
+        <ref>tile_9</ref>
+        <ref>tile_10</ref>
+        <ref>tile_11</ref>
+        <ref>tile_12</ref>
+        <ref>tile_13</ref>
+        <ref>tile_14</ref>
+        <ref>tile_15</ref>
+        <ref>tile_16</ref>
+        <ref>backpack_1</ref>
+
+        <pose>155 200 0 0 0 0</pose>
+        <geometry><box><size>200 30 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level3">
+        <ref>tile_4</ref>
+        <ref>tile_12</ref>
+        <ref>tile_18</ref>
+        <ref>tile_24</ref>
+        <ref>tile_30</ref>
+        <ref>tile_38</ref>
+        <ref>extinguisher_1</ref>
+
+        <pose>165 160 0 0 0 0</pose>
+        <geometry><box><size>35 110 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level4">
+        <ref>tile_28</ref>
+        <ref>tile_29</ref>
+        <ref>tile_30</ref>
+        <ref>extinguisher_1</ref>
+        <ref>tile_33</ref>
+        <ref>tile_34</ref>
+        <ref>tile_35</ref>
+        <ref>tile_36</ref>
+        <ref>tile_37</ref>
+        <ref>tile_38</ref>
+
+        <pose>110 130 0 0 0 0</pose>
+        <geometry><box><size>140 45 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level5">
+        <ref>tile_28</ref>
+        <ref>tile_29</ref>
+        <ref>tile_33</ref>
+        <ref>tile_34</ref>
+        <ref>tile_35</ref>
+        <ref>tile_39</ref>
+        <ref>tile_44</ref>
+        <ref>tile_48</ref>
+        <ref>tile_51</ref>
+        <ref>tile_54</ref>
+        <ref>tile_62</ref>
+        <ref>tile_63</ref>
+        <ref>tile_64</ref>
+        <ref>tile_80</ref>
+        <ref>tile_86</ref>
+        <ref>tile_89</ref>
+        <ref>tile_95</ref>
+        <ref>tile_96</ref>
+
+        <pose>90 30 0 0 0 0</pose>
+        <geometry><box><size>50 230 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level6">
+        <ref>tile_40</ref>
+        <ref>tile_41</ref>
+        <ref>tile_42</ref>
+        <ref>tile_43</ref>
+        <ref>radio_2</ref>
+        <ref>tile_45</ref>
+        <ref>tile_46</ref>
+        <ref>tile_47</ref>
+        <ref>tile_49</ref>
+        <ref>tile_50</ref>
+        <ref>toolbox_2</ref>
+        <ref>tile_52</ref>
+        <ref>tile_53</ref>
+        <ref>tile_55</ref>
+        <ref>phone_2</ref>
+        <ref>tile_56</ref>
+        <ref>tile_68</ref>
+        <ref>tile_69</ref>
+        <ref>tile_70</ref>
+        <ref>tile_71</ref>
+        <ref>tile_72</ref>
+        <ref>tile_73</ref>
+        <ref>tile_81</ref>
+        <ref>tile_82</ref>
+        <ref>tile_87</ref>
+        <ref>tile_88</ref>
+        <ref>tile_90</ref>
+        <ref>tile_91</ref>
+        <ref>tile_92</ref>
+        <ref>tile_93</ref>
+        <ref>tile_94</ref>
+        <ref>valve_1</ref>
+
+        <pose>240 20 0 0 0 0</pose>
+        <geometry><box><size>120 180 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level7">
+        <ref>staging_area</ref>
+        <ref>base_station</ref>
+        <ref>phone_2</ref>
+        <ref>tile_60</ref>
+        <ref>tile_61</ref>
+        <ref>tile_62</ref>
+        <ref>tile_63</ref>
+        <ref>tile_64</ref>
+        <ref>tile_65</ref>
+        <ref>tile_66</ref>
+        <ref>tile_67</ref>
+        <ref>tile_68</ref>
+        <ref>tile_69</ref>
+        <ref>tile_70</ref>
+        <pose>100 0 0 0 0 0</pose>
+        <geometry><box><size>260 50 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level8">
+        <ref>tile_57</ref>
+        <ref>tile_58</ref>
+        <ref>tile_59</ref>
+        <ref>electrical_box_1</ref>
+        <ref>tile_71</ref>
+        <ref>tile_72</ref>
+        <ref>tile_73</ref>
+        <ref>tile_74</ref>
+        <ref>tile_75</ref>
+        <ref>tile_76</ref>
+        <ref>tile_77</ref>
+        <ref>tile_78</ref>
+        <ref>tile_79</ref>
+        <ref>tile_83</ref>
+        <ref>tile_84</ref>
+        <ref>tile_85</ref>
+        <ref>backpack_2</ref>
+
+        <pose>340 0 0 0 0 0</pose>
+        <geometry><box><size>150 60 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+      <level name="level9">
+        <ref>tile_89</ref>
+        <ref>tile_95</ref>
+        <ref>tile_96</ref>
+        <ref>tile_97</ref>
+        <ref>phone_3</ref>
+        <ref>tile_98</ref>
+        <ref>tile_99</ref>
+        <ref>tile_100</ref>
+        <ref>valve_2</ref>
+        <ref>tile_101</ref>
+        <ref>tile_102</ref>
+        <ref>electrical_box_2</ref>
+        <ref>tile_104</ref>
+        <ref>tile_106</ref>
+        <ref>tile_107</ref>
+        <ref>tile_112</ref>
+        <ref>tile_113</ref>
+
+        <pose>110 -145 0 0 0 0</pose>
+        <geometry><box><size>100 160 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+      <level name="level10">
+        <ref>tile_102</ref>
+        <ref>electrical_box_2</ref>
+        <ref>tile_103</ref>
+        <ref>tile_104</ref>
+        <ref>backpack_3</ref>
+        <ref>tile_105</ref>
+        <ref>tile_106</ref>
+        <ref>tile_107</ref>
+        <ref>tile_108</ref>
+        <ref>tile_109</ref>
+        <ref>tile_110</ref>
+        <ref>tile_111</ref>
+        <ref>tile_112</ref>
+        <ref>tile_113</ref>
+        <ref>tile_114</ref>
+        <ref>extinguisher_2</ref>
+        <ref>tile_115</ref>
+        <ref>tile_116</ref>
+        <ref>tile_117</ref>
+        <ref>tile_118</ref>
+        <ref>tile_119</ref>
+
+        <pose>220 -200 0 0 0 0</pose>
+        <geometry><box><size>175 100 100</size></box></geometry>
+        <buffer>10</buffer>
+      </level>
+
+    </plugin>
+
+<plugin filename="gz-sim-perfect-comms-system" name="gz::sim::systems::PerfectComms">
+    </plugin>
+
+<plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <uniform_fluid_density>1.097</uniform_fluid_density>
+    </plugin>
+
+<plugin filename="gz-sim-log-system" name="gz::sim::systems::LogRecord">
+    </plugin>
+
+<plugin filename="gz-sim-particle-emitter-system" name="gz::sim::systems::ParticleEmitter">
+    </plugin>
+
+<plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench">
+      <persistent>
+        <entity_name>box</entity_name>
+        <entity_type>model</entity_type>
+        <force>-10 0 0</force>
+        <torque>0 0 0.1</torque>
+      </persistent>
+    </plugin>
+
+<plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu">
+    </plugin>
+
+<plugin filename="gz-sim-altimeter-system" name="gz::sim::systems::Altimeter">
+    </plugin>
+
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre</render_engine>
+    </plugin>
+
+<plugin name="gz::sim::systems::UserCommands" filename="gz-sim-user-commands-system" />
+
+<plugin filename="gz-sim-triggered-publisher-system" name="gz::sim::systems::TriggeredPublisher">
+      <input type="gz.msgs.Altimeter" topic="/altimeter">
+        <match field="vertical_position" tol="0.2">-7.5</match>
+      </input>
+      <delay_ms>5000</delay_ms>
+      <output type="gz.msgs.Empty" topic="/box2/detach" />
+    </plugin>
+
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+<plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench">
+
+      <persistent>
+        <entity_name>sphere_no_added_mass</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+      <persistent>
+        <entity_name>sphere_in_water</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+      <persistent>
+        <entity_name>sphere_in_air</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+      <persistent>
+        <entity_name>box_diagonal</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+      <persistent>
+        <entity_name>box_xx_xy_xz</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+      <persistent>
+        <entity_name>box_xy</entity_name>
+        <entity_type>model</entity_type>
+        <force>1 0 0</force>
+      </persistent>
+
+    </plugin>
+
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+

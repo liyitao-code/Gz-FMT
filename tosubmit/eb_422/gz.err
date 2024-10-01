@@ -1,0 +1,29 @@
+libEGL warning: egl: failed to create dri2 screen
+libEGL warning: egl: failed to create dri2 screen
+Stack trace (most recent call last):
+#24   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#23   Object "gz sim ../eb_422/a.sdf --seed 1725509982 -v 0 -r -s --headless-rendering", at 0x589cb599b1c4, in _start
+#22   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7b5057829e3f, in __libc_start_main
+#21   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7b5057829d8f, in 
+#20   Object "gz sim ../eb_422/a.sdf --seed 1725509982 -v 0 -r -s --headless-rendering", at 0x589cb599b17e, in 
+#19   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057ca8e19, in ruby_run_node
+#18   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057ca5317, in 
+#17   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057e3a30c, in rb_vm_exec
+#16   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057e34c96, in 
+#15   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057e31fc5, in 
+#14   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057e2fc34, in 
+#13   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7b5057f9144b, in 
+#12   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7b5057dfd088, in rb_nogvl
+#11   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7b5057f90d6b, in 
+#10   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7b5057f82492, in 
+#9    Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7b5057f85e2d, in 
+#8    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8-gz.so.8.6.0", at 0x7b5052badd7d, in runServer
+#7    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5050f59692, in gz::sim::v8::Server::Run(bool, unsigned long, bool)
+#6    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5050f85107, in 
+#5    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5050fb5ab4, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#4    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5050fb68d2, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#3    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5050fb2aa8, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#2    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-opticaltactileplugin-system.so", at 0x7b5002208be5, in gz::sim::v8::systems::OpticalTactilePlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#1    Object "/home/ren/play/robot/workspace/install/lib/libgz-msgs10.so.10", at 0x7b504c6673e0, in google::protobuf::RepeatedPtrField<gz::msgs::Contact>::begin() const
+#0    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x7b5051071c3c, in google::protobuf::internal::RepeatedPtrFieldBase::raw_data() const
+Segmentation fault (Address not mapped to object [0x28])

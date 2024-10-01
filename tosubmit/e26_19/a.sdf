@@ -1,0 +1,946 @@
+<!-- seed: 1720359200 -->
+<sdf version='1.11'>
+  <world name='world_0'>
+    <gravity>0 0 -9.8066499999999994</gravity>
+    <magnetic_field>5.5644999999999998e-06 2.2875799999999999e-05 -4.2388400000000002e-05</magnetic_field>
+    <wind>
+      <linear_velocity>3 2 6</linear_velocity>
+    </wind>
+    <physics default='false' type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <max_contacts>20</max_contacts>
+    </physics>
+    <model name='model_0'>
+      <static>false</static>
+      <self_collide>true</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>-1.3138598562116766 2.7623058737178674 7.9510258806598859 0 0 0</pose>
+      <link name='link_366'>
+        <pose>8.0755391972894657 -2.0546320215807228 3.988921593789275 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_366'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <capsule>
+              <radius>2.3972591413009949</radius>
+              <length>1.0250741782025437</length>
+            </capsule>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_366'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <capsule>
+              <radius>2.3972591413009949</radius>
+              <length>1.0250741782025437</length>
+            </capsule>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.0245430022 0.945726871 0.117790811 1</ambient>
+            <diffuse>0.0245430022 0.945726871 0.117790811 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <link name='link_367'>
+        <pose>5.0036207256078775 5.9978260728279231 2.2476956318617045 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_367'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.4021146787704479</radius>
+              <length>2.4869226054762574</length>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_367'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.4021146787704479</radius>
+              <length>2.4869226054762574</length>
+            </cylinder>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.235475823 0.0125876544 0.703624606 1</ambient>
+            <diffuse>0.235475823 0.0125876544 0.703624606 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <link name='link_368'>
+        <pose>-8.1716171322383051 6.1786141573140121 8.1757489053684314 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_368'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <capsule>
+              <radius>2.2661222609785803</radius>
+              <length>1.3424781732029698</length>
+            </capsule>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_368'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <capsule>
+              <radius>2.2661222609785803</radius>
+              <length>1.3424781732029698</length>
+            </capsule>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.637580335 0.350540698 0.184214294 1</ambient>
+            <diffuse>0.637580335 0.350540698 0.184214294 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <joint name='joint_244' type='prismatic'>
+        <pose>0 0 0 0 0 0</pose>
+        <parent>link_367</parent>
+        <child>link_366</child>
+        <axis>
+          <xyz>0.73678334443132709 0.19151153033405874 0.64843938584704686</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>1.5078204897851699</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <axis2>
+          <xyz>0.2896238419024702 0.57755808533797426 0.7632461518162974</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>5.1214643879208834</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis2>
+      </joint>
+      <joint name='joint_245' type='revolute'>
+        <pose>0 0 0 0 0 0</pose>
+        <parent>link_368</parent>
+        <child>link_366</child>
+        <axis>
+          <xyz>0.58587289285453603 0.51317966796965997 0.62721573784528617</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>5.9181825884015913</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <axis2>
+          <xyz>0.57032855334320509 0.40594306286287879 0.71409773207520533</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>9.449960770730959</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis2>
+      </joint>
+    </model>
+    <model name='model_1'>
+      <static>true</static>
+      <self_collide>true</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>-6.0985301237806659 -5.917371847956101 6.3639150030050402 0 0 0</pose>
+      <link name='link_369'>
+        <pose>2.0834536930834773 -0.25736057360077602 5.6568900222034575 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_369'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.1427414743130939 2.322074452698593 2.9865164113555669</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_369'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>1.1427414743130939 2.322074452698593 2.9865164113555669</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.47085613 0.22775127 0.947671831 1</ambient>
+            <diffuse>0.47085613 0.22775127 0.947671831 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <link name='link_370'>
+        <pose>-1.9606371892075298 -4.1622065163066724 3.3050173136340391 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_370'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.3732628022912436 2.3719700874777625 1.5519644473608194</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_370'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.3732628022912436 2.3719700874777625 1.5519644473608194</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.226203278 0.134277508 0.556043744 1</ambient>
+            <diffuse>0.226203278 0.134277508 0.556043744 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <link name='link_371'>
+        <pose>3.8768981597278298 -8.2424539523951861 1.4260899655204107 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='collision_371'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.918386477454157</radius>
+              <length>2.7193160198093373</length>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='visual_371'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>2.918386477454157</radius>
+              <length>2.7193160198093373</length>
+            </cylinder>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.990123451 0.46607396 0.933979869 1</ambient>
+            <diffuse>0.990123451 0.46607396 0.933979869 1</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+      <joint name='joint_246' type='gearbox'>
+        <pose>0 0 0 0 0 0</pose>
+        <parent>link_371</parent>
+        <child>link_370</child>
+        <axis>
+          <xyz>0.92215176669801924 0.16932332705140635 0.34780127960081508</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>1.8868479557248108</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <axis2>
+          <xyz>0.58458802291483558 0.70593271472037944 0.39989479335450101</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>7.6911878452170876</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis2>
+      </joint>
+      <joint name='joint_247' type='revolute'>
+        <pose>0 0 0 0 0 0</pose>
+        <parent>link_371</parent>
+        <child>link_369</child>
+        <axis>
+          <xyz>0.84602786219980186 0.50767662562902849 0.16279219935720593</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>8.5431819641071911</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis>
+        <axis2>
+          <xyz>0.17187065349614625 0.54021230736466941 0.82379071458626407</xyz>
+          <limit>
+            <lower>-inf</lower>
+            <upper>inf</upper>
+            <effort>inf</effort>
+            <velocity>2.6328300609701696</velocity>
+            <stiffness>100000000</stiffness>
+            <dissipation>1</dissipation>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+            <damping>0</damping>
+            <friction>0</friction>
+          </dynamics>
+        </axis2>
+      </joint>
+    </model>
+    <model name='ground_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>0 0 0 0 0 0</pose>
+      <link name='ground_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='ground_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+      </link>
+    </model>
+    <model name='ceiling_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>0 0 100 0 0 0</pose>
+      <link name='ceiling_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='ceiling_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 102 3</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='ceiling_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 102 3</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.200000003 0.200000003 0.200000003 0.200000003</ambient>
+            <diffuse>0.200000003 0.200000003 0.200000003 0.200000003</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name='west_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>0 50 50 0 0 0</pose>
+      <link name='west_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='west_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 3 102</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='west_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 3 102</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.200000003 0.200000003 0.200000003 0.200000003</ambient>
+            <diffuse>0.200000003 0.200000003 0.200000003 0.200000003</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name='east_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>0 -50 50 0 0 0</pose>
+      <link name='east_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='east_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 3 102</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='east_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>102 3 102</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.200000003 0.200000003 0.200000003 0.200000003</ambient>
+            <diffuse>0.200000003 0.200000003 0.200000003 0.200000003</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name='north_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>50 0 50 0 0 0</pose>
+      <link name='north_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='north_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3 102 102</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='north_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3 102 102</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.200000003 0.200000003 0.200000003 0.200000003</ambient>
+            <diffuse>0.200000003 0.200000003 0.200000003 0.200000003</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name='south_model'>
+      <static>true</static>
+      <self_collide>false</self_collide>
+      <allow_auto_disable>true</allow_auto_disable>
+      <enable_wind>false</enable_wind>
+      <pose>-50 0 50 0 0 0</pose>
+      <link name='south_link'>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+        <collision name='south_collision'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3 102 102</size>
+            </box>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_bitmask>255</collide_bitmask>
+            </contact>
+            <friction>
+              <ode>
+                <mu>1</mu>
+                <mu2>1</mu2>
+                <slip1>0</slip1>
+                <slip2>0</slip2>
+                <fdir1>0 0 0</fdir1>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='south_visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>3 102 102</size>
+            </box>
+          </geometry>
+          <cast_shadows>true</cast_shadows>
+          <laser_retro>0</laser_retro>
+          <transparency>0</transparency>
+          <visibility_flags>4294967295</visibility_flags>
+          <material>
+            <ambient>0.200000003 0.200000003 0.200000003 0.200000003</ambient>
+            <diffuse>0.200000003 0.200000003 0.200000003 0.200000003</diffuse>
+            <specular>0 0 0 1</specular>
+            <emissive>0 0 0 1</emissive>
+            <render_order>0</render_order>
+            <lighting>true</lighting>
+            <double_sided>false</double_sided>
+            <shader type='pixel'/>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <atmosphere type='adiabatic'>
+      <temperature>288.14999999999998</temperature>
+      <pressure>101325</pressure>
+      <temperature_gradient>-0.0064999999999999997</temperature_gradient>
+    </atmosphere>
+    <scene>
+      <ambient>0.400000006 0.400000006 0.400000006 1</ambient>
+      <background>0.699999988 0.699999988 0.699999988 1</background>
+      <grid>true</grid>
+      <origin_visual>true</origin_visual>
+      <shadows>true</shadows>
+    </scene>
+  </world>
+</sdf>

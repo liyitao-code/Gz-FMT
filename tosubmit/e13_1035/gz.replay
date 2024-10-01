@@ -1,0 +1,36 @@
+
+ODE INTERNAL ERROR 1: assertion "aabbBound >= dMinIntExact && aabbBound < dMaxIntExact" failed in collide() [collision_space.cpp:460]
+Stack trace (most recent call last):
+#31   Object "gz sim a.sdf --seed 1719669644 -r -v 0 -s --headless-rendering", at 0x558172a6b17e, in 
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f152e19, in ruby_run_node
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f14f317, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f2e433c, in rb_vm_exec
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f2decc6, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f2dbff5, in 
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f2d9c64, in 
+#24   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7fde2ae8744b, in 
+#23   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fde2f2a70b8, in rb_nogvl
+#22   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7fde2ae86d6b, in 
+#21   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7fde2ae78492, in 
+#20   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7fde2ae7be2d, in 
+#19   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9-gz.so.9.0.0", at 0x7fde2a1d603d, in runServer
+#18   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9.so.9", at 0x7fde28d22702, in gz::sim::v9::Server::Run(bool, unsigned long, bool)
+#17   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9.so.9", at 0x7fde28d4e0d9, in 
+#16   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9.so.9", at 0x7fde28d7e99a, in gz::sim::v9::SimulationRunner::Run(unsigned long)
+#15   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9.so.9", at 0x7fde28d7f7b8, in gz::sim::v9::SimulationRunner::Step(gz::sim::v9::UpdateInfo const&)
+#14   Object "/data/play/robot/workspace-exp/install/lib/libgz-sim9.so.9", at 0x7fde28d7bca3, in gz::sim::v9::SimulationRunner::UpdateSystems()
+#13   Object "/data/play/robot/workspace-exp/install/lib/gz-sim-9/plugins/libgz-sim-physics-system.so", at 0x7fddf8042279, in 
+#12   Object "/data/play/robot/workspace-exp/install/lib/gz-sim-9/plugins/libgz-sim-physics-system.so", at 0x7fddf806099f, in 
+#11   Object "/data/play/robot/workspace-exp/install/lib/gz-sim-9/plugins/libgz-sim-physics-system.so", at 0x7fddf811bee2, in 
+#10   Object "/data/play/robot/workspace-exp/install/lib/gz-physics-8/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7fddf0ad786b, in 
+#9    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fddef8e2e23, in dart::simulation::World::step(bool)
+#8    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fddef8c8435, in dart::constraint::ConstraintSolver::solve()
+#7    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fddef8c6c24, in dart::constraint::ConstraintSolver::updateConstraints()
+#6    Object "/data/play/robot/workspace-exp/install/lib/gz-physics-8/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7fddf0a00995, in 
+#5    Object "/lib/x86_64-linux-gnu/libdart-collision-ode.so.6.13", at 0x7fddefaecd1b, in dart::collision::OdeCollisionDetector::collide(dart::collision::CollisionGroup*, dart::collision::CollisionOption const&, dart::collision::CollisionResult*)
+#4    Object "/lib/x86_64-linux-gnu/libode.so.8", at 0x7fddeedb2266, in dxHashSpace::collide(void*, void (*)(void*, dxGeom*, dxGeom*))
+#3    Object "/lib/x86_64-linux-gnu/libode.so.8", at 0x7fddeedba7b7, in dDebug
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fde2eea97f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fde2eec3475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fde2ef179fc, in pthread_kill
+Aborted (Signal sent by tkill() 186110 1000)

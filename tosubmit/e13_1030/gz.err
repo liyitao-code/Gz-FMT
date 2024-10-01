@@ -1,0 +1,29 @@
+Stack trace (most recent call last):
+#26   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#25   Object "gz sim e13_1030/a.sdf --seed 1718592691 -v 0 -r -s --headless-rendering", at 0x5ae2af1501c4, in _start
+#24   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x768207629e3f, in __libc_start_main
+#23   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x768207629d8f, in 
+#22   Object "gz sim e13_1030/a.sdf --seed 1718592691 -v 0 -r -s --headless-rendering", at 0x5ae2af15017e, in 
+#21   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207aa8e19, in ruby_run_node
+#20   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207aa5317, in 
+#19   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207c3a30c, in rb_vm_exec
+#18   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207c34c96, in 
+#17   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207c31fc5, in 
+#16   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207c2fc34, in 
+#15   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x768207d8944b, in 
+#14   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x768207bfd088, in rb_nogvl
+#13   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x768207d88d6b, in 
+#12   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x768207d7a492, in 
+#11   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x768207d7de2d, in 
+#10   Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8-gz.so.8.1.0", at 0x7682029add7d, in runServer
+#9    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x768200ed29f2, in gz::sim::v8::Server::Run(bool, unsigned long, bool)
+#8    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x768200efe38d, in 
+#7    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x768200f2efe4, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#6    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x768200f2fe02, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#5    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8.so.8", at 0x768200f2c18a, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#4    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-joint-trajectory-controller-system.so", at 0x7681b436b61d, in gz::sim::v8::systems::JointTrajectoryController::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#3    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-joint-trajectory-controller-system.so", at 0x7681b4371e27, in ActuatedJoint::Update(gz::sim::v8::EntityComponentManager&, std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+#2    Object "/home/ren/play/robot/workspace/install/lib/gz-sim-8/plugins/libgz-sim-joint-trajectory-controller-system.so", at 0x7681b438711c, in std::vector<double, std::allocator<double> >::empty() const
+#1    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8-gui.so.8", at 0x7682021d1c05, in std::vector<double, std::allocator<double> >::end() const
+#0    Object "/home/ren/play/robot/workspace/install/lib/libgz-sim8-gui.so.8", at 0x768202246a60, in __gnu_cxx::__normal_iterator<double const*, std::vector<double, std::allocator<double> > >::__normal_iterator(double const* const&)
+Segmentation fault (Address not mapped to object [0x10])

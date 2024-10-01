@@ -1,0 +1,18 @@
+./replay.sh tosubmit/e13_1055/ 2 3 7 13
+./replay.sh tosubmit/e13_1243/ 3 4 5 19
+./replay.sh tosubmit/e13_1486/ 46 58 # but trigger another bug
+./replay.sh tosubmit/e13_102/ 0 3 5 # another bug
+./replay.sh tosubmit/e13_102/ 0 1 3 5 # another bug
+./replay.sh tosubmit/e13_1030/ 1 29
+./replay.sh tosubmit/e13_1035/ 1 9 10 12 14 15 16 17 18 19 # not always reproducible
+./replay.sh tosubmit/e13_1035/ 1 9 10 12 14 15 16 17 18 19
+./replay.sh tosubmit/e26_19 14  16  43 # GetAttribute, also raised by adding and removing model with plugin, plus a control state
+
+./replay.sh tosubmit/e17_108/ 44 # prepared submitted
+./replay.sh tosubmit/e17_31/ 36 # prepared submitted
+gz sim tosubmit/e22_135/a.sdf # prepared submitted
+./replay.sh tosubmit/b_204 0 Logical submitted
+./replay.sh tosubmit/e2_90 9 15 # AckermannSteeringPrivate submitted
+./replay.sh tosubmit/e17_217/ 1 24 # gz::msgs::Joint::_internal_set_name, also caused by removing model with plugin submitted
+./replay.sh tosubmit/e13_40/ 0 4 14 # LinearBatteryPlugin, could be triggered by gz sim world_0.sdf bash cmd_4.sh, and remove model with plugin submitted
+./replay.sh tosubmit/e_287/ 0 1 8 9
