@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+# sys.path.append('/workspace/install/lib/python')
+
 from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
 from gz.msgs10.pose_pb2 import Pose
@@ -36,16 +39,16 @@ from sdf_diversity import SdfDiversity
 from crash_result import ErrorLog
 ### from mab.algs import ThompsomSampling, UCB1, UCBTuned
 
-from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
-from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
-from pybandits.model import Beta
+# from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
+# from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
+# from pybandits.model import Beta
 import logging
 import logging.config
 import func_timeout
 
 from lxml import etree
 import string
-import sys
+
 import xml.etree.ElementTree as ET
 
 import torch
@@ -105,6 +108,40 @@ def save_training_metrics(filename, epoch, cumulative_reward, policy_change, los
 
         # 写入一行数据
         writer.writerow([epoch, cumulative_reward, policy_change, loss_value, exploration_rate])
+
+# 解析plugin文本
+def parse_plugin(xml_str):
+    
+    try:
+        # 解析XML字符串
+        plugin_element = ET.fromstring(xml_str)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML format: {e}")
+
+    # 提取filename和name属性
+    filename = plugin_element.get("filename")
+    name = plugin_element.get("name")
+
+    if filename is None or name is None:
+        raise ValueError("Missing 'filename' or 'name' attribute in plugin XML.")
+
+    # 提取内部的其他元素（转换回字符串格式）
+    internal_elements = "".join(ET.tostring(child, encoding='unicode') for child in plugin_element if child.tag not in ['filename', 'name'])
+
+    return filename, name, internal_elements
+
+# 定义每个算子的参数数量
+action_param_counts = {
+    0: 1,    # RANDOM_LOAD_MODEL
+    1: 1,    # RANDOM_LOAD_MODEL_XML
+    2: 117,  # RANDOM_ADD_PLUGIN
+    3: 117,  # RANDOM_ADD_PLUGIN_XML
+    4: 1,    # RANDOM_REMOVE_MODEL
+    5: 1,   # RANDOM_EXEC_SERVICE (动态获取)
+    6: 1,   # RANDOM_EXEC_TOPIC (动态获取)
+    7: 1,    # RANDOM_SET_POSE
+    8: 123   # RANDOM_ADD_MODEL_WITH_PLUGIN
+}
 
 
 class SimulatorState:
@@ -206,6 +243,19 @@ class SimulatorAction:
             return "func_random_pose"
         elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN:
             return "fund_add_random_model_with_plugin"
+
+
+def encode_action(action_type, parameter_index, action_param_counts):
+    # 计算从0到当前action_type之前所有动作参数的和
+    offset = sum(action_param_counts[i] for i in range(action_type))
+    return offset + parameter_index
+
+def decode_action(encoded_action):
+    total = 0
+    for action_type, count in action_param_counts.items():
+        if total + count >= encoded_action:
+            parameter_index = encoded_action - total
+            return action_type, parameter_ind123
 
 class SequenceManager:
     def __init__(self, max_history_length=10000):
@@ -1098,14 +1148,18 @@ class SmithUnit:
         print("DEBUG: before command range")
         i = 0
         for act in action_sequence:
-
-            # 1. 随机选择一个func_函数执行
-            func_name = SimulatorAction.perform_action(act)
+            
+            # 1. 获取操作名
+            now_act, now_arg = decode_action(act + 1)
+            func_name = SimulatorAction.perform_action(now_act)
             func = getattr(self, func_name)
             # 2. apply the action
             print(func_name)
 
-            command = func()
+            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin"]:
+                command = func(now_arg)
+            else:
+                command = func()
             
             self.gz_cmds.append(command)
             if self.use_text:
@@ -1124,9 +1178,9 @@ class SmithUnit:
             with open(world_file, "w") as f:
                 f.write(world)
 
-            if self.diversity:
-                flag, dist = self.diversity.add_and_check(world_file)
-                self.diversity_rewards[i] = 1 if flag else 0
+            # if self.diversity:
+            #     flag, dist = self.diversity.add_and_check(world_file)
+            #     self.diversity_rewards[i] = 1 if flag else 0
 
 
             with open(f"{self.directory}/id", "w") as f:
@@ -1268,19 +1322,19 @@ class SmithUnit:
         return str(response).encode("utf-8").decode("unicode_escape")[7:-3]  # skip data: ""
 
     # 添加随机模型
-    def func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False, False)
+    def func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, False)
 
     # 添加带扰动的随机模型
-    def func_add_random_model_xml(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False, True)
+    def func_add_random_model_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, True)
     
     # 添加带有plugin的不带扰动的随机模型
-    def fund_add_random_model_with_plugin(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, True, False)
+    def fund_add_random_model_with_plugin(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, False)
 
     # 添加模型
-    def helper_func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
+    def helper_func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
         # def create_model(world, name, x, y, z, sdf_content=None):
 
         scene, reserved_models = self.get_scene()
@@ -1290,7 +1344,18 @@ class SmithUnit:
             return None
         service_name = f"/world/{self.world_name}/create"
         request = EntityFactory()
-        if not sdf_content:
+        
+        # 原版是否随机生成
+        # if not sdf_content:
+        #     model_gen = ModelGen(self.sdf_miner)
+        #     if not from_mined:
+        #         root = model_gen.generate_with_root_wrapper(name, from_mined)
+        #         # TODO: check for exception
+        #         sdf_content = root.to_string().encode("utf-8")
+        #     else:
+        #         sdf_content = self.plugin_miner.random_model_with_root()
+
+        if model_id == -1:
             model_gen = ModelGen(self.sdf_miner)
             if not from_mined:
                 root = model_gen.generate_with_root_wrapper(name, from_mined)
@@ -1298,6 +1363,10 @@ class SmithUnit:
                 sdf_content = root.to_string().encode("utf-8")
             else:
                 sdf_content = self.plugin_miner.random_model_with_root()
+        else:
+            sdf_content = retrieve_model_by_index(model_id)
+        
+        # 是否扰动
         if xml_random is True:
             new_sdf = perturb_xml(str(sdf_content))
             if new_sdf is not None:
@@ -1345,14 +1414,16 @@ class SmithUnit:
         result, response = node.request(service_name, request, Empty, Scene, self.timeout)
         return response, reserved_models
 
-    def func_add_random_plugin_to_model(self):
-        return self.helper_func_add_random_plugin_to_model(False)
+    def func_add_random_plugin_to_model(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(False, plugin_id)
     
-    def func_add_random_plugin_to_model_xml(self):
-        return self.helper_func_add_random_plugin_to_model(True)
+    def func_add_random_plugin_to_model_xml(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(True, plugin_id)
 
     # 随机给模型添加组件
-    def helper_func_add_random_plugin_to_model(self, random_xml = False):
+    def helper_func_add_random_plugin_to_model(self, random_xml = False, plugin_id = -1):
+        if plugin_id == -1:
+            plugin_id = random(0, action_param_counts[2])
         # print("DEBUG: begin func_add_random_plugin_to_model")
         # 0. get world name
         try:
@@ -1375,10 +1446,19 @@ class SmithUnit:
         else:
             return None
         # 2. get random plugin
-        plugin = random.choice(self.plugin_miner.plugins_within_model)
-        filename = plugin.get("filename")
-        name = plugin.get("name")
-        innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        # plugin = random.choice(self.plugin_miner.plugins_within_model)
+
+        # get plugin though id
+        if plugin_id == -1:
+            plugin = random.choice(self.plugin_miner.plugins_within_model)
+            filename = plugin.get("filename")
+            name = plugin.get("name")
+            innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        else:
+            plugin = retrieve_plugin_by_index(plugin_id)
+            filename, name, innerxml = parse_plugin(plugin)
+        
+        
 
         entity_plugin_pb = EntityPlugin_V()
         plugin_pb = Plugin()
@@ -1565,55 +1645,6 @@ class SmithUnit:
             return None
             # return "", None, None
 
-# 用DQN方法实现强化学习优化sdf文件选择
-# class DQNSdfAgent:
-#     def __init__(self, num_files, state_size):
-#         self.num_files = num_files
-#         self.state_size = state_size
-#         self.memory = deque(maxlen=2000)
-#         self.gamma = 0.95  # 折扣因子
-#         self.epsilon = 1.0  # 探索率
-#         self.epsilon_min = 0.01
-#         self.epsilon_decay = 0.995
-#         self.learning_rate = 0.001
-#         self.model = self._build_model()
-# 
-#     def _build_model(self):
-#         # 构建神经网络模型
-#         model = Sequential()
-#         model.add(Dense(24, input_dim=self.state_size, activation='relu'))
-#         model.add(Dense(24, activation='relu'))
-#         model.add(Dense(self.num_files, activation='linear'))
-#         model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
-#         return model
-# 
-#     def remember(self, state, action, reward, next_state, done):
-#         self.memory.append((state, action, reward, next_state, done))
-# 
-#     def act(self, state):
-#         if np.random.rand() <= self.epsilon:
-#             return random.randrange(self.num_files)
-#         act_values = self.model.predict(state)
-#         return np.argmax(act_values[0])
-# 
-#     def replay(self, batch_size):
-#         minibatch = random.sample(self.memory, batch_size)
-#         for state, action, reward, next_state, done in minibatch:
-#             target = reward
-#             if not done:
-#                 target = (reward + self.gamma *
-#                         np.amax(self.model.predict(next_state)[0]))
-#             target_f = self.model.predict(state)
-#             target_f[0][action] = target
-#             self.model.fit(state, target_f, epochs=1, verbose=0)
-#         if self.epsilon > self.epsilon_min:
-#             self.epsilon *= self.epsilon_decay
-# 
-# 获取sdf的状态
-# def get_sdf_initial_state():
-#     # 初始化状态
-#     return np.zeros((1, state_size))  # 根据你的状态特征定义
-
 def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
     print(type(StringMsg))
@@ -1672,12 +1703,14 @@ if __name__ == "__main__":
 
     # 初始化环境和模型
     state_dim = 4  # 状态维度
-    action_dim = 9  # 动作维度
+    # action_dim = 9  # 动作维度
+    action_dim = sum(action_param_counts.values())  # 动作维度
+
     model = ActorCriticNetwork(state_dim, action_dim)
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     # 创建序列管理器
     sequence_manager = SequenceManager()
-    mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
+    # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
     initial_coverage = 0.0
     # diversity = SdfDiversity("./models")
     crashes = set()
@@ -1697,7 +1730,7 @@ if __name__ == "__main__":
         # sdf_state = get_sdf_initial_state()
 
         # unit.create_sdf()
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, mab, diversity, crashes) # bandits)
+        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes) # bandits)
         unit.copy_random_sdf()
         state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
 
