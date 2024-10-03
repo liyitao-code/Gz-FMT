@@ -1,0 +1,11 @@
+[libprotobuf ERROR google/protobuf/text_format.cc:309] Error parsing text-format gz.msgs.Twist: 1:1: Expected identifier, got: 2958.6
+[libprotobuf ERROR google/protobuf/text_format.cc:309] Error parsing text-format gz.msgs.Int32: 1:1: Expected integer, got: 8.3
+Stack trace (most recent call last) in thread 2282633:
+#6    Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#5    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x714fc6d2684f, in 
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x714fc6c94ac2, in 
+#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x714fc26dc252, in 
+#2    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x714fc154bd5d, in 
+#1    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-ackermann-steering-system.so", at 0x714fb11b882d, in non-virtual thunk to gz::sim::v8::systems::AckermannSteering::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+#0    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-ackermann-steering-system.so", at 0x714fb11b038c, in gz::sim::v8::systems::AckermannSteeringPrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+Segmentation fault (Address not mapped to object [(nil)])

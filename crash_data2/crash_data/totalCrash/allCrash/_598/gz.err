@@ -1,0 +1,35 @@
+gz sim /home/liyitao/workspace/exp/random_2/_598/a.sdf --seed 12345 -v 0 -r -s --headless-rendering: ./dart/dynamics/SphereShape.cpp:68: void dart::dynamics::SphereShape::setRadius(double): Assertion `radius > 0.0' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985cca5317, in 
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985ce3a30c, in rb_vm_exec
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985ce34c96, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985ce31fc5, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985ce2fc34, in 
+#26   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x78985cf8c44b, in 
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x78985cdfd088, in rb_nogvl
+#24   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x78985cf8bd6b, in 
+#23   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x78985cf7d492, in 
+#22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x78985cf80e2d, in 
+#21   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x78985bdd4605, in runServer
+#20   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x78985713d485, in 
+#19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x78985714d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x78985714ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x78985714c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#16   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x78984e51f585, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#15   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x78984e51f4b2, in gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#14   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x78984e519544, in gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x78984e598f06, in 
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171f1fb3, in virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfModel(gz::physics::Identity const&, sdf::v14::Model const&)
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171f13fa, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171ed384, in gz::physics::dartsim::SDFFeatures::FindOrConstructLink(std::shared_ptr<dart::dynamics::Skeleton> const&, gz::physics::Identity const&, sdf::v14::Model const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171ecdc4, in gz::physics::dartsim::SDFFeatures::ConstructSdfLink(gz::physics::Identity const&, sdf::v14::Link const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171f3a6e, in gz::physics::dartsim::SDFFeatures::ConstructSdfCollision(gz::physics::Identity const&, sdf::v14::Collision const&)
+#7    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7898171f32e6, in 
+#6    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x789816d1b16f, in dart::dynamics::SphereShape::SphereShape(double)
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x789816d199a2, in dart::dynamics::SphereShape::setRadius(double)
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x78985c839e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x78985c82871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x78985c8287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x78985c842475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x78985c8969fc, in pthread_kill
+Aborted (Signal sent by tkill() 3039520 1000)

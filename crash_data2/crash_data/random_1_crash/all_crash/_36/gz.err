@@ -1,0 +1,35 @@
+gz sim /home/liyitao/workspace/exp/random_1/_36/a.sdf --seed 12345 -v 0 -r -s --headless-rendering: ./dart/dynamics/detail/GenericJoint.hpp:1524: void dart::dynamics::GenericJoint<ConfigSpaceT>::setCoulombFriction(size_t, double) [with ConfigSpaceT = dart::math::RealVectorSpace<1>; size_t = long unsigned int]: Assertion `friction >= 0.0' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463aa5317, in 
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463c3a30c, in rb_vm_exec
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463c34c96, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463c31fc5, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463c2fc34, in 
+#26   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x75246388b44b, in 
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x752463bfd088, in rb_nogvl
+#24   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x75246388ad6b, in 
+#23   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x75246383a492, in 
+#22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x75246383de2d, in 
+#21   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7524635b4605, in runServer
+#20   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x75245df3d485, in 
+#19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x75245df4d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x75245df4ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x75245df4c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#16   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x752454b1f585, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#15   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x752454b1f4b2, in gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#14   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x752454b19544, in gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x752454b98f06, in 
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x75241d9f1fb3, in virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfModel(gz::physics::Identity const&, sdf::v14::Model const&)
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x75241d9f1503, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x75241d9f0879, in gz::physics::dartsim::SDFFeatures::ConstructSdfJoint(gz::physics::Identity const&, sdf::v14::Joint const&, dart::dynamics::BodyNode*, dart::dynamics::BodyNode*)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x75241d9e1d38, in dart::dynamics::RevoluteJoint* dart::dynamics::BodyNode::moveTo<dart::dynamics::RevoluteJoint>(dart::dynamics::BodyNode*, dart::dynamics::RevoluteJoint::Properties const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x75241d9e1b88, in dart::dynamics::RevoluteJoint* dart::dynamics::Skeleton::moveBodyNodeTree<dart::dynamics::RevoluteJoint>(dart::dynamics::BodyNode*, std::shared_ptr<dart::dynamics::Skeleton> const&, dart::dynamics::BodyNode*, dart::dynamics::RevoluteJoint::Properties const&)
+#7    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x75241d4ce97d, in dart::dynamics::RevoluteJoint::RevoluteJoint(dart::dynamics::detail::RevoluteJointProperties const&)
+#6    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x75241d4bffe2, in 
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x75241d4b4413, in 
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x752463639e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x75246362871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7524636287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x752463642475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7524636969fc, in pthread_kill
+Aborted (Signal sent by tkill() 1003872 1000)

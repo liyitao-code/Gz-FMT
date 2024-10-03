@@ -1,0 +1,2 @@
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+[1;36mDbg[0m ODE Heightfield AABB: min = {-128, -128, -0.05} max = {128, 128, 50}

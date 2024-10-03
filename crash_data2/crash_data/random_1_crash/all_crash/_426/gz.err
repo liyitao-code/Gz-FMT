@@ -1,0 +1,27 @@
+[libprotobuf ERROR google/protobuf/text_format.cc:309] Error parsing text-format gz.msgs.Double: 1:1: Expected identifier, got: 585707.9
+Stack trace (most recent call last):
+#23   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#22   Object "gz sim /home/liyitao/workspace/exp/random_1/_426/a.sdf --seed 12345 -v 0 -r -s --headless-rendering", at 0x634e1b28c1c4, in _start
+#21   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x747062a29e3f, in __libc_start_main
+#20   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x747062a29d8f, in 
+#19   Object "gz sim /home/liyitao/workspace/exp/random_1/_426/a.sdf --seed 12345 -v 0 -r -s --headless-rendering", at 0x634e1b28c17e, in 
+#18   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x747062ea8e19, in ruby_run_node
+#17   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x747062ea5317, in 
+#16   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x74706303a30c, in rb_vm_exec
+#15   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x747063034c96, in 
+#14   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x747063031fc5, in 
+#13   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x74706302fc34, in 
+#12   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x74706318244b, in 
+#11   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x747062ffd088, in rb_nogvl
+#10   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x747063181d6b, in 
+#9    Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x747062c2d492, in 
+#8    Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x747062c30e2d, in 
+#7    Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x747061fd4605, in runServer
+#6    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x74705d33d485, in 
+#5    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x74705d34d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#4    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x74705d34ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#3    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x74705d34c031, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#2    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-user-commands-system.so", at 0x74704d9bb210, in gz::sim::v8::systems::UserCommands::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#1    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-user-commands-system.so", at 0x74704d9c9535, in gz::sim::v8::systems::EnableCollisionCommand::Execute()
+#0    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-user-commands-system.so", at 0x74704d9c3bd4, in gz::sim::v8::systems::UserCommandsInterface::HasContactSensor(unsigned long)
+Segmentation fault (Address not mapped to object [0x8])

@@ -1,0 +1,474 @@
+./totalCrash/allCrash\2459\gz.err
+gz::sim::v8::systems::JointStatePublisher::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::msgs::Joint::set_name(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+gz::msgs::Joint::_internal_set_name(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+google::protobuf::internal::ArenaStringPtr::Set(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, google::protobuf::Arena*)
+google::protobuf::internal::ArenaStringPtr::CreateInstance(google::protobuf::Arena*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const*)
+std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >::basic_string(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+****************************************
+
+./totalCrash/allCrash\2464\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_protect
+rb_yield
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::LogicalAudioSensorPlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::sim::v8::systems::LogicalAudioSensorPluginPrivate::DurationExceeded(gz::sim::v8::UpdateInfo const&, gz::sim::v8::logical_audio::SourcePlayInfo const&)
+std::common_type<std::chrono::duration<long, std::ratio<1l, 1000000000l> >, std::chrono::duration<long, std::ratio<1l, 1000000000l> > >::type std::chrono::operator-<long, std::ratio<1l, 1000000000l>, long, std::ratio<1l, 1000000000l> >(std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&, std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+std::chrono::duration<long, std::ratio<1l, 1000000000l> >::duration(std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+****************************************
+
+./totalCrash/allCrash\2465\gz.err
+gz::sim::v8::systems::AckermannSteering::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::AckermannSteeringPrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+****************************************
+
+./totalCrash/allCrash\2466\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_protect
+rb_yield
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::LinearBatteryPlugin::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+****************************************
+
+./totalCrash/allCrash\2471\gz.err
+rb_protect
+rb_yield
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v9::Server::Run(bool, unsigned long, bool)
+gz::sim::v9::SimulationRunner::Run(unsigned long)
+gz::sim::v9::SimulationRunner::Step(gz::sim::v9::UpdateInfo const&)
+gz::sim::v9::SimulationRunner::UpdateSystems()
+dart::simulation::World::step(bool)
+dart::constraint::ConstraintSolver::solve()
+dart::constraint::ConstraintSolver::updateConstraints()
+dart::constraint::DefaultContactSurfaceHandler::createConstraint(dart::collision::Contact&, unsigned long, double) const
+dart::constraint::ContactSurfaceHandler::createConstraint(dart::collision::Contact&, unsigned long, double) const
+dart::constraint::ContactConstraint::ContactConstraint(dart::collision::Contact&, double, dart::constraint::ContactSurfaceParams const&)
+__assert_fail
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\2508\gz.err
+ruby_run_node
+rb_vm_exec
+rb_protect
+rb_yield
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::LiftDrag::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::sim::v8::systems::LiftDragPrivate::Load(gz::sim::v8::EntityComponentManager const&, std::shared_ptr<sdf::v14::Element> const&)
+std::pair<double, bool> sdf::v14::Element::Get<double>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, double const&) const
+std::pair<double, bool> sdf::v14::Element::Get<double>(std::vector<sdf::v14::Error, std::allocator<sdf::v14::Error> >&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, double const&) const
+sdf::v14::Element::GetAttribute(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+****************************************
+
+./totalCrash/allCrash\2511\gz.err
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_protect
+rb_yield
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::LinearBatteryPlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::common::Battery::SetPowerLoad(unsigned int, double)
+std::unique_ptr<gz::common::Battery::Implementation, void (*)(gz::common::Battery::Implementation*)>::operator->() const
+std::unique_ptr<gz::common::Battery::Implementation, void (*)(gz::common::Battery::Implementation*)>::get() const
+std::__uniq_ptr_impl<gz::common::Battery::Implementation, void (*)(gz::common::Battery::Implementation*)>::_M_ptr() const
+****************************************
+
+./totalCrash/allCrash\2512\gz.err
+gz::sim::v8::systems::DiffDrive::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::DiffDrivePrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::math::v7::SpeedLimiter::Limit(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+gz::math::v7::SpeedLimiter::LimitJerk(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::operator->() const
+std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::get() const
+std::__uniq_ptr_impl<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::_M_ptr() const
+****************************************
+
+./totalCrash/allCrash\2513\gz.err
+gz::sim::v8::systems::MecanumDrive::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::MecanumDrivePrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::math::v7::SpeedLimiter::Limit(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+gz::math::v7::SpeedLimiter::LimitJerk(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::operator->() const
+std::unique_ptr<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::get() const
+std::__uniq_ptr_impl<gz::math::v7::SpeedLimiterPrivate, std::default_delete<gz::math::v7::SpeedLimiterPrivate> >::_M_ptr() const
+****************************************
+
+./totalCrash/allCrash\2531\gz.err
+void std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> >::_M_invoke<0ul, 1ul>(std::_Index_tuple<0ul, 1ul>)
+std::__invoke_result<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>::type std::__invoke<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+void std::__invoke_impl<void, void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(std::__invoke_memfun_deref, void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvMsgUpdate()
+gz::transport::v13::NodeShared::TriggerCallbacks(gz::transport::v13::MessageInfo const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, gz::transport::v13::NodeShared::HandlerInfo const&)
+gz::transport::v13::SubscriptionHandler<gz::msgs::LaserScan>::RunLocalCallback(google::protobuf::Message const&, gz::transport::v13::MessageInfo const&)
+std::function<void (gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)>::operator()(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&) const
+std::_Function_handler<void (gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&), gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}>::_M_invoke(std::_Any_data const&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)
+std::enable_if<is_invocable_r_v<void, gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&>, void>::type std::__invoke_r<void, gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&>(gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)
+void std::__invoke_impl<void, gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&>(std::__invoke_other, gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}&, gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)
+gz::transport::v13::Node::Subscribe<gz::msgs::LaserScan>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::function<void (gz::msgs::LaserScan const&)>, gz::transport::v13::SubscribeOptions const&)::{lambda(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&)#1}::operator()(gz::msgs::LaserScan const&, gz::transport::v13::MessageInfo const&) const
+std::function<void (gz::msgs::LaserScan const&)>::operator()(gz::msgs::LaserScan const&) const
+std::_Function_handler<void (gz::msgs::LaserScan const&), std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)> >::_M_invoke(std::_Any_data const&, gz::msgs::LaserScan const&)
+std::enable_if<is_invocable_r_v<void, std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>&, gz::msgs::LaserScan const&>, void>::type std::__invoke_r<void, std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>&, gz::msgs::LaserScan const&>(std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>&, gz::msgs::LaserScan const&)
+void std::__invoke_impl<void, std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>&, gz::msgs::LaserScan const&>(std::__invoke_other, std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>&, gz::msgs::LaserScan const&)
+void std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>::operator()<gz::msgs::LaserScan const&, void>(gz::msgs::LaserScan const&)
+void std::_Bind<void (gz::sim::v8::systems::ElevatorPrivate::*(gz::sim::v8::systems::ElevatorPrivate*, unsigned long, std::_Placeholder<1>))(unsigned long, gz::msgs::LaserScan const&)>::__call<void, gz::msgs::LaserScan const&, 0ul, 1ul, 2ul>(std::tuple<gz::msgs::LaserScan const&>&&, std::_Index_tuple<0ul, 1ul, 2ul>)
+std::__invoke_result<void (gz::sim::v8::systems::ElevatorPrivate::*&)(unsigned long, gz::msgs::LaserScan const&), gz::sim::v8::systems::ElevatorPrivate*&, unsigned long&, gz::msgs::LaserScan const&>::type std::__invoke<void (gz::sim::v8::systems::ElevatorPrivate::*&)(unsigned long, gz::msgs::LaserScan const&), gz::sim::v8::systems::ElevatorPrivate*&, unsigned long&, gz::msgs::LaserScan const&>(void (gz::sim::v8::systems::ElevatorPrivate::*&)(unsigned long, gz::msgs::LaserScan const&), gz::sim::v8::systems::ElevatorPrivate*&, unsigned long&, gz::msgs::LaserScan const&)
+void std::__invoke_impl<void, void (gz::sim::v8::systems::ElevatorPrivate::*&)(unsigned long, gz::msgs::LaserScan const&), gz::sim::v8::systems::ElevatorPrivate*&, unsigned long&, gz::msgs::LaserScan const&>(std::__invoke_memfun_deref, void (gz::sim::v8::systems::ElevatorPrivate::*&)(unsigned long, gz::msgs::LaserScan const&), gz::sim::v8::systems::ElevatorPrivate*&, unsigned long&, gz::msgs::LaserScan const&)
+gz::sim::v8::systems::ElevatorPrivate::OnLidarMsg(unsigned long, gz::msgs::LaserScan const&)
+gz::msgs::LaserScan::ranges(int) const
+gz::msgs::LaserScan::_internal_ranges(int) const
+google::protobuf::RepeatedField<double>::Get(int) const
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\2541\gz.err
+gz::sim::v8::systems::OpticalTactilePlugin::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::OpticalTactilePluginPrivate::ComputeNormalForces(gz::msgs::PointCloudPacked const&, bool)
+gz::sim::v8::systems::OpticalTactilePluginPrivate::MapPointCloudData(unsigned long const&, unsigned long const&, char const*)
+****************************************
+
+./totalCrash/allCrash\2542\gz.err
+std::enable_if<is_invocable_r_v<void, std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>&>, void>::type std::__invoke_r<void, std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>&>(std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>&)
+void std::__invoke_impl<void, std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>&>(std::__invoke_other, std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>&)
+void std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>::operator()<, void>()
+void std::_Bind<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*(gz::sim::v8::systems::ModelPhotoShootPrivate*))()>::__call<void, , 0ul>(std::tuple<>&&, std::_Index_tuple<0ul>)
+std::__invoke_result<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*&)(), gz::sim::v8::systems::ModelPhotoShootPrivate*&>::type std::__invoke<void (gz::sim::v8::systems::ModelPhotoShootPrivate::*&)(), gz::sim::v8::systems::ModelPhotoShootPrivate*&>(void (gz::sim::v8::systems::ModelPhotoShootPrivate::*&)(), gz::sim::v8::systems::ModelPhotoShootPrivate*&)
+void std::__invoke_impl<void, void (gz::sim::v8::systems::ModelPhotoShootPrivate::*&)(), gz::sim::v8::systems::ModelPhotoShootPrivate*&>(std::__invoke_memfun_deref, void (gz::sim::v8::systems::ModelPhotoShootPrivate::*&)(), gz::sim::v8::systems::ModelPhotoShootPrivate*&)
+gz::sim::v8::systems::ModelPhotoShootPrivate::PerformPostRenderingOperations()
+gz::sim::v8::systems::ModelPhotoShootPrivate::SavePicture(std::shared_ptr<gz::rendering::v8::Camera>, gz::math::v7::Pose3<double> const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+gz::rendering::v8::BaseCamera<gz::rendering::v8::Ogre2Sensor>::Capture(gz::rendering::v8::Image&)
+gz::rendering::v8::BaseCamera<gz::rendering::v8::Ogre2Sensor>::Update()
+gz::rendering::v8::Ogre2Camera::Render()
+gz::rendering::v8::Ogre2RenderTarget::Render()
+Ogre::CompositorWorkspace::_update(bool)
+Ogre::CompositorNode::_update(Ogre::Camera const*, Ogre::SceneManager*)
+Ogre::CompositorPassScene::execute(Ogre::Camera const*)
+Ogre::Camera::_renderScenePhase02(Ogre::Camera const*, unsigned char, unsigned char, bool)
+Ogre::SceneManager::_renderPhase02(Ogre::Camera*, Ogre::Camera const*, unsigned char, unsigned char, bool)
+Ogre::RenderQueue::render(Ogre::RenderSystem*, unsigned char, unsigned char, bool, bool)
+Ogre::RenderQueue::renderGL3(Ogre::RenderSystem*, bool, bool, Ogre::HlmsCache*, Ogre::RenderQueue::RenderQueueGroup const&, Ogre::IndirectBufferPacked*, unsigned char*, unsigned char*)
+Ogre::HlmsPbs::createShaderCacheEntry(unsigned int, Ogre::HlmsCache const&, unsigned int, Ogre::QueuedRenderable const&)
+Ogre::GLSLMonolithicProgramManager::getActiveMonolithicProgram()
+Ogre::GLSLMonolithicProgram::activate()
+Ogre::GLSLMonolithicProgram::compileAndLink()
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\2543\gz.err
+std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> > >::_M_run()
+std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> >::operator()()
+void std::thread::_Invoker<std::tuple<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*> >::_M_invoke<0ul, 1ul>(std::_Index_tuple<0ul, 1ul>)
+std::__invoke_result<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>::type std::__invoke<void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+void std::__invoke_impl<void, void (gz::transport::v13::NodeShared::*)(), gz::transport::v13::NodeShared*>(std::__invoke_memfun_deref, void (gz::transport::v13::NodeShared::*&&)(), gz::transport::v13::NodeShared*&&)
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvSrvRequest()
+gz::transport::v13::RepHandler<gz::msgs::Boolean, gz::msgs::Empty>::RunCallback(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >&)
+std::function<bool (gz::msgs::Boolean const&, gz::msgs::Empty&)>::operator()(gz::msgs::Boolean const&, gz::msgs::Empty&) const
+std::_Function_handler<bool (gz::msgs::Boolean const&, gz::msgs::Empty&), gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}>::_M_invoke(std::_Any_data const&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+std::enable_if<is_invocable_r_v<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>, bool>::type std::__invoke_r<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>(gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+bool std::__invoke_impl<bool, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&>(std::__invoke_other, gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}&, gz::msgs::Boolean const&, gz::msgs::Empty&)
+gz::transport::v13::Node::Advertise<gz::sim::v8::systems::OpticalTactilePluginPrivate, gz::msgs::Boolean>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*, gz::transport::v13::AdvertiseServiceOptions const&)::{lambda(gz::msgs::Boolean const&, gz::msgs::Empty&)#1}::operator()(gz::msgs::Boolean const&, gz::msgs::Empty&) const
+void std::_Bind<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*(gz::sim::v8::systems::OpticalTactilePluginPrivate*, std::_Placeholder<1>))(gz::msgs::Boolean const&)>::operator()<gz::msgs::Boolean const&, void>(gz::msgs::Boolean const&)
+void std::_Bind<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*(gz::sim::v8::systems::OpticalTactilePluginPrivate*, std::_Placeholder<1>))(gz::msgs::Boolean const&)>::__call<void, gz::msgs::Boolean const&, 0ul, 1ul>(std::tuple<gz::msgs::Boolean const&>&&, std::_Index_tuple<0ul, 1ul>)
+std::__invoke_result<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>::type std::__invoke<void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>(void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&)
+void std::__invoke_impl<void, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&>(std::__invoke_memfun_deref, void (gz::sim::v8::systems::OpticalTactilePluginPrivate::*&)(gz::msgs::Boolean const&), gz::sim::v8::systems::OpticalTactilePluginPrivate*&, gz::msgs::Boolean const&)
+gz::sim::v8::systems::OpticalTactilePluginPrivate::Enable(gz::msgs::Boolean const&)
+gz::sim::v8::systems::optical_tactile_sensor::OpticalTactilePluginVisualization::RemoveNormalForcesAndContactsMarkers()
+std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > std::operator+<char, std::char_traits<char>, std::allocator<char> >(char const*, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+****************************************
+
+./totalCrash/allCrash\2566\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::FollowActor::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::math::v7::Pose3<double>::Pose3(gz::math::v7::Pose3<double> const&)
+****************************************
+
+./totalCrash/allCrash\2600\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::Server::Run(bool, unsigned long, bool)
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::OpticalTactilePlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+google::protobuf::RepeatedPtrField<gz::msgs::Contact>::begin() const
+google::protobuf::internal::RepeatedPtrFieldBase::raw_data() const
+****************************************
+
+./totalCrash/allCrash\2624\gz.err
+runServer
+gz::sim::v9::Server::Run(bool, unsigned long, bool)
+gz::sim::v9::SimulationRunner::Run(unsigned long)
+gz::sim::v9::SimulationRunner::Step(gz::sim::v9::UpdateInfo const&)
+gz::sim::v9::SimulationRunner::UpdateSystems()
+gz::sim::v9::SystemManager::Reset(gz::sim::v9::UpdateInfo const&, gz::sim::v9::EntityComponentManager&)
+void gz::sim::v9::EntityComponentManager::EachRemoved<gz::sim::v9::components::Component<gz::sim::v9::components::DetachableJointInfo, gz::sim::v9::components::DetachableJointTag, gz::sim::v9::serializers::DetachableJointInfoSerializer> >(gz::sim::v9::EntityComponentManager::identity<std::function<bool (unsigned long const&, gz::sim::v9::components::Component<gz::sim::v9::components::DetachableJointInfo, gz::sim::v9::components::DetachableJointTag, gz::sim::v9::serializers::DetachableJointInfoSerializer> const*)> >::type) const
+gz::physics::DetachJointFeature::Joint<gz::physics::FeaturePolicy<double, 3ul>, gz::sim::v9::systems::PhysicsPrivate::DetachableJointFeatureList>::Detach()
+std::__throw_out_of_range(char const*)
+__cxa_throw
+std::terminate()
+abort
+gsignal
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_0\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::LiftDrag::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::sim::v8::systems::LiftDragPrivate::Load(gz::sim::v8::EntityComponentManager const&, std::shared_ptr<sdf::v14::Element> const&)
+sdf::v14::Element::GetAttribute(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+****************************************
+
+./totalCrash/allCrash\_1000\gz.err
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfModel(gz::physics::Identity const&, sdf::v14::Model const&)
+gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+gz::physics::dartsim::SDFFeatures::FindOrConstructLink(std::shared_ptr<dart::dynamics::Skeleton> const&, gz::physics::Identity const&, sdf::v14::Model const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+gz::physics::dartsim::SDFFeatures::ConstructSdfLink(gz::physics::Identity const&, sdf::v14::Link const&)
+gz::physics::dartsim::SDFFeatures::ConstructSdfCollision(gz::physics::Identity const&, sdf::v14::Collision const&)
+dart::dynamics::SphereShape::SphereShape(double)
+dart::dynamics::SphereShape::setRadius(double)
+__assert_fail
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_1005\gz.err
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvSrvRequest()
+gz::common::absPath(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_1065\gz.err
+non-virtual thunk to gz::sim::v8::systems::AckermannSteering::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::AckermannSteeringPrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+****************************************
+
+./totalCrash/allCrash\_1078\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::EntityComponentManager::ClearNewlyCreatedEntities()
+gz::sim::v8::detail::BaseView::ResetNewEntityState()
+****************************************
+
+./totalCrash/allCrash\_1159\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::FollowActor::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+****************************************
+
+./totalCrash/allCrash\_1381\gz.err
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvMsgUpdate()
+gz::transport::v13::NodeShared::TriggerCallbacks(gz::transport::v13::MessageInfo const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, gz::transport::v13::NodeShared::HandlerInfo const&)
+gz::sim::v8::systems::ElevatorPrivate::OnLidarMsg(unsigned long, gz::msgs::LaserScan const&)
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_37\gz.err
+_start
+__libc_start_main
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SimulationRunner::UpdateSystems()
+gz::sim::v8::systems::OpticalTactilePlugin::PreUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+****************************************
+
+./totalCrash/allCrash\_596\gz.err
+gz::sim::v8::systems::SensorsPrivate::RenderThread()
+gz::sim::v8::systems::SensorsPrivate::RunOnce()
+gz::sim::v8::systems::ModelPhotoShootPrivate::PerformPostRenderingOperations()
+gz::sim::v8::systems::ModelPhotoShootPrivate::SavePicture(std::shared_ptr<gz::rendering::v8::Camera>, gz::math::v7::Pose3<double> const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+gz::rendering::v8::Ogre2RenderTarget::Render()
+Ogre::CompositorWorkspace::_update(bool)
+Ogre::CompositorNode::_update(Ogre::Camera const*, Ogre::SceneManager*)
+Ogre::CompositorPassScene::execute(Ogre::Camera const*)
+Ogre::Camera::_renderScenePhase02(Ogre::Camera const*, unsigned char, unsigned char, bool)
+Ogre::SceneManager::_renderPhase02(Ogre::Camera*, Ogre::Camera const*, unsigned char, unsigned char, bool)
+Ogre::RenderQueue::render(Ogre::RenderSystem*, unsigned char, unsigned char, bool, bool)
+Ogre::RenderQueue::renderGL3(Ogre::RenderSystem*, bool, bool, Ogre::HlmsCache*, Ogre::RenderQueue::RenderQueueGroup const&, Ogre::IndirectBufferPacked*, unsigned char*, unsigned char*)
+Ogre::HlmsPbs::createShaderCacheEntry(unsigned int, Ogre::HlmsCache const&, unsigned int, Ogre::QueuedRenderable const&)
+Ogre::GLSLMonolithicProgramManager::getActiveMonolithicProgram()
+Ogre::GLSLMonolithicProgram::activate()
+Ogre::GLSLMonolithicProgram::compileAndLink()
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_610\gz.err
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvSrvRequest()
+gz::sim::v8::SimulationRunner::GenerateWorldSdf(gz::msgs::SdfGeneratorConfig const&, gz::msgs::StringMsg&)
+gz::sim::v8::EntityComponentManager::ComponentImplementation(unsigned long, unsigned long) const
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_683\gz.err
+gz::transport::v13::NodeShared::RunReceptionTask()
+gz::transport::v13::NodeShared::RecvSrvRequest()
+gz::sim::v8::SimulationRunner::GenerateWorldSdf(gz::msgs::SdfGeneratorConfig const&, gz::msgs::StringMsg&)
+gz::sim::v8::EntityComponentManager::FindView(std::vector<unsigned long, std::allocator<unsigned long> > const&) const
+****************************************
+
+./totalCrash/allCrash\_787\gz.err
+gz::sim::v8::systems::OpticalTactilePlugin::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+gz::sim::v8::systems::OpticalTactilePluginPrivate::ComputeNormalForces(gz::msgs::PointCloudPacked const&, bool)
+gz::sim::v8::systems::OpticalTactilePluginPrivate::MapPointCloudData(unsigned long const&, unsigned long const&, char const*)
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_954\gz.err
+gz::rendering::v8::Ogre2RenderTarget::PreRender()
+gz::rendering::v8::Ogre2RenderTarget::BuildCompositor()
+Ogre::CompositorManager2::addWorkspace(Ogre::SceneManager*, std::vector<Ogre::TextureGpu*, Ogre::STLAllocator<Ogre::TextureGpu*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const&, Ogre::Camera*, Ogre::IdString, bool, int, std::vector<Ogre::UavBufferPacked*, Ogre::STLAllocator<Ogre::UavBufferPacked*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::StdMap<Ogre::GpuTrackedResource*, Ogre::ResourceStatus, std::less<Ogre::GpuTrackedResource*>, Ogre::STLAllocator<std::pair<Ogre::GpuTrackedResource* const, Ogre::ResourceStatus>, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::Vector4 const&, unsigned char, unsigned char)
+Ogre::CompositorWorkspace::CompositorWorkspace(unsigned int, Ogre::CompositorWorkspaceDef const*, std::vector<Ogre::TextureGpu*, Ogre::STLAllocator<Ogre::TextureGpu*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const&, Ogre::SceneManager*, Ogre::Camera*, Ogre::RenderSystem*, bool, unsigned char, unsigned char, Ogre::Vector4 const&, std::vector<Ogre::UavBufferPacked*, Ogre::STLAllocator<Ogre::UavBufferPacked*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::StdMap<Ogre::GpuTrackedResource*, Ogre::ResourceStatus, std::less<Ogre::GpuTrackedResource*>, Ogre::STLAllocator<std::pair<Ogre::GpuTrackedResource* const, Ogre::ResourceStatus>, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*)
+Ogre::CompositorWorkspace::connectAllNodes()
+Ogre::CompositorNode::createPasses()
+Ogre::CompositorPassQuad::CompositorPassQuad(Ogre::CompositorPassQuadDef const*, Ogre::Camera*, Ogre::CompositorNode*, Ogre::RenderTargetViewDef const*, float, float)
+Ogre::Renderable::setMaterial(Ogre::SharedPtr<Ogre::Material> const&)
+Ogre::Material::~Material()
+Ogre::Material::~Material()
+Ogre::Material::removeAllTechniques()
+Ogre::Technique::~Technique()
+Ogre::Technique::removeAllPasses()
+Ogre::Pass::~Pass()
+Ogre::Hlms::destroyDatablock(Ogre::IdString)
+Ogre::HlmsLowLevelDatablock::~HlmsLowLevelDatablock()
+Ogre::HlmsDatablock::~HlmsDatablock()
+__assert_fail
+abort
+raise
+pthread_kill
+****************************************
+
+./totalCrash/allCrash\_993\gz.err
+ruby_run_node
+rb_vm_exec
+rb_nogvl
+runServer
+gz::sim::v8::SimulationRunner::Run(unsigned long)
+gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+gz::sim::v8::SystemManager::Reset(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+gz::sim::v8::systems::PhysicsPrivate::ResetPhysics(gz::sim::v8::EntityComponentManager&)
+gz::physics::dartsim::FreeGroupFeatures::FindFreeGroupForLink(gz::physics::Identity const&) const
+std::__detail::_Map_base<unsigned long, std::pair<unsigned long const, std::shared_ptr<gz::physics::dartsim::LinkInfo> >, std::allocator<std::pair<unsigned long const, std::shared_ptr<gz::physics::dartsim::LinkInfo> > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::at(unsigned long const&) const
+std::__throw_out_of_range(char const*)
+__cxa_throw
+std::terminate()
+abort
+raise
+pthread_kill
+****************************************
+

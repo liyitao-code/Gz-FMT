@@ -1,0 +1,35 @@
+terminate called after throwing an instance of 'Ogre::RenderingAPIException'
+  what():  OGRE EXCEPTION(3:RenderingAPIException): Fragment Program 100000004PixelShader_ps failed to compile. See compile log above for details. in GLSLShader::compile at ./RenderSystems/GL3Plus/src/GLSL/OgreGLSLShader.cpp (line 361)
+Stack trace (most recent call last) in thread 3038849:
+#30   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#29   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x71842572684f, in 
+#28   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x718425694ac2, in 
+#27   Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7184210dc252, in 
+#26   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-sensors-system.so", at 0x718410eb5847, in gz::sim::v8::systems::SensorsPrivate::RenderThread()
+#25   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-sensors-system.so", at 0x718410eb4ce4, in gz::sim::v8::systems::SensorsPrivate::RunOnce()
+#24   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-model-photo-shoot-system.so", at 0x71841042b77e, in gz::sim::v8::systems::ModelPhotoShootPrivate::PerformPostRenderingOperations()
+#23   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-model-photo-shoot-system.so", at 0x71841042ace5, in gz::sim::v8::systems::ModelPhotoShootPrivate::SavePicture(std::shared_ptr<gz::rendering::v8::Camera>, gz::math::v7::Pose3<double> const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) const
+#22   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x7183dd7659b9, in 
+#21   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x7183dd7667c8, in 
+#20   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x7183dd806f18, in gz::rendering::v8::Ogre2RenderTarget::Render()
+#19   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd3fd6b3, in Ogre::CompositorWorkspace::_update(bool)
+#18   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd3ef934, in Ogre::CompositorNode::_update(Ogre::Camera const*, Ogre::SceneManager*)
+#17   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd407bf7, in Ogre::CompositorPassScene::execute(Ogre::Camera const*)
+#16   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd174612, in Ogre::Camera::_renderScenePhase02(Ogre::Camera const*, unsigned char, unsigned char, bool)
+#15   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd3091e4, in Ogre::SceneManager::_renderPhase02(Ogre::Camera*, Ogre::Camera const*, unsigned char, unsigned char, bool)
+#14   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd2cd0ee, in Ogre::RenderQueue::render(Ogre::RenderSystem*, unsigned char, unsigned char, bool, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x7183dd2cbd74, in Ogre::RenderQueue::renderGL3(Ogre::RenderSystem*, bool, bool, Ogre::HlmsCache*, Ogre::RenderQueue::RenderQueueGroup const&, Ogre::IndirectBufferPacked*, unsigned char*, unsigned char*)
+#12   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextHlmsPbs.so.2.3.1", at 0x71840fb706a4, in Ogre::HlmsPbs::createShaderCacheEntry(unsigned int, Ogre::HlmsCache const&, unsigned int, Ogre::QueuedRenderable const&)
+#11   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/OGRE/RenderSystem_GL3Plus.so", at 0x71840f0c4328, in Ogre::GLSLMonolithicProgramManager::getActiveMonolithicProgram()
+#10   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/OGRE/RenderSystem_GL3Plus.so", at 0x71840f0c6ada, in Ogre::GLSLMonolithicProgram::activate()
+#9    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/OGRE/RenderSystem_GL3Plus.so", at 0x71840f0c635d, in Ogre::GLSLMonolithicProgram::compileAndLink()
+#8    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/OGRE/RenderSystem_GL3Plus.so", at 0x71840f0bb697, in 
+#7    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/OGRE/RenderSystem_GL3Plus.so", at 0x71840f0ba296, in 
+#6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7184210ae4d7, in __cxa_throw
+#5    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7184210ae276, in std::terminate()
+#4    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7184210ae20b, in 
+#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7184210a2b9d, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7184256287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x718425642475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7184256969fc, in pthread_kill
+Aborted (Signal sent by tkill() 3038794 1000)

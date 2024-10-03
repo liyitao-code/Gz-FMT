@@ -1,0 +1,36 @@
+
+ODE INTERNAL ERROR 1: assertion "d[i] != dReal(0.0)" failed in _dLDLTRemove() [./dart/external/odelcpsolver/matrix.cpp:406]
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fa912029e3f, in __libc_start_main
+#30   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fa912029d8f, in 
+#29   Object "gz sim /home/liyitao/workspace/exp/random_1/_780/a.sdf --seed 12345 -v 0 -r -s --headless-rendering", at 0x5d805ab3117e, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa9124a8e19, in ruby_run_node
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa9124a5317, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa91263a30c, in rb_vm_exec
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa912634c96, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa912631fc5, in 
+#23   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa91262fc34, in 
+#22   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7fa91279944b, in 
+#21   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7fa9125fd088, in rb_nogvl
+#20   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7fa912798d6b, in 
+#19   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7fa912310492, in 
+#18   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7fa912313e2d, in 
+#17   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7fa9122b4605, in runServer
+#16   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7fa90c93d485, in 
+#15   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7fa90c94d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#14   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7fa90c94ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#13   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7fa90c94c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7fa90351f5b6, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7fa90351fc31, in gz::sim::v8::systems::PhysicsPrivate::Step(std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7fa8cc60900b, in gz::physics::dartsim::SimulationFeatures::WorldForwardStep(gz::physics::Identity const&, gz::physics::SpecifyData<gz::physics::RequireData<gz::physics::WorldPoses>, gz::physics::ExpectData<gz::physics::ChangedWorldPoses, gz::physics::Contacts, gz::physics::JointPositions> >&, gz::physics::CompositeData&, gz::physics::ExpectData<gz::physics::ApplyExternalForceTorques, gz::physics::ApplyGeneralizedForces, gz::physics::VelocityControlCommands, gz::physics::ServoControlCommands, std::chrono::duration<long, std::ratio<1l, 1000000000l> > > const&)
+#9    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fa8cc1936d3, in dart::simulation::World::step(bool)
+#8    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fa8cc1731b0, in dart::constraint::ConstraintSolver::solveConstrainedGroups()
+#7    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7fa8cc16fab6, in dart::constraint::BoxedLcpConstraintSolver::solveConstrainedGroup(dart::constraint::ConstrainedGroup&)
+#6    Object "/lib/x86_64-linux-gnu/libdart-external-odelcpsolver.so.6.13", at 0x7fa900c0bcc6, in dart::external::ode::dSolveLCP(int, double*, double*, double*, double*, int, double*, double*, int*, bool)
+#5    Object "/lib/x86_64-linux-gnu/libdart-external-odelcpsolver.so.6.13", at 0x7fa900c0b307, in dart::external::ode::dLCP::transfer_i_from_C_to_N(int, void*)
+#4    Object "/lib/x86_64-linux-gnu/libdart-external-odelcpsolver.so.6.13", at 0x7fa900c0b0a6, in dart::external::ode::_dLDLTRemove(double**, int const*, double*, double*, int, int, int, int, void*)
+#3    Object "/lib/x86_64-linux-gnu/libdart-external-odelcpsolver.so.6.13", at 0x7fa900c07595, in dart::external::ode::dDebug(int, char const*, ...)
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fa9120287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fa912042475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7fa9120969fc, in pthread_kill
+Aborted (Signal sent by tkill() 3952726 1000)

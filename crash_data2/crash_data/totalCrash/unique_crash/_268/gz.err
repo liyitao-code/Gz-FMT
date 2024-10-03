@@ -1,0 +1,35 @@
+gz sim /home/liyitao/workspace/exp/random_1/_268/a.sdf --seed 12345 -v 0 -r -s --headless-rendering: ./dart/dynamics/CylinderShape.cpp:46: dart::dynamics::CylinderShape::CylinderShape(double, double): Assertion `0.0 < _radius' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d8828a8e19, in ruby_run_node
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d8828a5317, in 
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d882a3a30c, in rb_vm_exec
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d882a34c96, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d882a31fc5, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d882a2fc34, in 
+#25   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x76d88266e44b, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x76d8829fd088, in rb_nogvl
+#23   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x76d88266dd6b, in 
+#22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x76d882642492, in 
+#21   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x76d882645e2d, in 
+#20   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x76d8822b3605, in runServer
+#19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x76d87cd3d485, in 
+#18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x76d87cd4d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x76d87cd4ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#16   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x76d87cd4c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#15   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x76d87411f585, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#14   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x76d87411f4b2, in gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x76d874119544, in gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x76d874198f06, in 
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5f1fb3, in virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfModel(gz::physics::Identity const&, sdf::v14::Model const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5f13fa, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5ed384, in gz::physics::dartsim::SDFFeatures::FindOrConstructLink(std::shared_ptr<dart::dynamics::Skeleton> const&, gz::physics::Identity const&, sdf::v14::Model const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5ecdc4, in gz::physics::dartsim::SDFFeatures::ConstructSdfLink(gz::physics::Identity const&, sdf::v14::Link const&)
+#7    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5f3a6e, in gz::physics::dartsim::SDFFeatures::ConstructSdfCollision(gz::physics::Identity const&, sdf::v14::Collision const&)
+#6    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x76d83c5f2f2d, in 
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x76d83c00e195, in dart::dynamics::CylinderShape::CylinderShape(double, double)
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x76d882439e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x76d88242871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x76d8824287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x76d882442475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x76d8824969fc, in pthread_kill
+Aborted (Signal sent by tkill() 1931404 1000)

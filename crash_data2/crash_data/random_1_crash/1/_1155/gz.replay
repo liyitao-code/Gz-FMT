@@ -1,0 +1,63 @@
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+A: 
+0.1899 0.005575 -0.7541 0.1787 0.006895 -1.195 0.1896 0.005652 -0.7567 0.1773 -0.9273 -0.005819 0.07077 1128 2.288e+04 0 -3.638e-12 0.05637 -2.508e-12 -3.638e-12 0.05637 0 -3.638e-12 4.491e-06 
+0.005575 417.8 0.2553 -0.002196 687.7 0.04849 0.005224 411.1 0.2436 -0.004473 -0.07477 -537.7 -0.01069 -6.936e+04 -8.585e+06 0 -3.52e-09 -1.585e+07 -1.21e-12 -2.952e-09 -1.221e+07 -3.469e-18 1.455e-11 -1527 
+-0.7541 0.2553 7.893 -0.6706 0.3563 12.24 -0.7524 0.2623 7.915 -0.6841 9.498 -0.4564 -0.6159 -2.875e+04 -2.376e+05 0 2.91e-11 1502 2.534e-11 0 1157 0 2.91e-11 0.1446 
+0.1787 -0.002196 -0.6706 0.1728 0.0001697 -1.088 0.1786 -0.002063 -0.6736 0.1732 -0.8504 -0.0005668 0.07717 -2885 2e+04 0 0 0.03112 -2.372e-12 -7.276e-12 0.03112 -1.388e-17 -9.095e-13 2.479e-06 
+0.006895 687.7 0.3563 0.0001697 1165 0.2004 0.006559 691.1 0.3448 -0.002622 0.0793 -904 -0.01933 -6.951e+04 -1.443e+07 0 -5.919e-09 -2.665e+07 -9.355e-13 -4.963e-09 -2.054e+07 6.939e-18 1.455e-11 -2568 
+-1.195 0.04849 12.24 -1.088 0.2004 19.42 -1.194 0.05913 12.28 -1.12 15.27 -0.3439 -1.06 4.102e+04 -3.562e+05 0 0 2554 4.192e-11 0 1968 0 5.821e-11 0.246 
+0.1896 0.005224 -0.7524 0.1786 0.006559 -1.194 0.1893 0.005302 -0.755 0.1774 -0.9266 -0.005542 0.07172 873 2.279e+04 0 3.638e-12 0.05497 -2.509e-12 -3.638e-12 0.05497 -1.388e-17 -3.638e-12 4.379e-06 
+0.005652 411.1 0.2623 -0.002063 691.1 0.05913 0.005302 421.9 0.2506 -0.00437 -0.06625 -540.4 -0.01117 -6.939e+04 -8.628e+06 0 -3.536e-09 -1.593e+07 -1.188e-12 -2.967e-09 -1.227e+07 6.939e-18 0 -1534 
+-0.7567 0.2436 7.915 -0.6736 0.3448 12.28 -0.755 0.2506 7.937 -0.6876 9.544 -0.4448 -0.6227 -2.578e+04 -2.377e+05 0 2.91e-11 1512 2.55e-11 5.821e-11 1165 -1.11e-16 2.91e-11 0.1456 
+0.1773 -0.004473 -0.6841 0.1732 -0.002622 -1.12 0.1774 -0.00437 -0.6876 1.467 -0.6351 0.2821 0.09368 -5799 1.978e+04 0 -3.638e-12 0.01694 -2.482e-12 3.638e-12 0.01694 0 -2.728e-12 1.349e-06 
+-0.9273 -0.07477 9.498 -0.8504 0.0793 15.27 -0.9266 -0.06625 9.544 -0.6351 22.39 -0.3391 -0.9112 7.311e+04 -2.702e+05 0 0 0.003235 3.363e-11 0 0.003235 1.11e-16 1.455e-11 2.577e-07 
+-0.005819 -537.7 -0.4564 -0.0005668 -904 -0.3439 -0.005542 -540.4 -0.4448 0.2821 -0.3391 708.3 0.01957 7.247e+04 1.129e+07 0 4.626e-09 2.084e+07 6.617e-13 3.88e-09 1.606e+07 -9.541e-18 -1.455e-11 2007 
+0.07077 -0.01069 -0.6159 0.07717 -0.01933 -1.06 0.07172 -0.01117 -0.6227 0.09368 -0.9112 0.01957 1.226 -2.894e+04 1.112e+04 0 0 -0.111 -2.589e-12 -3.638e-12 -0.111 -2.776e-17 3.638e-12 -8.843e-06 
+1128 -6.936e+04 -2.875e+04 -2885 -6.951e+04 4.102e+04 873 -6.939e+04 -2.578e+04 -5799 7.311e+04 7.247e+04 -2.894e+04 4.787e+11 3.705e+09 0 0 1.141 4.055e-07 0 1.141 1.819e-12 -3.815e-06 9.06e-05 
+2.288e+04 -8.585e+06 -2.376e+05 2e+04 -1.443e+07 -3.562e+05 2.279e+04 -8.628e+06 -2.377e+05 1.978e+04 -2.702e+05 1.129e+07 1.112e+04 3.705e+09 6.483e+11 0 7.343e-05 3.322e+11 -6.914e-07 6.104e-05 2.56e+11 0 -1.907e-06 3.2e+07 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+A(13, 14): 3.705e+09
+A(14, 13): 3.705e+09
+gz sim server: ./dart/constraint/BoxedLcpConstraintSolver.cpp:229: virtual void dart::constraint::BoxedLcpConstraintSolver::solveConstrainedGroup(dart::constraint::ConstrainedGroup&): Assertion `isSymmetric( n, mA.data(), mOffset[i], mOffset[i] + constraint->getDimension() - 1)' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be99503a30c, in rb_vm_exec
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be995034c96, in 
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be995031fc5, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be99502fc34, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be994f7ba4e, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be994ea69ac, in rb_protect
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be99503ec61, in rb_yield
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be99503a30c, in rb_vm_exec
+#23   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be995034c96, in 
+#22   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be995031fc5, in 
+#21   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be99502fc34, in 
+#20   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7be994c7544b, in 
+#19   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7be994ffd088, in rb_nogvl
+#18   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7be994c74d6b, in 
+#17   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7be994c66492, in 
+#16   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7be994c69e2d, in 
+#15   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7be993fd4605, in runServer
+#14   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7be98f33d485, in 
+#13   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7be98f34d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#12   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7be98f34ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#11   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7be98f34c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7be98671f5b6, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7be98671fc31, in gz::sim::v8::systems::PhysicsPrivate::Step(std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7be94f20900b, in gz::physics::dartsim::SimulationFeatures::WorldForwardStep(gz::physics::Identity const&, gz::physics::SpecifyData<gz::physics::RequireData<gz::physics::WorldPoses>, gz::physics::ExpectData<gz::physics::ChangedWorldPoses, gz::physics::Contacts, gz::physics::JointPositions> >&, gz::physics::CompositeData&, gz::physics::ExpectData<gz::physics::ApplyExternalForceTorques, gz::physics::ApplyGeneralizedForces, gz::physics::VelocityControlCommands, gz::physics::ServoControlCommands, std::chrono::duration<long, std::ratio<1l, 1000000000l> > > const&)
+#7    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7be94ed936d3, in dart::simulation::World::step(bool)
+#6    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7be94ed731b0, in dart::constraint::ConstraintSolver::solveConstrainedGroups()
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7be94ed6ff6a, in dart::constraint::BoxedLcpConstraintSolver::solveConstrainedGroup(dart::constraint::ConstrainedGroup&)
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7be994a39e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7be994a2871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7be994a287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7be994a42475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7be994a969fc, in pthread_kill
+Aborted (Signal sent by tkill() 477061 1000)

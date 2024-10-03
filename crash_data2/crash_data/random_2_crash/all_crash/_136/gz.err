@@ -1,0 +1,37 @@
+[libprotobuf ERROR google/protobuf/text_format.cc:309] Error parsing text-format gz.msgs.Twist: 1:1: Expected identifier, got: -
+
+ODE INTERNAL ERROR 1: assertion "aabbBound >= dMinIntExact && aabbBound < dMaxIntExact" failed in collide() [collision_space.cpp:460]
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c8128029e3f, in __libc_start_main
+#30   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c8128029d8f, in 
+#29   Object "gz sim /home/liyitao/workspace/exp/random_2/_136/a.sdf --seed 12345 -v 0 -r -s --headless-rendering", at 0x5e28deaf817e, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c81284a8e19, in ruby_run_node
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c81284a5317, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c812863a30c, in rb_vm_exec
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c8128634c96, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c8128631fc5, in 
+#23   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c812862fc34, in 
+#22   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7c812877d44b, in 
+#21   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7c81285fd088, in rb_nogvl
+#20   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7c812877cd6b, in 
+#19   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7c81282d2492, in 
+#18   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7c81282d5e2d, in 
+#17   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7c8128276605, in runServer
+#16   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c812293d485, in 
+#15   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c812294d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#14   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c812294ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#13   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c812294c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7c811a71f5b6, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7c811a71fc31, in gz::sim::v8::systems::PhysicsPrivate::Step(std::chrono::duration<long, std::ratio<1l, 1000000000l> > const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7c80e280900b, in gz::physics::dartsim::SimulationFeatures::WorldForwardStep(gz::physics::Identity const&, gz::physics::SpecifyData<gz::physics::RequireData<gz::physics::WorldPoses>, gz::physics::ExpectData<gz::physics::ChangedWorldPoses, gz::physics::Contacts, gz::physics::JointPositions> >&, gz::physics::CompositeData&, gz::physics::ExpectData<gz::physics::ApplyExternalForceTorques, gz::physics::ApplyGeneralizedForces, gz::physics::VelocityControlCommands, gz::physics::ServoControlCommands, std::chrono::duration<long, std::ratio<1l, 1000000000l> > > const&)
+#9    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7c80e23936d3, in dart::simulation::World::step(bool)
+#8    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7c80e2378ca5, in dart::constraint::ConstraintSolver::solve()
+#7    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7c80e2377494, in dart::constraint::ConstraintSolver::updateConstraints()
+#6    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7c80e27d73b3, in dart::collision::GzOdeCollisionDetector::collide(dart::collision::CollisionGroup*, dart::collision::CollisionOption const&, dart::collision::CollisionResult*)
+#5    Object "/lib/x86_64-linux-gnu/libdart-collision-ode.so.6.13", at 0x7c8114364d1b, in dart::collision::OdeCollisionDetector::collide(dart::collision::CollisionGroup*, dart::collision::CollisionOption const&, dart::collision::CollisionResult*)
+#4    Object "/lib/x86_64-linux-gnu/libode.so.8", at 0x7c811391e266, in dxHashSpace::collide(void*, void (*)(void*, dxGeom*, dxGeom*))
+#3    Object "/lib/x86_64-linux-gnu/libode.so.8", at 0x7c81139267b7, in dDebug
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c81280287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c8128042475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c81280969fc, in pthread_kill
+Aborted (Signal sent by tkill() 2857689 1000)

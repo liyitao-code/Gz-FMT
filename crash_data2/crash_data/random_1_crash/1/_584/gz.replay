@@ -1,0 +1,133 @@
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+[1;31mError [Param.cc:1288][0m Error Code 34: Msg: The value <diffuse>0.1 100 6985</diffuse> is invalid.
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31m[/sdf/model[@name="model1"]/link[@name="base_link"]/visual[@name="visual"]/material/diffuse:<data-string>:L24]: [0m[1;31mMsg: [0m[1;31mError reading element <diffuse>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31m[/sdf/model[@name="model1"]/link[@name="base_link"]/visual[@name="visual"]/material:<data-string>:L22]: [0m[1;31mMsg: [0m[1;31mError reading element <material>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31m[/sdf/model[@name="model1"]/link[@name="base_link"]/visual[@name="visual"]:<data-string>:L16]: [0m[1;31mMsg: [0m[1;31mError reading element <visual>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31m[/sdf/model[@name="model1"]/link[@name="base_link"]:<data-string>:L4]: [0m[1;31mMsg: [0m[1;31mError reading element <link>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31m[/sdf/model[@name="model1"]:<data-string>:L2]: [0m[1;31mMsg: [0m[1;31mError reading element <model>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m9[0m[1;31m: [0m[1;31mMsg: [0m[1;31mError reading element <sdf>[0m[1;31m[0m
+[1;31m[Err] [UserCommands.cc:1145] [0m[1;31mError Code [0m[1;31m30[0m[1;31m: [0m[1;31mMsg: [0m[1;31mUnable to read SDF string: <sdf version="1.11">
+    <model name="model1">
+      <pose>0 0 0.5 0 0 0</pose>
+      <link name="base_link">
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.166666667</ixx>
+            <ixy>0.00</ixy>
+            <ixz>0.00</ixz>
+            <iyy>0.166666667</iyy>
+            <iyz>0.00</iyz>
+            <izz>0.166666667</izz>
+          </inertia>
+        </inertial>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 1 0</ambient>
+            <diffuse>0.1 100 6985</diffuse>
+            <specular>0.1 0.1 0 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+      <link name="rotor_link">
+        <pose>0 0 0.6 0 0 0</pose>
+        <inertial>
+          <mass>0.01</mass>
+          <inertia>
+            <ixx>1.66667E-05</ixx>
+            <ixy>0.00</ixy>
+            <ixz>0.00</ixz>
+            <iyy>0.000841667</iyy>
+            <iyz>0.00</iyz>
+            <izz>0.000841667</izz>
+          </inertia>
+        </inertial>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 0.1 0.1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0.5 0</ambient>
+            <diffuse>1 0.5 0</diffuse>
+            <specular>0.1 0.1 0 1</specular>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 0.1 0.1</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+      <joint name="rotor_joint" type="revolute">
+        <parent>base_link</parent>
+        <child>rotor_link</child>
+        <axis>
+          <dynamics>
+            <damping>0.5</damping>
+          </dynamics>
+          <limit>
+            <lower>-3.14159265</lower>
+            <upper>3.14159265</upper>
+          </limit>
+          <xyz>0 0 1</xyz>
+        </axis>
+      </joint>
+      <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+        <joint_name>rotor_joint</joint_name>
+        <topic>/model1/cmd_rotor</topic>
+        <p_gain>30</p_gain>
+        <i_gain>0.05</i_gain>
+      </plugin>
+    </model>
+  </sdf>[0m[1;31m[0m
+gz sim server: ./dart/dynamics/BoxShape.cpp:43: dart::dynamics::BoxShape::BoxShape(const Vector3d&): Assertion `_size[0] > 0.0' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218eea69ac, in rb_protect
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218f03ec61, in rb_yield
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218f03a30c, in rb_vm_exec
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218f034c96, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218f031fc5, in 
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218f02fc34, in 
+#25   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f218f18e44b, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7f218effd088, in rb_nogvl
+#23   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7f218f18dd6b, in 
+#22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f218f17f492, in 
+#21   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7f218f182e2d, in 
+#20   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7f218e8d3605, in runServer
+#19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7f218933d485, in 
+#18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7f218934d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7f218934ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#16   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7f218934c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#15   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7f218071f585, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#14   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7f218071f4b2, in gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7f2180719544, in gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7f2180799a1d, in 
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148bf1f43, in virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfNestedModel(gz::physics::Identity const&, sdf::v14::Model const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148bf13fa, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148bed384, in gz::physics::dartsim::SDFFeatures::FindOrConstructLink(std::shared_ptr<dart::dynamics::Skeleton> const&, gz::physics::Identity const&, sdf::v14::Model const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148becdc4, in gz::physics::dartsim::SDFFeatures::ConstructSdfLink(gz::physics::Identity const&, sdf::v14::Link const&)
+#7    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148bf3a6e, in gz::physics::dartsim::SDFFeatures::ConstructSdfCollision(gz::physics::Identity const&, sdf::v14::Collision const&)
+#6    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7f2148bf2c34, in 
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7f2148607eff, in dart::dynamics::BoxShape::BoxShape(Eigen::Matrix<double, 3, 1, 0, 3, 1> const&)
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f218ea39e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f218ea2871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f218ea287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f218ea42475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7f218ea969fc, in pthread_kill
+Aborted (Signal sent by tkill() 471772 1000)

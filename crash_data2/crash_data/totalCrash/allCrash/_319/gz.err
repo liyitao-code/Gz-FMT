@@ -1,0 +1,35 @@
+gz sim /home/liyitao/workspace/exp/random_1/_319/a.sdf --seed 12345 -v 0 -r -s --headless-rendering: ./dart/dynamics/BoxShape.cpp:43: dart::dynamics::BoxShape::BoxShape(const Vector3d&): Assertion `_size[0] > 0.0' failed.
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc5302a5317, in 
+#30   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc53043a30c, in rb_vm_exec
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc530434c96, in 
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc530431fc5, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc53042fc34, in 
+#26   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7bc52fcf644b, in 
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x7bc5303fd088, in rb_nogvl
+#24   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x7bc52fcf5d6b, in 
+#23   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7bc53002d492, in 
+#22   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x7bc530030e2d, in 
+#21   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x7bc52f3d4605, in runServer
+#20   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7bc52a73d485, in 
+#19   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7bc52a74d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#18   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7bc52a74ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7bc52a74c0a2, in gz::sim::v8::SimulationRunner::UpdateSystems()
+#16   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7bc521b1f585, in gz::sim::v8::systems::Physics::Update(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#15   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7bc521b1f4b2, in gz::sim::v8::systems::PhysicsPrivate::CreatePhysicsEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#14   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7bc521b19544, in gz::sim::v8::systems::PhysicsPrivate::CreateModelEntities(gz::sim::v8::EntityComponentManager const&, bool)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x7bc521b99a1d, in 
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3f1f43, in virtual thunk to gz::physics::dartsim::SDFFeatures::ConstructSdfNestedModel(gz::physics::Identity const&, sdf::v14::Model const&)
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3f13aa, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3f13fa, in gz::physics::dartsim::SDFFeatures::ConstructSdfModelImpl(unsigned long, sdf::v14::Model const&)
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3ed384, in gz::physics::dartsim::SDFFeatures::FindOrConstructLink(std::shared_ptr<dart::dynamics::Skeleton> const&, gz::physics::Identity const&, sdf::v14::Model const&, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3ecdc4, in gz::physics::dartsim::SDFFeatures::ConstructSdfLink(gz::physics::Identity const&, sdf::v14::Link const&)
+#7    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3f3a6e, in gz::physics::dartsim::SDFFeatures::ConstructSdfCollision(gz::physics::Identity const&, sdf::v14::Collision const&)
+#6    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x7bc4ea3f2c34, in 
+#5    Object "/lib/x86_64-linux-gnu/libdart.so.6.13", at 0x7bc4e9e07eff, in dart::dynamics::BoxShape::BoxShape(Eigen::Matrix<double, 3, 1, 0, 3, 1> const&)
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7bc52fe39e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7bc52fe2871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7bc52fe287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7bc52fe42475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7bc52fe969fc, in pthread_kill
+Aborted (Signal sent by tkill() 2129499 1000)

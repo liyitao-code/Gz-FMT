@@ -1,0 +1,35 @@
+gz sim /home/liyitao/workspace/exp/random_2/_954/a.sdf --seed 12345 -v 0 -r -s --headless-rendering: ./OgreMain/src/OgreHlmsDatablock.cpp:199: virtual Ogre::HlmsDatablock::~HlmsDatablock(): Assertion `mLinkedRenderables.empty() && "This Datablock is still being used by some Renderables." " Change their Datablocks before destroying this."' failed.
+Stack trace (most recent call last) in thread 3175256:
+#31   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15112a, in 
+#30   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15a089, in 
+#29   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15112a, in 
+#28   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15a089, in 
+#27   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15112a, in 
+#26   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a15a089, in 
+#25   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a1715b7, in 
+#24   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a201663, in 
+#23   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a206e16, in gz::rendering::v8::Ogre2RenderTarget::PreRender()
+#22   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a203a95, in 
+#21   Object "/usr/lib/x86_64-linux-gnu/gz-rendering-8/engine-plugins/libgz-rendering-ogre2.so", at 0x79576a2082f2, in gz::rendering::v8::Ogre2RenderTarget::BuildCompositor()
+#20   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769deb15d, in Ogre::CompositorManager2::addWorkspace(Ogre::SceneManager*, std::vector<Ogre::TextureGpu*, Ogre::STLAllocator<Ogre::TextureGpu*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const&, Ogre::Camera*, Ogre::IdString, bool, int, std::vector<Ogre::UavBufferPacked*, Ogre::STLAllocator<Ogre::UavBufferPacked*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::StdMap<Ogre::GpuTrackedResource*, Ogre::ResourceStatus, std::less<Ogre::GpuTrackedResource*>, Ogre::STLAllocator<std::pair<Ogre::GpuTrackedResource* const, Ogre::ResourceStatus>, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::Vector4 const&, unsigned char, unsigned char)
+#19   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769dff83a, in Ogre::CompositorWorkspace::CompositorWorkspace(unsigned int, Ogre::CompositorWorkspaceDef const*, std::vector<Ogre::TextureGpu*, Ogre::STLAllocator<Ogre::TextureGpu*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const&, Ogre::SceneManager*, Ogre::Camera*, Ogre::RenderSystem*, bool, unsigned char, unsigned char, Ogre::Vector4 const&, std::vector<Ogre::UavBufferPacked*, Ogre::STLAllocator<Ogre::UavBufferPacked*, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*, Ogre::StdMap<Ogre::GpuTrackedResource*, Ogre::ResourceStatus, std::less<Ogre::GpuTrackedResource*>, Ogre::STLAllocator<std::pair<Ogre::GpuTrackedResource* const, Ogre::ResourceStatus>, Ogre::CategorisedAllocPolicy<(Ogre::MemoryCategory)0> > > const*)
+#18   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769dfadff, in Ogre::CompositorWorkspace::connectAllNodes()
+#17   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769df25cf, in Ogre::CompositorNode::createPasses()
+#16   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769e062dc, in Ogre::CompositorPassQuad::CompositorPassQuad(Ogre::CompositorPassQuadDef const*, Ogre::Camera*, Ogre::CompositorNode*, Ogre::RenderTargetViewDef const*, float, float)
+#15   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769cde308, in Ogre::Renderable::setMaterial(Ogre::SharedPtr<Ogre::Material> const&)
+#14   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769bba310, in 
+#13   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769c3748c, in Ogre::Material::~Material()
+#12   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769c373df, in Ogre::Material::~Material()
+#11   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769c37357, in Ogre::Material::removeAllTechniques()
+#10   Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769d972df, in Ogre::Technique::~Technique()
+#9    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769d9727c, in Ogre::Technique::removeAllPasses()
+#8    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769ca4ed1, in Ogre::Pass::~Pass()
+#7    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769bdaad3, in Ogre::Hlms::destroyDatablock(Ogre::IdString)
+#6    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769c02f1c, in Ogre::HlmsLowLevelDatablock::~HlmsLowLevelDatablock()
+#5    Object "/usr/lib/x86_64-linux-gnu/OGRE-2.3/libOgreNextMain.so.2.3.1", at 0x795769bf0665, in Ogre::HlmsDatablock::~HlmsDatablock()
+#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7957b2c39e95, in __assert_fail
+#3    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7957b2c2871a, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7957b2c287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7957b2c42475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7957b2c969fc, in pthread_kill
+Aborted (Signal sent by tkill() 3175200 1000)

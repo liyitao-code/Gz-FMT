@@ -1,0 +1,21 @@
+terminate called after throwing an instance of 'std::filesystem::__cxx11::filesystem_error'
+  what():  filesystem error: cannot make absolute path: Invalid argument []
+Stack trace (most recent call last) in thread 1383594:
+#16   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#15   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c885612684f, in 
+#14   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c8856094ac2, in 
+#13   Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851adc252, in 
+#12   Object "/lib/x86_64-linux-gnu/libgz-transport13.so.13", at 0x7c885546675f, in gz::transport::v13::NodeShared::RunReceptionTask()
+#11   Object "/lib/x86_64-linux-gnu/libgz-transport13.so.13", at 0x7c8855460387, in gz::transport::v13::NodeShared::RecvSrvRequest()
+#10   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c885093f9fe, in 
+#9    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c885093e632, in 
+#8    Object "/lib/x86_64-linux-gnu/libgz-common5.so.5", at 0x7c88554c8ca9, in gz::common::absPath(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+#7    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851aa742d, in 
+#6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851aae4d7, in __cxa_throw
+#5    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851aae276, in std::terminate()
+#4    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851aae20b, in 
+#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c8851aa2b9d, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c88560287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c8856042475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c88560969fc, in pthread_kill
+Aborted (Signal sent by tkill() 1383567 1000)

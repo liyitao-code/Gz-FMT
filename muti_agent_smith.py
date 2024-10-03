@@ -57,7 +57,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from collections import deque
+from collections import deque, defaultdict
 
 # import tensorflow as tf
 # from tensorflow.keras.models import Sequential
@@ -110,6 +110,149 @@ def save_training_metrics(filename, epoch, cumulative_reward, policy_change, los
         # 写入一行数据
         writer.writerow([epoch, cumulative_reward, policy_change, loss_value, exploration_rate])
 
+# 提取错误栈
+class ErrorLog:
+    def __init__(self, log_file="gz.err"):
+        self.log_file = log_file
+        self.trace = []
+        if not os.path.exists(log_file):
+            return
+
+        with open(log_file) as f:
+            self.content = f.read()
+        self.get_stack_trace()
+        self.trace = tuple(self.trace)
+
+    def get_stack_trace(self):
+        """用来从err文件里筛出错误栈"""
+        for line in self.content.splitlines():
+            if line.startswith("Stack trace"):
+                continue
+            elif line.startswith("Segmentation fault"):
+                continue
+            m = re.match(r'#\d\s+Object ".*?", at .*?, in (.*\(.*\))', line)
+            if m:
+                self.trace.append(m.group(1))
+
+# 维护错误栈字典
+class ErrorLogManager:
+    def __init__(self):
+        # 使用字典来保存不同错误栈的出现次数
+        self.error_counts = defaultdict(int)
+
+    def process_error_file(self, log_file):
+        """
+        处理一个新的错误文件，更新错误栈计数，并返回该错误栈的总出现次数。
+        
+        :param log_file: 要处理的错误日志文件路径。
+        :return: 该错误栈的总出现次数。
+        """
+        error_log = ErrorLog(log_file)
+        error_trace = error_log.trace
+
+        if error_trace:
+            # 更新错误栈计数
+            self.error_counts[error_trace] += 1
+            return self.error_counts[error_trace]
+        else:
+            # 如果没有有效的错误栈，返回0
+            return 0
+
+class OperatorSequenceManager:
+    def __init__(self, param_limits, history_size=100):
+        """
+        初始化算子序列管理器。
+
+        :param param_limits: 每个算子的参数上限值列表。
+        :param history_size: 要保存的历史算子序列的最大数量。
+        """
+        self.param_limits = param_limits
+        self.history_size = history_size
+        self.history = deque(maxlen=history_size)
+
+    def generate_random_operator_sequence(self, length=5):
+        """
+        随机生成符合规范的算子序列。
+
+        :param length: 序列中元组的数量。
+        :return: 生成的算子序列。
+        """
+        sequence = [(random.randint(0, 9), random.randint(0, self.param_limits[a]))
+                    for a in (random.randint(0, 9) for _ in range(length))]
+        return sequence
+
+    def calculate_diversity(self, current_sequence, type=True):
+        """
+        计算当前算子序列的多样性。
+
+        :param current_sequence: 当前算子序列。
+        :param type: 如果为True，仅使用算子序列的开头数字；如果为False，使用完整的算子序列。
+        :return: 当前算子序列的多样性值。
+        """
+        if not self.history:
+            return 1.0  # 若无历史，则多样性最大
+
+        diversity_sum = 0
+        current_vector = self.sequence_to_vector(current_sequence, type)
+        
+        for past_sequence in self.history:
+            past_vector = self.sequence_to_vector(past_sequence, type)
+            similarity = 1 - cosine(current_vector, past_vector)
+            diversity_sum += (1 - similarity)
+
+        div_t = (1 / len(self.history)) * diversity_sum
+        return div_t
+
+    def calculate_reward(self, current_diversity, type=True, m=5):
+        """
+        计算当前算子序列的奖励值。
+
+        :param current_diversity: 当前算子序列的多样性值。
+        :param type: 如果为True，仅使用算子序列的开头数字；如果为False，使用完整的算子序列。
+        :param m: 用于计算奖励的历史序列数量。
+        :return: 当前算子序列的奖励值。
+        """
+        if len(self.history) < m:
+            return 0.0  # 若历史不足m个，则奖励为0
+
+        reward_sum = 0
+        for i in range(1, m + 1):
+            past_diversity = self.calculate_diversity(self.history[-i], type)
+            reward_sum += (current_diversity - past_diversity)
+
+        reward = (1 / m) * reward_sum
+        return reward
+
+    def sequence_to_vector(self, sequence, type=True):
+        """
+        将算子序列转换为向量表示，用于计算余弦相似度。
+        
+        :param sequence: 算子序列。
+        :param type: 如果为True，仅考虑每个算子的第一个值；如果为False，考虑整个算子和参数。
+        :return: 序列的向量表示。
+        """
+        if type:
+            # 仅使用算子序列的开头数字
+            vector = np.zeros(10)  # 由于算子的范围是0-9
+            for a, _ in sequence:
+                vector[a] += 1
+        else:
+            # 使用完整的算子序列（包括参数）
+            max_param_value = max(self.param_limits)
+            vector = np.zeros(10 * (max_param_value + 1))
+            for a, b in sequence:
+                index = a * (max_param_value + 1) + b
+                vector[index] += 1
+        return vector
+
+    def add_to_history(self, sequence):
+        """
+        将算子序列添加到历史记录中。
+
+        :param sequence: 要添加的算子序列。
+        """
+        self.history.append(sequence)
+
 # 解析plugin文本
 def parse_plugin(xml_str):
     
@@ -151,9 +294,10 @@ operator_parameter_counts = [1, 1, 117, 117, 1, 1, 1, 1, 123, 123]
 class SimulatorState:
     def __init__(self, sdf_file_path, cover=0, ):
         self.sdf_file_path = sdf_file_path
-        self.num_basic_models = 0
-        self.num_complex_models = 0
-        self.num_plugins = 0
+        self.model_with_plugin = 0
+        self.model_with_none = 0
+        self.plugin_in_model = 0
+        self.plugin_in_world = 0
         self.cover_rate = cover
         # self.sequence_history = sequence_history
 
@@ -168,27 +312,45 @@ class SimulatorState:
         try:
             tree = ET.parse(self.sdf_file_path)
             root = tree.getroot()
-            self.num_basic_models, self.num_complex_models = self.extract_models(root)
-            self.num_plugins = self.extract_plugins(root)
+            self.model_with_plugin = 0, self.model_with_none = self.extract_models(root)
+            self.plugin_in_model = 0, self.plugin_in_world = self.extract_plugin(root)
             return True
         except ET.ParseError:
             print(f"Error: Failed to parse SDF file {self.sdf_file_path}.")
             return False
 
     def extract_models(self, root):
-        basic_models = 0
-        complex_models = 0
+        model_with_plugin = 0
+        model_with_none = 0
+
+        # for model in root.findall('.//model'):
+        #     if model.find('plugin') is not None:  # Check if model contains any plugin
+        #         models.append(format_plugin(ET.tostring(model, encoding='unicode')))
 
         for model in root.findall('.//model'):
-            if model.findall('.//model') or model.findall('.//include'):
-                complex_models += 1
+            if model.find('plugin') is not None:
+                model_with_plugin += 1
             else:
-                basic_models += 1
+                model_with_none += 1
 
-        for include in root.findall('.//include'):
-            complex_models += 1
+        return model_with_plugin, model_with_none
+    
+    def extract_plugin(self, root):
+        plugin_in_model = 0
+        plugin_in_world = 0
 
-        return basic_models, complex_models
+        # for model in root.findall('.//model'):
+        #     if model.find('plugin') is not None:  # Check if model contains any plugin
+        #         models.append(format_plugin(ET.tostring(model, encoding='unicode')))
+
+        for model in root.findall('.//model'):
+            for plugin in model.findall('plugin'):
+                plugin_in_model += 1
+        for world in root.findall('.//world'):
+            for plugin in world.findall('plugin'):
+                plugin_in_world += 1
+
+        return plugin_in_model, plugin_in_world
 
     def extract_plugins(self, root):
         plugins = root.findall('.//plugin')
@@ -198,21 +360,16 @@ class SimulatorState:
         # 计算序列历史多样性度量
         # diversity_score = self.calculate_diversity_score()
 
-        # 使用简单模型、复杂模型、插件数量、初始覆盖率、序列多样性度量作为状态
         vector = [
-            self.num_basic_models,
-            self.num_complex_models,
-            self.num_plugins,
+            self.model_with_plugin,
+            self.model_with_none,
+            self.plugin_in_model,
+            self.plugin_in_world,
             self.cover_rate,
             # diversity_score
         ]
 
         return vector
-
-    # def calculate_diversity_score(self):
-    #     # 这里可以是计算序列与历史序列的多样性的一种方法
-    #     # 简化为返回一个固定值，实际应用中应实现多样性度量算法
-    #     return np.random.rand()  # 只是一个占位符
 
 
 class SimulatorAction:
@@ -322,23 +479,25 @@ class SequenceManager:
             vector.append(parameter)
         return np.array(vector)
 
-def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager):
+def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number):
     '''奖励函数'''
     reward = 0
     # global sum_reward
     crash_reward = 0
     cov_reward = 0
+    diversity_reward = 0
 
     # 崩溃激励
     if crash_occurred:
-        crash_reward = 100  # 如果发生崩溃，给予一个大的奖励
+        crash_reward = 4 * (1 / crash_number)  # 如果发生崩溃，给予一个大的奖励
 
     # 覆盖率激励
     if coverage_increase > 0:
-        cov_reward = 10  # 根据覆盖率增加给予奖励
+        cov_reward = 0.2  # 根据覆盖率增加给予奖励
 
-    # 多样性激励
-    diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
+    # 多样性激励，使用论文里的公式
+    # diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
+    diversity_reward = sequence_manager.calculate_diversity(action_sequence, False)
     reward = diversity_reward + crash_reward + cov_reward
 
     # sum_reward += reward
@@ -346,10 +505,10 @@ def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequenc
     return reward
 
 # 计算多样性
-def calculate_diversity_reward(action_sequence, sequence_manager):
-    similarity = sequence_manager.calculate_similarity(action_sequence)
-    diversity_reward = (1 - similarity) * 30
-    return diversity_reward
+# def calculate_diversity_reward(action_sequence, sequence_manager):
+#     similarity = sequence_manager.calculate_similarity(action_sequence)
+#     diversity_reward = (1 - similarity) * 30
+#     return diversity_reward
 
 # 双方的agent
 # 定义高层策略（选择算子）和 Critic 网络的联合模型
@@ -794,9 +953,11 @@ class GzCommand:
 
                 return ""
 
+
+
 # 测试用的类
 class SmithUnit:
-    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None):
+    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None, crash_manager = None):
         self.directory = directory
         self.sdf_name = sdf_name
         self.num_seq = num_seq
@@ -825,6 +986,7 @@ class SmithUnit:
         self.seed = seed
         self.bandits = bandits
         self.crashes = crashes
+        self.crash_manager = crash_manager
 
     # 检测是否有新崩溃
     def check_new_crash(self, err_file):
@@ -1302,7 +1464,8 @@ class SmithUnit:
         print("DEBUG: after process.wait")
 
         crash_occurred = False  # 模拟检查是否发生崩溃
-        coverage_increase = 0.1  # 模拟增加的覆盖率
+        crash_number = 1    # 崩溃发生的数量
+        coverage_increase = 0  # 模拟增加的覆盖率
         # next_state = state  # 假设状态更新后为 next_state
 
         # 4. collect coverage
@@ -1343,6 +1506,7 @@ class SmithUnit:
                 # print(f"DEBUG: {self.crash_rewards}")
             if self.check_crash(f"{self.directory}/gz.err"):
                 crash_occurred = True
+                crash_number = crash_manager.process_error_file(f"{self.directory}/gz.err")
                 print(f"DEBUG: crash rewards: {i}")
                 print(f"DEBUG: {self.crash_rewards}")
 
@@ -1359,7 +1523,7 @@ class SmithUnit:
         print("DEBUG: now crash occurred is ", crash_occurred)
         # next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), initial_coverage, sequence_history)
         # 计算激励
-        reward = calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager)
+        reward = calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number)
         print("DEBUG: train begin")
         # 反向传播和优化
         high_policy, value = high_model(torch.FloatTensor(state.to_vector()).unsqueeze(0))
@@ -1825,7 +1989,9 @@ if __name__ == "__main__":
 
 
     # 创建序列管理器
-    sequence_manager = SequenceManager()
+    sequence_manager = OperatorSequenceManager()
+    # 错误栈字典
+    crash_manager = ErrorLogManager()
     # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
     initial_coverage = 0.0
     # diversity = SdfDiversity("./models")
@@ -1846,7 +2012,7 @@ if __name__ == "__main__":
         # sdf_state = get_sdf_initial_state()
 
         # unit.create_sdf()
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes) # bandits)
+        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes, crash_manager) # bandits)
         unit.copy_random_sdf()
         state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
 

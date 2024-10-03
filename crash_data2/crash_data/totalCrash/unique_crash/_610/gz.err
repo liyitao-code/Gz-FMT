@@ -1,0 +1,22 @@
+terminate called after throwing an instance of 'std::out_of_range'
+  what():  vector::_M_range_check: __n (which is 0) >= this->size() (which is 0)
+Stack trace (most recent call last) in thread 3266385:
+#17   Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#16   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7144ac32684f, in 
+#15   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7144ac294ac2, in 
+#14   Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7cdc252, in 
+#13   Object "/lib/x86_64-linux-gnu/libgz-transport13.so.13", at 0x7144a95ba75f, in gz::transport::v13::NodeShared::RunReceptionTask()
+#12   Object "/lib/x86_64-linux-gnu/libgz-transport13.so.13", at 0x7144a95b4387, in gz::transport::v13::NodeShared::RecvSrvRequest()
+#11   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7144a6b58c3e, in 
+#10   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7144a6b58899, in gz::sim::v8::SimulationRunner::GenerateWorldSdf(gz::msgs::SdfGeneratorConfig const&, gz::msgs::StringMsg&)
+#9    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7144a6ba42d0, in 
+#8    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7144a6ad616a, in gz::sim::v8::EntityComponentManager::ComponentImplementation(unsigned long, unsigned long) const
+#7    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7ca54cc, in 
+#6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7cae4d7, in __cxa_throw
+#5    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7cae276, in std::terminate()
+#4    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7cae20b, in 
+#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7144a7ca2b9d, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7144ac2287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7144ac242475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7144ac2969fc, in pthread_kill
+Aborted (Signal sent by tkill() 3266358 1000)

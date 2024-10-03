@@ -1,0 +1,6 @@
+Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::BodyNode | model::model41) The name [base_link] is a duplicate, so it has been renamed to [base_link(1)]
+[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::N4dart8dynamics9ShapeNodeE | model::model41) The name [base_link:collision] is a duplicate, so it has been renamed to [base_link:collision(1)]
+[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::BodyNode | model::model41) The name [rotor_link] is a duplicate, so it has been renamed to [rotor_link(1)]
+[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::Joint | model::model41) The name [rotor_joint] is a duplicate, so it has been renamed to [rotor_joint(1)]
+[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::N4dart8dynamics9ShapeNodeE | model::model41) The name [rotor_link:collision] is a duplicate, so it has been renamed to [rotor_link:collision(1)]

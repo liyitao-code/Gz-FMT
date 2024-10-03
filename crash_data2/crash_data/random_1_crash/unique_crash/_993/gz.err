@@ -1,0 +1,36 @@
+terminate called after throwing an instance of 'std::out_of_range'
+  what():  _Map_base::at
+Stack trace (most recent call last):
+#31   Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x780e42229d8f, in 
+#30   Object "gz sim /home/liyitao/workspace/exp/random_1/_993/a.sdf --seed 12345 -v 0 -r -s --headless-rendering", at 0x616b0b15817e, in 
+#29   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e426a8e19, in ruby_run_node
+#28   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e426a5317, in 
+#27   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e4283a30c, in rb_vm_exec
+#26   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e42834c96, in 
+#25   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e42831fc5, in 
+#24   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e4282fc34, in 
+#23   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x780e4299244b, in 
+#22   Object "/lib/x86_64-linux-gnu/libruby-3.0.so.3.0", at 0x780e427fd088, in rb_nogvl
+#21   Object "/usr/lib/x86_64-linux-gnu/ruby/3.0.0/fiddle.so", at 0x780e42991d6b, in 
+#20   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x780e42983492, in 
+#19   Object "/lib/x86_64-linux-gnu/libffi.so.8", at 0x780e42986e2d, in 
+#18   Object "/usr/lib/x86_64-linux-gnu/libgz-sim8-gz.so.8.6.0", at 0x780e424a4605, in runServer
+#17   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x780e3cb3d485, in 
+#16   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x780e3cb4d8a2, in gz::sim::v8::SimulationRunner::Run(unsigned long)
+#15   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x780e3cb4ce60, in gz::sim::v8::SimulationRunner::Step(gz::sim::v8::UpdateInfo const&)
+#14   Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x780e3cb5fb16, in gz::sim::v8::SystemManager::Reset(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager&)
+#13   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x780e33720e5a, in gz::sim::v8::systems::PhysicsPrivate::ResetPhysics(gz::sim::v8::EntityComponentManager&)
+#12   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x780e33732b00, in 
+#11   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x780e33785db4, in 
+#10   Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-physics-system.so", at 0x780e33733f61, in 
+#9    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x780dfc5d485e, in gz::physics::dartsim::FreeGroupFeatures::FindFreeGroupForLink(gz::physics::Identity const&) const
+#8    Object "/usr/lib/x86_64-linux-gnu/gz-physics-7/engine-plugins/libgz-physics-dartsim-plugin.so", at 0x780dfc5d530b, in std::__detail::_Map_base<unsigned long, std::pair<unsigned long const, std::shared_ptr<gz::physics::dartsim::LinkInfo> >, std::allocator<std::pair<unsigned long const, std::shared_ptr<gz::physics::dartsim::LinkInfo> > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::at(unsigned long const&) const
+#7    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x780e3dca549f, in std::__throw_out_of_range(char const*)
+#6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x780e3dcae4d7, in __cxa_throw
+#5    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x780e3dcae276, in std::terminate()
+#4    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x780e3dcae20b, in 
+#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x780e3dca2b9d, in 
+#2    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x780e422287f2, in abort
+#1    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x780e42242475, in raise
+#0    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x780e422969fc, in pthread_kill
+Aborted (Signal sent by tkill() 597190 1000)
