@@ -54,6 +54,7 @@ import xml.etree.ElementTree as ET
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from collections import deque
@@ -140,9 +141,12 @@ action_param_counts = {
     5: 1,   # RANDOM_EXEC_SERVICE (动态获取)
     6: 1,   # RANDOM_EXEC_TOPIC (动态获取)
     7: 1,    # RANDOM_SET_POSE
-    8: 123   # RANDOM_ADD_MODEL_WITH_PLUGIN
+    8: 123,  # RANDOM_ADD_MODEL_WITH_PLUGIN
+    9: 123   # RANDOM_ADD_MODEL_WITH_PLUGIN_XML
 }
 
+# list形式定义每个算子的参数数量
+operator_parameter_counts = [1, 1, 117, 117, 1, 1, 1, 1, 123, 123]
 
 class SimulatorState:
     def __init__(self, sdf_file_path, cover=0, ):
@@ -222,6 +226,7 @@ class SimulatorAction:
     RANDOM_EXEC_TOPIC = 6
     RANDOM_SET_POSE = 7
     RANDOM_ADD_MODEL_WITH_PLUGIN = 8
+    RANDOM_ADD_MODEL_WITH_PLUGIN_XML = 9
 
     @staticmethod
     def perform_action(action):
@@ -243,7 +248,37 @@ class SimulatorAction:
             return "func_random_pose"
         elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN:
             return "fund_add_random_model_with_plugin"
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN_XML:
+            return "fund_add_random_model_with_plugin_xml"
 
+# 策略更新和价值更新
+def update_actor_critic(log_probs, rewards, values, next_values, optimizer, critic_optimizer):
+    advantages = []
+    returns = []
+    G = next_values
+    for r, v in zip(reversed(rewards), reversed(values)):
+        G = r + 0.99 * G
+        returns.insert(0, G)
+        advantages.insert(0, G - v)
+    
+    advantages = torch.tensor(advantages)
+    returns = torch.tensor(returns)
+    
+    # 更新 Actor
+    policy_loss = []
+    for log_prob, advantage in zip(log_probs, advantages):
+        policy_loss.append(-log_prob * advantage.detach())
+    policy_loss = torch.cat(policy_loss).sum()
+    
+    optimizer.zero_grad()
+    policy_loss.backward()
+    optimizer.step()
+    
+    # 更新 Critic
+    value_loss = F.mse_loss(torch.tensor(values), returns)
+    critic_optimizer.zero_grad()
+    value_loss.backward()
+    critic_optimizer.step()
 
 def encode_action(action_type, parameter_index, action_param_counts):
     # 计算从0到当前action_type之前所有动作参数的和
@@ -255,7 +290,7 @@ def decode_action(encoded_action):
     for action_type, count in action_param_counts.items():
         if total + count >= encoded_action:
             parameter_index = encoded_action - total
-            return action_type, parameter_ind123
+            return action_type, parameter_index
 
 class SequenceManager:
     def __init__(self, max_history_length=10000):
@@ -267,11 +302,25 @@ class SequenceManager:
     def calculate_similarity(self, current_sequence):
         if not self.sequence_history:
             return 0  # 没有历史序列时，相似性为0
-        current_vector = np.array(current_sequence).reshape(1, -1)
-        history_vectors = np.array([np.array(seq) for seq in self.sequence_history])
+        
+        # 将当前序列转换为向量形式
+        current_vector = self.sequence_to_vector(current_sequence).reshape(1, -1)
+        
+        # 将历史序列转换为向量形式
+        history_vectors = np.array([self.sequence_to_vector(seq) for seq in self.sequence_history])
+        
+        # 计算相似性
         similarities = cosine_similarity(current_vector, history_vectors)
         max_similarity = similarities.max()
         return max_similarity
+
+    def sequence_to_vector(self, sequence):
+        # 将 (算子, 参数) 对转换为一维向量
+        vector = []
+        for operator, parameter in sequence:
+            vector.append(operator)
+            vector.append(parameter)
+        return np.array(vector)
 
 def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager):
     '''奖励函数'''
@@ -286,7 +335,7 @@ def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequenc
 
     # 覆盖率激励
     if coverage_increase > 0:
-        cov_reward = coverage_increase * 50  # 根据覆盖率增加给予奖励
+        cov_reward = 10  # 根据覆盖率增加给予奖励
 
     # 多样性激励
     diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
@@ -303,36 +352,74 @@ def calculate_diversity_reward(action_sequence, sequence_manager):
     return diversity_reward
 
 # 双方的agent
-class ActorCriticNetwork(nn.Module):
-    def __init__(self, state_dim, action_dim):
-        super(ActorCriticNetwork, self).__init__()
-        self.actor = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, action_dim),
-            nn.Softmax(dim=-1)
-        )
-        self.critic = nn.Sequential(
-            nn.Linear(state_dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
-        )
+# 定义高层策略（选择算子）和 Critic 网络的联合模型
+class HighLevelActorCritic(nn.Module):
+    def __init__(self, state_size, operator_count):
+        super(HighLevelActorCritic, self).__init__()
+        # Actor 分支
+        self.actor_fc1 = nn.Linear(state_size, 128)
+        self.actor_fc2 = nn.Linear(128, operator_count)
+        
+        # Critic 分支
+        self.critic_fc1 = nn.Linear(state_size, 128)
+        self.critic_fc2 = nn.Linear(128, 1)
 
-    def forward(self, state):
-        policy = self.actor(state)
-        value = self.critic(state)
+    def forward(self, x):
+        # 计算策略
+        actor_x = F.relu(self.actor_fc1(x))
+        policy = F.softmax(self.actor_fc2(actor_x), dim=-1)
+
+        # 计算价值
+        critic_x = F.relu(self.critic_fc1(x))
+        value = self.critic_fc2(critic_x)
+
         return policy, value
+
+# 定义低层策略网络（选择参数）
+class LowLevelPolicy(nn.Module):
+    def __init__(self, state_size, parameter_count):
+        super(LowLevelPolicy, self).__init__()
+        self.fc1 = nn.Linear(state_size, 128)
+        self.fc2 = nn.Linear(128, parameter_count)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.softmax(self.fc2(x), dim=-1)
+        return x
+
+# 定义 Critic 网络
+class Critic(nn.Module):
+    def __init__(self, state_size):
+        super(Critic, self).__init__()
+        self.fc1 = nn.Linear(state_size, 128)
+        self.fc2 = nn.Linear(128, 1)
+    
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        return x
+    
     
 # 生成整个算子操作序列
-def generate_action_sequence(state, model, num_actions):
+def generate_action_sequence(state, high_model, low_models, num_actions):
     state_tensor = torch.FloatTensor(state.to_vector()).unsqueeze(0)
-    policy, _ = model(state_tensor)
+    high_policy, _ = high_model(state_tensor)  # 从返回的元组中提取策略
     action_sequence = []
     action_log_probs = []  # 存储每个动作的对数概率
+
     for _ in range(num_actions):
-        action, log_prob = select_action(policy)
-        action_sequence.append(action)
-        action_log_probs.append(log_prob)
+        operator, operator_log_prob = select_action(high_policy)
+        parameter = 0  # 默认为0
+        parameter_log_prob = torch.tensor(0.0)  # 如果没有低层策略网络，log_prob为0
+
+        # 如果需要选择参数
+        if operator_parameter_counts[operator] > 1:
+            low_policy = low_models[operator](state_tensor)
+            parameter, parameter_log_prob = select_action(low_policy)
+
+        action_sequence.append((operator, parameter))
+        action_log_probs.append((operator_log_prob, parameter_log_prob))
+
     return action_sequence, action_log_probs
 
 # 动作选择函数，结合ε-greedy策略
@@ -346,6 +433,7 @@ def select_action(policy, epsilon=0.1):
         action = np.random.choice(len(action_prob), p=action_prob)
     log_prob = torch.log(policy.squeeze(0)[action])
     return action, log_prob
+
 
 def find_largest_non_empty_world_file(tar_dir):
     """
@@ -1109,15 +1197,18 @@ class SmithUnit:
         # self.stop_gazebo(True)
         # print("DEBUG: after stop_gazebo")
         
-    def generate_and_test_commands_train(self, state, sequence_manager, model, optimizer):
-
+    # def generate_and_test_commands_train(self, state, sequence_manager, model, optimizer):
+    def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic_optimizer):
         state_dim = 4  # 状态共有4维：简单模型个数、复杂模型个数、插件个数、覆盖率
-        action_dim = 9  # 9种不同的算子
-        optimizer.zero_grad()
-
-        # 生成算子序列
-        action_sequence, action_log_probs = generate_action_sequence(state, model, self.num_seq)
-
+        action_dim = 10  # 9种不同的算子
+        high_optimizer.zero_grad()
+        for opt in low_optimizers:
+            if opt is not None:
+                opt.zero_grad()
+        
+        # 生成算子序列，长度为5
+        action_sequence, action_log_probs = generate_action_sequence(state, high_model, low_models, 5)
+        
         print("DEBUG: action sequence is " + str(action_sequence))
 
         # 0. collect coverage info
@@ -1147,17 +1238,17 @@ class SmithUnit:
 
         print("DEBUG: before command range")
         i = 0
-        for act in action_sequence:
+        for (operator, parameter) in action_sequence:
             
             # 1. 获取操作名
-            now_act, now_arg = decode_action(act + 1)
-            func_name = SimulatorAction.perform_action(now_act)
+            # now_act, now_arg = decode_action(act + 1)
+            func_name = SimulatorAction.perform_action(operator)
             func = getattr(self, func_name)
             # 2. apply the action
             print(func_name)
 
-            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin"]:
-                command = func(now_arg)
+            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin", "fund_add_random_model_with_plugin_xml"]:
+                command = func(parameter)
             else:
                 command = func()
             
@@ -1212,7 +1303,7 @@ class SmithUnit:
 
         crash_occurred = False  # 模拟检查是否发生崩溃
         coverage_increase = 0.1  # 模拟增加的覆盖率
-        next_state = state  # 假设状态更新后为 next_state
+        # next_state = state  # 假设状态更新后为 next_state
 
         # 4. collect coverage
         try:
@@ -1271,13 +1362,16 @@ class SmithUnit:
         reward = calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager)
         print("DEBUG: train begin")
         # 反向传播和优化
-        _, value = model(torch.FloatTensor(state.to_vector()).unsqueeze(0))
+        high_policy, value = high_model(torch.FloatTensor(state.to_vector()).unsqueeze(0))
         advantage = reward - value.item()  # 计算优势
-        actor_loss = -sum(action_log_probs) * advantage
+        actor_loss = -sum(op_log_prob + param_log_prob for op_log_prob, param_log_prob in action_log_probs) * advantage
         critic_loss = advantage ** 2
         loss = actor_loss + critic_loss
         loss.backward()
-        optimizer.step()
+        high_optimizer.step()
+        for optimizer in low_optimizers:
+            if optimizer is not None:
+                optimizer.step()
         print("DEBUG: train end")
         # 将当前序列添加到历史
         sequence_manager.add_sequence(action_sequence)
@@ -1332,6 +1426,10 @@ class SmithUnit:
     # 添加带有plugin的不带扰动的随机模型
     def fund_add_random_model_with_plugin(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
         return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, False)
+    
+    # 添加带有plugin的带扰动的随机模型
+    def fund_add_random_model_with_plugin_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, True)
 
     # 添加模型
     def helper_func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
@@ -1701,13 +1799,31 @@ if __name__ == "__main__":
     start = datetime.now().timestamp()
     stop = False
 
-    # 初始化环境和模型
-    state_dim = 4  # 状态维度
-    # action_dim = 9  # 动作维度
-    action_dim = sum(action_param_counts.values())  # 动作维度
+    # 初始化策略网络和优化器
+    state_dim = 4  # 状态维度为4
+    action_dim = 10  # 算子共有10个
+    # action_dim = sum(action_param_counts.values())  # 动作维度
 
-    model = ActorCriticNetwork(state_dim, action_dim)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    # model = ActorCriticNetwork(state_dim, action_dim)
+    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    # 创建每个算子的独立底层策略网络
+    low_level_policies = []
+    for parameter_count in operator_parameter_counts:
+        if parameter_count > 1:
+            low_level_policies.append(LowLevelPolicy(state_dim, parameter_count))
+        else:
+            low_level_policies.append(None)  # 对于参数数量为1的算子，不创建低层策略网络
+    
+    # 高层策略网络
+    high_level_actor_critic = HighLevelActorCritic(state_dim, action_dim)
+    critic = Critic(state_dim)
+
+    high_optimizer = optim.Adam(high_level_actor_critic.parameters(), lr=0.001)
+    low_optimizers = [optim.Adam(policy.parameters(), lr=0.001) if policy is not None else None for policy in low_level_policies]
+    critic_optimizer = optim.Adam(high_level_actor_critic.parameters(), lr=0.001)  # Critic 和 Actor 使用同一优化器
+
+
     # 创建序列管理器
     sequence_manager = SequenceManager()
     # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
@@ -1739,7 +1855,9 @@ if __name__ == "__main__":
         print("id = " + str(i))
         unit.cov_old.collect()
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
-        reward = unit.generate_and_test_commands_train(state, sequence_manager, model, optimizer)
+        # def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic, critic_optimizer):
+
+        reward = unit.generate_and_test_commands_train(state, sequence_manager, high_level_actor_critic, low_level_policies, high_optimizer, low_optimizers, critic_optimizer)
         # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
         total_reward += reward
         print("DEBUG: now total reward is ", total_reward)
