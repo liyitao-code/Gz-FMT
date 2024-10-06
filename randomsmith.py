@@ -47,6 +47,10 @@ from lxml import etree
 import string
 import sys
 
+from search_plugin_in_model import retrieve_plugin_by_index
+from search_plugin_in_world import retrieve_plugin_in_world_by_index
+from search_model_with_plugin import retrieve_model_by_index
+
 FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gazebo/800']
 DIR_FLAG = 0
 
@@ -64,6 +68,59 @@ def safe_utf8_encode(data):
     if isinstance(data, str):
         return data.encode('utf-8', errors='replace').decode('utf-8')
     return data
+
+# 定义每个算子的参数数量
+action_param_counts = {
+    0: 1,    # RANDOM_LOAD_MODEL
+    1: 1,    # RANDOM_LOAD_MODEL_XML
+    2: 117,  # RANDOM_ADD_PLUGIN
+    3: 117,  # RANDOM_ADD_PLUGIN_XML
+    4: 1,    # RANDOM_REMOVE_MODEL
+    5: 1,   # RANDOM_EXEC_SERVICE (动态获取)
+    6: 1,   # RANDOM_EXEC_TOPIC (动态获取)
+    7: 1,    # RANDOM_SET_POSE
+    8: 123,  # RANDOM_ADD_MODEL_WITH_PLUGIN
+    9: 123   # RANDOM_ADD_MODEL_WITH_PLUGIN_XML
+}
+
+class SimulatorAction:
+    '''动作空间'''
+    RANDOM_LOAD_MODEL = 0
+    RANDOM_LOAD_MODEL_XML = 1
+    RANDOM_ADD_PLUGIN = 2
+    RANDOM_ADD_PLUGIN_XML = 3
+    RANDOM_REMOVE_MODEL = 4
+    RANDOM_EXEC_SERVICE = 5
+    RANDOM_EXEC_TOPIC = 6
+    RANDOM_SET_POSE = 7
+    RANDOM_ADD_MODEL_WITH_PLUGIN = 8
+    RANDOM_ADD_MODEL_WITH_PLUGIN_XML = 9
+
+    @staticmethod
+    def perform_action(action):
+        if action == SimulatorAction.RANDOM_LOAD_MODEL:
+            return "func_add_random_model"
+        elif action == SimulatorAction.RANDOM_LOAD_MODEL_XML:
+            return "func_add_random_model_xml"
+        elif action == SimulatorAction.RANDOM_ADD_PLUGIN:
+            return "func_add_random_plugin_to_model"
+        elif action == SimulatorAction.RANDOM_ADD_PLUGIN_XML:
+            return "func_add_random_plugin_to_model_xml"
+        elif action == SimulatorAction.RANDOM_REMOVE_MODEL:
+            return "func_remove_random_model"
+        elif action == SimulatorAction.RANDOM_EXEC_SERVICE:
+            return "func_random_service"
+        elif action == SimulatorAction.RANDOM_EXEC_TOPIC:
+            return "func_random_topic"
+        elif action == SimulatorAction.RANDOM_SET_POSE:
+            return "func_random_pose"
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN:
+            return "fund_add_random_model_with_plugin"
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN_XML:
+            return "fund_add_random_model_with_plugin_xml"
+
+# list形式定义每个算子的参数数量
+operator_parameter_counts = [1, 1, 117, 117, 1, 1, 1, 1, 123, 123]
 
 # 生成随机字符串
 def random_string(length=6):
@@ -755,7 +812,7 @@ class SmithUnit:
             process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         except:
             print("DEBUG: subprocess launch gz error")
-            return None
+            return 0
 
         process_status = psutil.Process(process.pid)
         time.sleep(5)
@@ -765,7 +822,7 @@ class SmithUnit:
             self.world_name = response.data[0]
         except:
             print("DEBUG: gz process not alive")
-            return None
+            return 0
 
         print("DEBUG: before loop gz commands")
         func_names = []
@@ -776,14 +833,20 @@ class SmithUnit:
         for i in range(self.num_seq):
 
             # 1. 随机选择一个func_函数执行
-            func_name = random.choice(self.funcs)
-            func_names.append(func_name)
+            func_id = random.randint(0, 9)
+            func_name = SimulatorAction.perform_action(func_id)
+            func_pare = random.random(0, operator_parameter_counts[func_id] - 1)
+            func_names.append((func_name, func_pare))
+            
             func = getattr(self, func_name)
             # 2. apply the action
             print(func_name)
             # print("!!!DEBUG: 展示随机选择的函数")
             # print("!!!DEBUG: func_name：" + func_name)
-            command = func()
+            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin", "fund_add_random_model_with_plugin_xml"]:
+                command = func(func_pare)
+            else:
+                command = func()
             # print("!!!DEBUG: command：" + str(command))
             self.gz_cmds.append(command)
             if self.use_text:
@@ -796,15 +859,15 @@ class SmithUnit:
                 print(f"DEBUG: before execute command {i}")
                 ret = command.execute()
 
-            world = self.dump_sdf(self.world_name)
-            print(f"DEBUG: before dump world {i}")
-            world_file = f"{self.directory}/world_{i}.sdf" 
-            with open(world_file, "w") as f:
-                f.write(world)
+            # world = self.dump_sdf(self.world_name)
+            # print(f"DEBUG: before dump world {i}")
+            # world_file = f"{self.directory}/world_{i}.sdf" 
+            # with open(world_file, "w") as f:
+            #     f.write(world)
 
-            if self.diversity:
-                flag, dist = self.diversity.add_and_check(world_file)
-                self.diversity_rewards[i] = 1 if flag else 0
+            # if self.diversity:
+            #     flag, dist = self.diversity.add_and_check(world_file)
+            #     self.diversity_rewards[i] = 1 if flag else 0
 
 
             with open(f"{self.directory}/id", "w") as f:
@@ -849,7 +912,7 @@ class SmithUnit:
                 print(f"DEBUG: killing child: {child.pid}")
                 child.kill()
             process.kill()
-            return None
+            return 0
         except:
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
@@ -873,19 +936,19 @@ class SmithUnit:
 
                 print(f"DEBUG: {self.crash_rewards}")
 
-            if self.bandits:
-                ### for i in range(len(func_names)):
-                ###     index = self.funcs.index(func_names[i])  
-                ###     self.bandits[i].reward(index)
-                if diff.new_line > 0:
-                    rewards = [(1 if idx <= i else 0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
-                else:
-                    rewards = [(0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
+            # if self.bandits:
+            #     ### for i in range(len(func_names)):
+            #     ###     index = self.funcs.index(func_names[i])  
+            #     ###     self.bandits[i].reward(index)
+            #     if diff.new_line > 0:
+            #         rewards = [(1 if idx <= i else 0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
+            #     else:
+            #         rewards = [(0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
 
-                print(rewards)
-                self.bandits.update(actions, rewards=rewards)
+            #     print(rewards)
+            #     self.bandits.update(actions, rewards=rewards)
 
-            return diff
+            return diff.new_line
 
     # 复制随机的sdf文件
     def copy_random_sdf(self):
@@ -923,15 +986,23 @@ class SmithUnit:
         return str(response).encode("utf-8").decode("unicode_escape")[7:-3]  # skip data: ""
 
     # 添加随机模型
-    def func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False)
+    def func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, False)
 
-    # 以true调用helper_func_add_random_model
-    def func_add_mined_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, True)
+    # 添加带扰动的随机模型
+    def func_add_random_model_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, True)
+    
+    # 添加带有plugin的不带扰动的随机模型
+    def fund_add_random_model_with_plugin(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, False)
+    
+    # 添加带有plugin的带扰动的随机模型
+    def fund_add_random_model_with_plugin_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, True)
 
     # 添加模型
-    def helper_func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False):
+    def helper_func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
         # def create_model(world, name, x, y, z, sdf_content=None):
 
         scene, reserved_models = self.get_scene()
@@ -941,7 +1012,8 @@ class SmithUnit:
             return None
         service_name = f"/world/{self.world_name}/create"
         request = EntityFactory()
-        if not sdf_content:
+
+        if model_id == -1:
             model_gen = ModelGen(self.sdf_miner)
             if not from_mined:
                 root = model_gen.generate_with_root_wrapper(name, from_mined)
@@ -949,11 +1021,17 @@ class SmithUnit:
                 sdf_content = root.to_string().encode("utf-8")
             else:
                 sdf_content = self.plugin_miner.random_model_with_root()
+        else:
+            sdf_content = retrieve_model_by_index(model_id)
         
-        new_sdf = perturb_xml(str(sdf_content))
-        if new_sdf is not None:
-            request.sdf = new_sdf
-            # print("!!!DEBUG: add model request change success")
+        # 是否扰动
+        if xml_random is True:
+            new_sdf = perturb_xml(str(sdf_content))
+            if new_sdf is not None:
+                request.sdf = new_sdf
+                # print("!!!DEBUG: add model request change success")
+            else:
+                request.sdf = sdf_content
         else:
             request.sdf = sdf_content
         request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
@@ -994,9 +1072,17 @@ class SmithUnit:
         result, response = node.request(service_name, request, Empty, Scene, self.timeout)
         return response, reserved_models
 
+    def func_add_random_plugin_to_model(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(False, plugin_id)
+    
+    def func_add_random_plugin_to_model_xml(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(True, plugin_id)
+
     # 随机给模型添加组件
-    def func_add_random_plugin_to_model(self):
-        print("DEBUG: begin func_add_random_plugin_to_model")
+    def helper_func_add_random_plugin_to_model(self, random_xml = False, plugin_id = -1):
+        if plugin_id == -1:
+            plugin_id = random(0, action_param_counts[2])
+        # print("DEBUG: begin func_add_random_plugin_to_model")
         # 0. get world name
         try:
             result, response = self.get_world()
@@ -1018,39 +1104,36 @@ class SmithUnit:
         else:
             return None
         # 2. get random plugin
-        plugin = random.choice(self.plugin_miner.plugins_within_model)
-        filename = plugin.get("filename")
-        name = plugin.get("name")
-        innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        # plugin = random.choice(self.plugin_miner.plugins_within_model)
+
+        # get plugin though id
+        if plugin_id == -1:
+            plugin = random.choice(self.plugin_miner.plugins_within_model)
+            filename = plugin.get("filename")
+            name = plugin.get("name")
+            innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        else:
+            plugin = retrieve_plugin_by_index(plugin_id)
+            filename, name, innerxml = parse_plugin(plugin)
+        
+        
 
         entity_plugin_pb = EntityPlugin_V()
         plugin_pb = Plugin()
         plugin_pb.filename = filename
         # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
         plugin_pb.name = name
-        new_innerxml = perturb_xml(str(innerxml))
-        if(new_innerxml is not None) :
-            print("DEBUG: change plugin success")
-            plugin_pb.innerxml = new_innerxml
+        if random_xml is True:
+            new_innerxml = perturb_xml(str(innerxml))
+            if(new_innerxml is not None) :
+                print("DEBUG: change plugin success")
+                plugin_pb.innerxml = new_innerxml
+            else:
+                plugin_pb.innerxml = innerxml
         else:
             plugin_pb.innerxml = innerxml
         entity_plugin_pb.entity.id = model_id
         entity_plugin_pb.plugins.append(plugin_pb)
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG: plugin_pb name is %s" %(plugin_pb.name))
-        # print("!!!DEBUG: old plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
-
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG entity_pulgin_pb begin")
-        # print(type(entity_plugin_pb))
-        # print("!!!DEBUG entity_pulgin_pb end")
-
-        # new_request = perturb_protobuf_like_text(str(entity_plugin_pb))
-        # if new_request is not None :
-        #     entity_plugin_pb = new_request
-        #     print("DEBUG: new_request success")
-        
-        # print("!!!DEBUG: new plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
 
         # 3. generate gz command
         service_name = f"/world/{world_name}/entity/system/add"
@@ -1292,9 +1375,16 @@ if __name__ == "__main__":
     ##### unit.create_sdf()
     ##### unit.pairwise_generate_and_test_commands()
     ##### unit.topic_fuzzing()
+    cov_line_time = 0
+    cov_line_turn = 0
+    turn = -1
     # while i < options.iteration:
     while not stop:
         now = datetime.now().timestamp()
+        if (now - start - turn) >  600:
+            with open(f"{options.directory}cov_time.txt", "a") as file:
+                file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
+            turn = now - start
         if now - start >= 60 * 60 * 24:
             stop = True
         exp_dir = f"{options.directory}_{i}"
@@ -1303,10 +1393,17 @@ if __name__ == "__main__":
         unit.copy_random_sdf()
         print("DEBUG: before generate_and_test_commands")
         print("id = " + str(i + 1))
-        diff = unit.generate_and_test_commands()
+        cov_line = unit.generate_and_test_commands()
+        cov_line_time += cov_line
+        cov_line_turn += cov_line
+        with open(f"{options.directory}cov_turn.txt", "a") as file:
+            file.write(f"turn is {i}, cover line is {cov_line_turn}\n")
         i += 1
         # very dirty, just try it for now
         subprocess.run("pkill -9 ruby", shell=True)
+
+
+
     print("end of servicesmith.py")
     # if options.mode == "one_shot":
     #     service_smith = ServiceSmith(skipped=skipped)

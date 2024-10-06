@@ -18,6 +18,7 @@ class CoverageDiff:
     def __init__(self, new_line=0, new_file=0):
         self.new_line = new_line
         self.new_file = new_file
+        
 
     def compare(self, cov_a, cov_b=None):
         if cov_b is None:
@@ -42,6 +43,8 @@ class CoverageInfo:
         self.file_cov = dict()
         # TODO: should reconsider this
         self.function_branch = dict()
+        # 总行数
+        self.total_lines_dict = dict()  
 
     def collect(self):
         coverage_list = self.run_gcov()
@@ -53,7 +56,11 @@ class CoverageInfo:
         if not os.path.exists(self.gcov_dir):
             os.mkdir(self.gcov_dir)
         owd = os.getcwd()
+        # print("!!!!!" + owd)
         os.chdir(self.gcov_dir)
+        
+        # owd1 = os.getcwd()
+        # print("!!!!!" + owd1)
 
         # dirty yet fast...
         subprocess.run(f"find {self.build_dir} -name '*.gcda' | parallel gcov --json -p > /dev/null", shell=True)
@@ -78,6 +85,8 @@ class CoverageInfo:
         executed_branches = 0
         for file in cov_dict['files']:
             filename = file['file']
+            total_lines = len(file['lines'])
+            # self.total_lines_dict[filename] = total_lines  # 更新总行数
             for function in file['functions']:
                 # total_branches += function['blocks']
                 blocks = function['blocks_executed']
@@ -105,11 +114,34 @@ class CoverageInfo:
                 self.file_cov[f] = self.file_cov[f].union(cov_info.file_cov[f])
             else:
                 self.file_cov[f] = cov_info.file_cov[f].copy()
+    
+    def calculate_total_coverage(self):
+        total_lines = sum(self.total_lines_dict.values())
+        covered_lines = sum(len(lines) for lines in self.file_cov.values())
 
+        # 如果总行数为零，避免除以零错误
+        if total_lines == 0:
+            return 0.0
+        # print(f"all line: {total_lines}")
+        return (covered_lines / total_lines) * 100
+    
+    def get_total_line(self):
+        return sum(self.total_lines_dict.values())
 
 
 if __name__ == "__main__":
     cov = CoverageInfo(BUILD_DIR, GCOV_DIR)
     cov.collect()
-    # cov.cleanup(False, False)
+    print("run success")
+    # for filename, lines in cov.file_cov.items():
+    #     print(f"File: {filename}")
+    #     print(f"Covered Lines: {sorted(lines)}")
+    #     print(f"Number of Covered Lines: {len(lines)}")
+    #     print("----------")
+
+
+    total_coverage = cov.calculate_total_coverage()
+    print(f"Total Coverage: {total_coverage:.2f}%")
     
+
+    # cov.cleanup(False, False)
