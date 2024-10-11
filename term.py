@@ -5,6 +5,7 @@ import os
 import datetime
 import psutil
 import time
+import subprocess
 
 def check(filename):
     if not os.path.exists(filename):
@@ -23,6 +24,7 @@ def check(filename):
             for child in ps.children(recursive=True):
                 child.kill()
             ps.kill()
+            subprocess.run("pkill -9 ruby", shell=True)
             with open("logg", "a") as f:
                 f.write(f"killed process {pid}\n")
         except Exception as e:

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+sys.path.append('/home/liyitao/workspace/install/lib/python')
+
 from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
 from gz.msgs10.pose_pb2 import Pose
@@ -36,16 +39,17 @@ from sdf_diversity import SdfDiversity
 from crash_result import ErrorLog
 ### from mab.algs import ThompsomSampling, UCB1, UCBTuned
 
-from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
-from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
-from pybandits.model import Beta
+# from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
+# from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
+# from pybandits.model import Beta
 import logging
 import logging.config
 import func_timeout
 
 from lxml import etree
 import string
-import sys
+
+import xml.etree.ElementTree as ET
 
 from search_plugin_in_model import retrieve_plugin_by_index
 from search_plugin_in_world import retrieve_plugin_in_world_by_index
@@ -175,6 +179,27 @@ def random_number_like(original):
             random_number = original_value * -1
 
     return str(random_number)
+
+# 解析plugin文本
+def parse_plugin(xml_str):
+    
+    try:
+        # 解析XML字符串
+        plugin_element = ET.fromstring(xml_str)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML format: {e}")
+
+    # 提取filename和name属性
+    filename = plugin_element.get("filename")
+    name = plugin_element.get("name")
+
+    if filename is None or name is None:
+        raise ValueError("Missing 'filename' or 'name' attribute in plugin XML.")
+
+    # 提取内部的其他元素（转换回字符串格式）
+    internal_elements = "".join(ET.tostring(child, encoding='unicode') for child in plugin_element if child.tag not in ['filename', 'name'])
+
+    return filename, name, internal_elements
 
 def perturb_xml(xml_fragment):
     """
@@ -826,8 +851,8 @@ class SmithUnit:
 
         print("DEBUG: before loop gz commands")
         func_names = []
-        if self.bandits:
-            actions, probs = self.bandits.predict(n_samples=self.num_seq)
+        # if self.bandits:
+        #     actions, probs = self.bandits.predict(n_samples=self.num_seq)
             # print(probs)
         print("DEBUG: before command range")
         for i in range(self.num_seq):
@@ -835,7 +860,7 @@ class SmithUnit:
             # 1. 随机选择一个func_函数执行
             func_id = random.randint(0, 9)
             func_name = SimulatorAction.perform_action(func_id)
-            func_pare = random.random(0, operator_parameter_counts[func_id] - 1)
+            func_pare = random.randint(0, operator_parameter_counts[func_id] - 1)
             func_names.append((func_name, func_pare))
             
             func = getattr(self, func_name)
@@ -1367,7 +1392,7 @@ if __name__ == "__main__":
     ### bandits = [ThompsomSampling(NUM_ARM) for i in range(options.num_seq)]
     # 输入有问题
     # mab = create_smab_bernoulli_mo_cold_start(action_ids=list(range(NUM_ARM)), n_objectives=3)
-    mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
+    # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
     diversity = SdfDiversity("./models")
     crashes = set()
     i = 0
@@ -1381,10 +1406,10 @@ if __name__ == "__main__":
     # while i < options.iteration:
     while not stop:
         now = datetime.now().timestamp()
-        if (now - start - turn) >  600:
+        if (now - start) > 600 * turn:
             with open(f"{options.directory}cov_time.txt", "a") as file:
                 file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
-            turn = now - start
+            turn = (now - start) / 600
         if now - start >= 60 * 60 * 24:
             stop = True
         exp_dir = f"{options.directory}_{i}"

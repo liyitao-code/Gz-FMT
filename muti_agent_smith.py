@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.append('/workspace/install/lib/python')
+# sys.path.append('/workspace/install/lib/python')
 
 from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
@@ -18,6 +18,7 @@ from gz.msgs10.plugin_pb2 import Plugin
 from gz.transport13 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
 from lxml.etree import tostring
+import signal
 import random
 import re
 import randomproto
@@ -72,7 +73,7 @@ from search_model_with_plugin import retrieve_model_by_index
 import csv
 
 
-FIRST_DIR = ['/workspace', '/home/liyitao/gazebo/800']
+FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gazebo/800']
 DIR_FLAG = 0
 
 DIR = FIRST_DIR[DIR_FLAG] + '/install/lib/python/gz/msgs10'
@@ -85,6 +86,19 @@ actions = ['add_model', 'remove_model', 'modify_position', 'add_component']
 import fcntl
 
 sum_reward = 0
+
+def kill_ruby_processes():
+    # 遍历系统中的所有进程
+    for proc in psutil.process_iter(attrs=['pid', 'name']):
+        try:
+            # 检查进程名称是否为 'ruby'
+            if proc.info['name'] == 'ruby':
+                pid = proc.info['pid']
+                print(f"Killing ruby process with PID: {pid}")
+                os.kill(pid, signal.SIGKILL)  # 使用 SIGKILL 强制终止进程
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            # 忽略在获取进程信息期间可能发生的异常
+            pass
 
 def save_training_metrics(filename, epoch, cumulative_reward, policy_change, loss_value, exploration_rate):
     """
@@ -483,7 +497,7 @@ def decode_action(encoded_action):
 #             vector.append(parameter)
 #         return np.array(vector)
 
-def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = False, reward_type = True):
+def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = False, reward_type = False):
     '''奖励函数'''
     reward = 0
     # global sum_reward
@@ -514,27 +528,25 @@ def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequenc
 
 # 双方的agent
 # 定义高层策略（选择算子）和 Critic 网络的联合模型
-class HighLevelActorCritic(nn.Module):
-    def __init__(self, state_size, operator_count):
-        super(HighLevelActorCritic, self).__init__()
-        # Actor 分支
-        self.actor_fc1 = nn.Linear(state_size, 128)
-        self.actor_fc2 = nn.Linear(128, operator_count)
-        
-        # Critic 分支
-        self.critic_fc1 = nn.Linear(state_size, 128)
-        self.critic_fc2 = nn.Linear(128, 1)
+class HighLevelActor(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(HighLevelActor, self).__init__()
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, action_dim)
 
     def forward(self, x):
-        # 计算策略
-        actor_x = F.relu(self.actor_fc1(x))
-        policy = F.softmax(self.actor_fc2(actor_x), dim=-1)
+        x = F.relu(self.fc1(x))
+        return F.softmax(self.fc2(x), dim=-1)
 
-        # 计算价值
-        critic_x = F.relu(self.critic_fc1(x))
-        value = self.critic_fc2(critic_x)
+class Critic(nn.Module):
+    def __init__(self, state_dim):
+        super(Critic, self).__init__()
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, 1)
 
-        return policy, value
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        return self.fc2(x)
 
 # 定义低层策略网络（选择参数）
 class LowLevelPolicy(nn.Module):
@@ -562,9 +574,9 @@ class Critic(nn.Module):
     
     
 # 生成整个算子操作序列
-def generate_action_sequence(state, high_model, low_models, num_actions):
+def generate_action_sequence(state, actor, low_models, num_actions):
     state_tensor = torch.FloatTensor(state.to_vector()).unsqueeze(0)
-    high_policy, _ = high_model(state_tensor)  # 从返回的元组中提取策略
+    high_policy = actor(state_tensor)  # 提取策略
     action_sequence = []
     action_log_probs = []  # 存储每个动作的对数概率
 
@@ -1362,16 +1374,18 @@ class SmithUnit:
         # print("DEBUG: after stop_gazebo")
         
     # def generate_and_test_commands_train(self, state, sequence_manager, model, optimizer):
-    def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic_optimizer):
+    def generate_and_test_commands_train(self, state, sequence_manager, actor, critic, low_models, actor_optimizer, low_optimizers, critic_optimizer, now_coverage):
         state_dim = 5  # 状态共有5维
         action_dim = 10  # 10种不同的算子
-        high_optimizer.zero_grad()
+        # 清除梯度
+        actor_optimizer.zero_grad()  # 使用 actor_optimizer
+        critic_optimizer.zero_grad()  # Critic 清除梯度
         for opt in low_optimizers:
             if opt is not None:
                 opt.zero_grad()
         
         # 生成算子序列，长度为unit.num_seq
-        action_sequence, action_log_probs = generate_action_sequence(state, high_model, low_models, unit.num_seq)
+        action_sequence, action_log_probs = generate_action_sequence(state, actor, low_models, unit.num_seq)  # 修改：使用独立的 actor 模型
         
         print("DEBUG: action sequence is " + str(action_sequence))
 
@@ -1427,11 +1441,12 @@ class SmithUnit:
                 print(f"DEBUG: before execute command {i}")
                 ret = command.execute()
 
-            # world = self.dump_sdf(self.world_name)
-            # print(f"DEBUG: before dump world {i}")
-            # world_file = f"{self.directory}/world_{i}.sdf" 
-            # with open(world_file, "w") as f:
-            #     f.write(world)
+            # 输出当前sdf情况
+            world = self.dump_sdf(self.world_name)
+            print(f"DEBUG: before dump world {i}")
+            world_file = f"{self.directory}/world_{i}.sdf" 
+            with open(world_file, "w") as f:
+                f.write(world)
 
             # if self.diversity:
             #     flag, dist = self.diversity.add_and_check(world_file)
@@ -1468,7 +1483,7 @@ class SmithUnit:
         crash_occurred = False  # 模拟检查是否发生崩溃
         crash_number = 1    # 崩溃发生的数量
         coverage_increase = 0  # 模拟增加的覆盖率
-        # next_state = state  # 假设状态更新后为 next_state
+        next_state = state  # 假设状态更新后为 next_state
 
         # 4. collect coverage
         try:
@@ -1523,18 +1538,41 @@ class SmithUnit:
             
             # return diff
         print("DEBUG: now crash occurred is ", crash_occurred)
-        # next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), initial_coverage, sequence_history)
+        # state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
+        now_coverage += diff.new_line
+        next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), now_coverage)
         # 计算激励
         reward = calculate_reward(action_sequence, crash_occurred, diff.new_line, sequence_manager, crash_number)
         print("DEBUG: train begin")
         # 反向传播和优化
-        high_policy, value = high_model(torch.FloatTensor(state.to_vector()).unsqueeze(0))
-        advantage = reward - value.item()  # 计算优势
-        actor_loss = -sum(op_log_prob + param_log_prob for op_log_prob, param_log_prob in action_log_probs) * advantage
-        critic_loss = advantage ** 2
-        loss = actor_loss + critic_loss
-        loss.backward()
-        high_optimizer.step()
+        state_tensor = torch.FloatTensor(state.to_vector()).unsqueeze(0)
+        high_policy = actor(state_tensor)  # 修改：使用独立的 actor 模型
+        value = critic(state_tensor)  # 修改：使用独立的 critic 模型
+
+        # 计算当前状态的预估价值
+        next_state_tensor = torch.FloatTensor(next_state.to_vector()).unsqueeze(0)  # 计算s'
+        next_value = critic(next_state_tensor)
+        gamma = 0.99
+        advantage = reward + gamma * next_value.item() - value.item()   # 带有V(s')的优势计算
+        
+        advantage_tensor = torch.tensor(advantage, requires_grad=True)
+
+        actor_loss = -sum(op_log_prob + param_log_prob for op_log_prob, param_log_prob in action_log_probs) * advantage_tensor
+
+        critic_loss = advantage_tensor ** 2
+        # loss = actor_loss + critic_loss
+        # loss.backward()
+
+        # Actor 更新
+        actor_optimizer.zero_grad()
+        actor_loss.backward(retain_graph=True)  # 保留计算图以便后续反向传播
+        actor_optimizer.step()
+
+        # Critic 更新
+        critic_optimizer.zero_grad()
+        critic_loss.backward()
+        critic_optimizer.step()
+
         it = 0
         # 不在算子序列里的二级算子就不更新
         action_count = [0, 0, 0, 0]
@@ -1982,13 +2020,15 @@ if __name__ == "__main__":
         else:
             low_level_policies.append(None)  # 对于参数数量为1的算子，不创建低层策略网络
     
-    # 高层策略网络
-    high_level_actor_critic = HighLevelActorCritic(state_dim, action_dim)
+    # 初始化模型
+    actor = HighLevelActor(state_dim, action_dim)
     critic = Critic(state_dim)
 
-    high_optimizer = optim.Adam(high_level_actor_critic.parameters(), lr=0.001)
+    # 分开定义优化器
+    actor_optimizer = optim.Adam(actor.parameters(), lr=0.001)
+    critic_optimizer = optim.Adam(critic.parameters(), lr=0.001)
+
     low_optimizers = [optim.Adam(policy.parameters(), lr=0.001) if policy is not None else None for policy in low_level_policies]
-    critic_optimizer = optim.Adam(high_level_actor_critic.parameters(), lr=0.001)  # Critic 和 Actor 使用同一优化器
 
 
     # 创建序列管理器
@@ -2020,7 +2060,7 @@ if __name__ == "__main__":
             with open(f"{options.directory}cov_time.txt", "a") as file:
                 file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
             turn = (now - start) / 600
-        if now - start >= 60 * 60 * 24:
+        if now - start >= 60 * 60 * 12:
             stop = True
         
         exp_dir = f"{options.directory}_{i}"
@@ -2041,16 +2081,20 @@ if __name__ == "__main__":
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
         # def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic, critic_optimizer):
 
-        reward, cov_line = unit.generate_and_test_commands_train(state, sequence_manager, high_level_actor_critic, low_level_policies, high_optimizer, low_optimizers, critic_optimizer)
+        reward, cov_line = unit.generate_and_test_commands_train(state, sequence_manager, actor, critic, low_level_policies, actor_optimizer, low_optimizers, critic_optimizer, initial_coverage)
         # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
         total_reward += reward
+        initial_coverage += cov_line
         cov_line_time += cov_line
         cov_line_turn += cov_line
         with open(f"{options.directory}cov_turn.txt", "a") as file:
-            file.write(f"turn is {i}, cover line is {cov_line_turn}\n")
+            file.write(f"turn is {i}, now time is {now - start}, scover line is {cov_line_turn}\n")
         print("DEBUG: now total reward is ", total_reward)
         i += 1
+        
+        time.sleep(5)
         # very dirty, just try it for now
+        kill_ruby_processes()
         subprocess.run("pkill -9 ruby", shell=True)
         
     print("End of servicesmith.py")

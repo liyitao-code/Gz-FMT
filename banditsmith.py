@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+# sys.path.append('/workspace/install/lib/python')
+
 from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
 from gz.msgs10.pose_pb2 import Pose
@@ -15,6 +18,7 @@ from gz.msgs10.plugin_pb2 import Plugin
 from gz.transport13 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
 from lxml.etree import tostring
+import signal
 import random
 import re
 import randomproto
@@ -24,7 +28,7 @@ from os.path import basename
 import os
 import importlib
 from optparse import OptionParser
-from datetime import datetime
+from datetime import datetime, timedelta
 from coverage_process import CoverageInfo, CoverageDiff, BUILD_DIR, GCOV_DIR
 import copy
 from enum import Enum
@@ -36,16 +40,38 @@ from sdf_diversity import SdfDiversity
 from crash_result import ErrorLog
 ### from mab.algs import ThompsomSampling, UCB1, UCBTuned
 
-from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
-from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
-from pybandits.model import Beta
+# from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
+# from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
+# from pybandits.model import Beta
 import logging
 import logging.config
 import func_timeout
 
 from lxml import etree
 import string
-import sys
+
+import xml.etree.ElementTree as ET
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from collections import deque, defaultdict
+from scipy.spatial.distance import cosine
+
+# import tensorflow as tf
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.optimizers import Adam
+
+from search_plugin_in_model import retrieve_plugin_by_index
+from search_plugin_in_world import retrieve_plugin_in_world_by_index
+from search_model_with_plugin import retrieve_model_by_index
+
+import csv
+
 
 FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gazebo/800']
 DIR_FLAG = 0
@@ -58,6 +84,573 @@ RANDPROTO_TIMEOUT = 10
 actions = ['add_model', 'remove_model', 'modify_position', 'add_component']
 
 import fcntl
+
+sum_reward = 0
+
+def kill_ruby_processes():
+    # 遍历系统中的所有进程
+    for proc in psutil.process_iter(attrs=['pid', 'name']):
+        try:
+            # 检查进程名称是否为 'ruby'
+            if proc.info['name'] == 'ruby':
+                pid = proc.info['pid']
+                print(f"Killing ruby process with PID: {pid}")
+                os.kill(pid, signal.SIGKILL)  # 使用 SIGKILL 强制终止进程
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            # 忽略在获取进程信息期间可能发生的异常
+            pass
+
+def save_training_metrics(filename, epoch, cumulative_reward, policy_change, loss_value, exploration_rate):
+    """
+    保存训练过程中的各种指标。
+
+    :param filename: 要保存的 CSV 文件名。
+    :param epoch: 当前的训练回合数。
+    :param cumulative_reward: 当前回合的累积奖励。
+    :param policy_change: 策略变化（例如动作选择分布的变化）。
+    :param loss_value: 当前回合的损失值。
+    :param exploration_rate: 当前回合的探索率。
+    """
+    # 检查文件是否存在，以决定是否需要写入表头
+    file_exists = os.path.isfile(filename)
+
+    # 打开文件进行写入
+    with open(filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        # 如果文件不存在，则写入表头
+        if not file_exists:
+            writer.writerow(['Epoch', 'Cumulative Reward', 'Policy Change', 'Loss Value', 'Exploration Rate'])
+
+        # 写入一行数据
+        writer.writerow([epoch, cumulative_reward, policy_change, loss_value, exploration_rate])
+
+# 提取错误栈
+class ErrorLog:
+    def __init__(self, log_file="gz.err"):
+        self.log_file = log_file
+        self.trace = []
+        if not os.path.exists(log_file):
+            return
+
+        with open(log_file) as f:
+            self.content = f.read()
+        self.get_stack_trace()
+        self.trace = tuple(self.trace)
+
+    def get_stack_trace(self):
+        """用来从err文件里筛出错误栈"""
+        for line in self.content.splitlines():
+            if line.startswith("Stack trace"):
+                continue
+            elif line.startswith("Segmentation fault"):
+                continue
+            m = re.match(r'#\d\s+Object ".*?", at .*?, in (.*\(.*\))', line)
+            if m:
+                self.trace.append(m.group(1))
+
+# 维护错误栈字典
+class ErrorLogManager:
+    def __init__(self):
+        # 使用字典来保存不同错误栈的出现次数
+        self.error_counts = defaultdict(int)
+
+    def process_error_file(self, log_file):
+        """
+        处理一个新的错误文件，更新错误栈计数，并返回该错误栈的总出现次数。
+        
+        :param log_file: 要处理的错误日志文件路径。
+        :return: 该错误栈的总出现次数。
+        """
+        error_log = ErrorLog(log_file)
+        error_trace = error_log.trace
+
+        if error_trace:
+            # 更新错误栈计数
+            self.error_counts[error_trace] += 1
+            return self.error_counts[error_trace]
+        else:
+            # 如果没有有效的错误栈，返回0
+            return 0
+
+class OperatorSequenceManager:
+    def __init__(self, param_limits, history_size=100):
+        """
+        初始化算子序列管理器。
+
+        :param param_limits: 每个算子的参数上限值列表。
+        :param history_size: 要保存的历史算子序列的最大数量。
+        """
+        self.param_limits = param_limits
+        self.history_size = history_size
+        self.history = deque(maxlen=history_size)
+
+    def generate_random_operator_sequence(self, length=5):
+        """
+        随机生成符合规范的算子序列。
+
+        :param length: 序列中元组的数量。
+        :return: 生成的算子序列。
+        """
+        sequence = [(random.randint(0, 9), random.randint(0, self.param_limits[a]))
+                    for a in (random.randint(0, 9) for _ in range(length))]
+        return sequence
+
+    def calculate_diversity(self, current_sequence, type):
+        """
+        计算当前算子序列的多样性。
+
+        :param current_sequence: 当前算子序列。
+        :param type: 如果为True，仅使用算子序列的开头数字；如果为False，使用完整的算子序列。
+        :return: 当前算子序列的多样性值。
+        """
+        if len(self.history) < self.history_size / 10:
+            return 0  # 若历史太少，则多样性为0
+
+        diversity_sum = 0
+        current_vector = self.sequence_to_vector(current_sequence, type)
+        
+        for past_sequence in self.history:
+            past_vector = self.sequence_to_vector(past_sequence, type)
+            similarity = 1 - cosine(current_vector, past_vector)
+            diversity_sum += (1 - similarity)
+
+        div_t = (1 / len(self.history)) * diversity_sum
+        return div_t
+
+    # def calculate_reward(self, current_diversity, type=False, m=5):
+    #     """
+    #     计算当前算子序列的奖励值。
+
+    #     :param current_diversity: 当前算子序列的多样性值。
+    #     :param type: 如果为True，仅使用算子序列的开头数字；如果为False，使用完整的算子序列。
+    #     :param m: 用于计算奖励的历史序列数量。
+    #     :return: 当前算子序列的奖励值。
+    #     """
+    #     if len(self.history) < m:
+    #         return 0.0  # 若历史不足m个，则奖励为0
+
+    #     reward_sum = 0
+    #     for i in range(1, m + 1):
+    #         past_diversity = self.calculate_diversity(self.history[-i], type)
+    #         reward_sum += (current_diversity - past_diversity)
+
+    #     reward = (1 / m) * reward_sum
+    #     return reward
+
+    def sequence_to_vector(self, sequence, type=False):
+        """
+        将算子序列转换为向量表示，用于计算余弦相似度。
+        
+        :param sequence: 算子序列。
+        :param type: 如果为True，仅考虑每个算子的第一个值；如果为False，考虑整个算子和参数。
+        :return: 序列的向量表示。
+        """
+        if type:
+            # 仅使用算子序列的开头数字
+            vector = np.zeros(10)  # 由于算子的范围是0-9
+            for a, _ in sequence:
+                vector[a] += 1
+        else:
+            # 使用完整的算子序列（包括参数）
+            max_param_value = max(self.param_limits)
+            vector = np.zeros(10 * (max_param_value + 1))
+            for a, b in sequence:
+                index = a * (max_param_value + 1) + b
+                vector[index] += 1
+        return vector
+
+    def add_to_history(self, sequence):
+        """
+        将算子序列添加到历史记录中。
+
+        :param sequence: 要添加的算子序列。
+        """
+        self.history.append(sequence)
+
+# 解析plugin文本
+def parse_plugin(xml_str):
+    
+    try:
+        # 解析XML字符串
+        plugin_element = ET.fromstring(xml_str)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML format: {e}")
+
+    # 提取filename和name属性
+    filename = plugin_element.get("filename")
+    name = plugin_element.get("name")
+
+    if filename is None or name is None:
+        raise ValueError("Missing 'filename' or 'name' attribute in plugin XML.")
+
+    # 提取内部的其他元素（转换回字符串格式）
+    internal_elements = "".join(ET.tostring(child, encoding='unicode') for child in plugin_element if child.tag not in ['filename', 'name'])
+
+    return filename, name, internal_elements
+
+# 定义每个算子的参数数量
+action_param_counts = {
+    0: 1,    # RANDOM_LOAD_MODEL
+    1: 1,    # RANDOM_LOAD_MODEL_XML
+    2: 117,  # RANDOM_ADD_PLUGIN
+    3: 117,  # RANDOM_ADD_PLUGIN_XML
+    4: 1,    # RANDOM_REMOVE_MODEL
+    5: 1,   # RANDOM_EXEC_SERVICE (动态获取)
+    6: 1,   # RANDOM_EXEC_TOPIC (动态获取)
+    7: 1,    # RANDOM_SET_POSE
+    8: 123,  # RANDOM_ADD_MODEL_WITH_PLUGIN
+    9: 123   # RANDOM_ADD_MODEL_WITH_PLUGIN_XML
+}
+
+# 将带有参数的算子编号转为对应的网络的编号
+action_agent_id = [-1, -1, 0, 1, -1, -1, -1, -1, 2, 3]
+
+# list形式定义每个算子的参数数量
+operator_parameter_counts = [1, 1, 117, 117, 1, 1, 1, 1, 123, 123]
+
+class SimulatorState:
+    def __init__(self, sdf_file_path, cover=0, ):
+        self.sdf_file_path = sdf_file_path
+        self.model_with_plugin = 0
+        self.model_with_none = 0
+        self.plugin_in_model = 0
+        self.plugin_in_world = 0
+        self.cover_rate = cover
+        # self.sequence_history = sequence_history
+
+        # 提取SDF文件的状态信息
+        self.is_valid = self.extract_sdf_state()
+
+    def extract_sdf_state(self):
+        if not os.path.exists(self.sdf_file_path) or os.path.getsize(self.sdf_file_path) == 0:
+            print(f"Warning: SDF file {self.sdf_file_path} does not exist or is empty.")
+            return False
+
+        try:
+            tree = ET.parse(self.sdf_file_path)
+            root = tree.getroot()
+            self.model_with_plugin, self.model_with_none = self.extract_models(root)
+            self.plugin_in_model, self.plugin_in_world = self.extract_plugin(root)
+            return True
+        except ET.ParseError:
+            print(f"Error: Failed to parse SDF file {self.sdf_file_path}.")
+            return False
+
+    def extract_models(self, root):
+        model_with_plugin = 0
+        model_with_none = 0
+
+        # for model in root.findall('.//model'):
+        #     if model.find('plugin') is not None:  # Check if model contains any plugin
+        #         models.append(format_plugin(ET.tostring(model, encoding='unicode')))
+
+        for model in root.findall('.//model'):
+            if model.find('plugin') is not None:
+                model_with_plugin += 1
+            else:
+                model_with_none += 1
+
+        return model_with_plugin, model_with_none
+    
+    def extract_plugin(self, root):
+        plugin_in_model = 0
+        plugin_in_world = 0
+
+        # for model in root.findall('.//model'):
+        #     if model.find('plugin') is not None:  # Check if model contains any plugin
+        #         models.append(format_plugin(ET.tostring(model, encoding='unicode')))
+
+        for model in root.findall('.//model'):
+            for plugin in model.findall('plugin'):
+                plugin_in_model += 1
+        for world in root.findall('.//world'):
+            for plugin in world.findall('plugin'):
+                plugin_in_world += 1
+
+        return plugin_in_model, plugin_in_world
+
+    def extract_plugins(self, root):
+        plugins = root.findall('.//plugin')
+        return len(plugins)
+
+    def to_vector(self):
+        # 计算序列历史多样性度量
+        # diversity_score = self.calculate_diversity_score()
+
+        vector = [
+            self.model_with_plugin,
+            self.model_with_none,
+            self.plugin_in_model,
+            self.plugin_in_world,
+            self.cover_rate,
+            # diversity_score
+        ]
+
+        return vector
+
+
+class SimulatorAction:
+    '''动作空间'''
+    RANDOM_LOAD_MODEL = 0
+    RANDOM_LOAD_MODEL_XML = 1
+    RANDOM_ADD_PLUGIN = 2
+    RANDOM_ADD_PLUGIN_XML = 3
+    RANDOM_REMOVE_MODEL = 4
+    RANDOM_EXEC_SERVICE = 5
+    RANDOM_EXEC_TOPIC = 6
+    RANDOM_SET_POSE = 7
+    RANDOM_ADD_MODEL_WITH_PLUGIN = 8
+    RANDOM_ADD_MODEL_WITH_PLUGIN_XML = 9
+
+    @staticmethod
+    def perform_action(action):
+        if action == SimulatorAction.RANDOM_LOAD_MODEL:
+            return "func_add_random_model"  #
+        elif action == SimulatorAction.RANDOM_LOAD_MODEL_XML:
+            return "func_add_random_model_xml"  #
+        elif action == SimulatorAction.RANDOM_ADD_PLUGIN:
+            return "func_add_random_plugin_to_model"    #
+        elif action == SimulatorAction.RANDOM_ADD_PLUGIN_XML:
+            return "func_add_random_plugin_to_model_xml"    #
+        elif action == SimulatorAction.RANDOM_REMOVE_MODEL:
+            return "func_remove_random_model"
+        elif action == SimulatorAction.RANDOM_EXEC_SERVICE:
+            return "func_random_service"
+        elif action == SimulatorAction.RANDOM_EXEC_TOPIC:
+            return "func_random_topic"
+        elif action == SimulatorAction.RANDOM_SET_POSE:
+            return "func_random_pose"
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN:
+            return "fund_add_random_model_with_plugin"  #
+        elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN_XML:
+            return "fund_add_random_model_with_plugin_xml"  #
+
+# 策略更新和价值更新
+def update_actor_critic(log_probs, rewards, values, next_values, optimizer, critic_optimizer):
+    advantages = []
+    returns = []
+    G = next_values
+    for r, v in zip(reversed(rewards), reversed(values)):
+        G = r + 0.99 * G
+        returns.insert(0, G)
+        advantages.insert(0, G - v)
+    
+    advantages = torch.tensor(advantages)
+    returns = torch.tensor(returns)
+    
+    # 更新 Actor
+    policy_loss = []
+    for log_prob, advantage in zip(log_probs, advantages):
+        policy_loss.append(-log_prob * advantage.detach())
+    policy_loss = torch.cat(policy_loss).sum()
+    
+    optimizer.zero_grad()
+    policy_loss.backward()
+    optimizer.step()
+    
+    # 更新 Critic
+    value_loss = F.mse_loss(torch.tensor(values), returns)
+    critic_optimizer.zero_grad()
+    value_loss.backward()
+    critic_optimizer.step()
+
+def encode_action(action_type, parameter_index, action_param_counts):
+    # 计算从0到当前action_type之前所有动作参数的和
+    offset = sum(action_param_counts[i] for i in range(action_type))
+    return offset + parameter_index
+
+def decode_action(encoded_action):
+    total = 0
+    for action_type, count in action_param_counts.items():
+        if total + count >= encoded_action:
+            parameter_index = encoded_action - total
+            return action_type, parameter_index
+
+# class SequenceManager:
+#     def __init__(self, max_history_length=10000):
+#         self.sequence_history = deque(maxlen=max_history_length)
+
+#     def add_sequence(self, sequence):
+#         self.sequence_history.append(sequence)
+
+#     def calculate_similarity(self, current_sequence):
+#         if not self.sequence_history:
+#             return 0  # 没有历史序列时，相似性为0
+        
+#         # 将当前序列转换为向量形式
+#         current_vector = self.sequence_to_vector(current_sequence).reshape(1, -1)
+        
+#         # 将历史序列转换为向量形式
+#         history_vectors = np.array([self.sequence_to_vector(seq) for seq in self.sequence_history])
+        
+#         # 计算相似性
+#         similarities = cosine_similarity(current_vector, history_vectors)
+#         max_similarity = similarities.max()
+#         return max_similarity
+
+#     def sequence_to_vector(self, sequence):
+#         # 将 (算子, 参数) 对转换为一维向量
+#         vector = []
+#         for operator, parameter in sequence:
+#             vector.append(operator)
+#             vector.append(parameter)
+#         return np.array(vector)
+
+def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = False, reward_type = False):
+    '''奖励函数'''
+    reward = 0
+    # global sum_reward
+    crash_reward = 0
+    cov_reward = 0
+    diversity_reward = 0
+
+    # 崩溃激励
+    if crash_occurred:
+        # 如果发生崩溃，给予一个大的奖励
+        if reward_type is False:
+            crash_reward = 4 * (1 / crash_number)  
+        else:
+            crash_reward = 4 * (1.0 / np.power(0.9, crash_number))
+
+    # 覆盖率激励
+    if coverage_increase > 0:
+        cov_reward = 0.2  # 根据覆盖率增加给予奖励
+
+    # 多样性激励，使用论文里的公式
+    # diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
+    diversity_reward = sequence_manager.calculate_diversity(action_sequence, div_type)
+    reward = diversity_reward + crash_reward + cov_reward
+
+    # sum_reward += reward
+    print(f"DEBUG: crash reward is {crash_reward} , coverage reward is {cov_reward}, disversity reward is {diversity_reward}")
+    return reward
+
+# 多臂老虎机,greed策略
+# class MultiArmedBandit:
+#     def __init__(self, num_arms, epsilon=0.1):
+#         self.num_arms = num_arms
+#         self.epsilon = epsilon
+#         self.counts = np.zeros(num_arms)
+#         self.values = np.zeros(num_arms)
+
+#     def select_arm(self):
+#         if random.random() > self.epsilon:
+#             # 选择当前价值估计最高的动作
+#             return np.argmax(self.values)
+#         else:
+#             # 随机探索新动作
+#             return random.randint(0, self.num_arms - 1)
+
+#     def update(self, chosen_arm, reward):
+#         self.counts[chosen_arm] += 1
+#         n = self.counts[chosen_arm]
+#         value = self.values[chosen_arm]
+#         # Update value estimate using incremental formula
+#         self.values[chosen_arm] = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+
+# 多臂老虎机，UCB1策略以及乐观初始值策略，动态调整epsilon
+class MultiArmedBandit:
+    def __init__(self, num_arms, initial_value=1.0, initial_epsilon=1.0, min_epsilon=0.1, total_iterations=1000):
+        self.num_arms = num_arms
+        self.initial_epsilon = initial_epsilon
+        self.min_epsilon = min_epsilon
+        self.total_iterations = total_iterations
+        self.current_iteration = 0
+        self.counts = np.zeros(num_arms)
+        self.values = np.full(num_arms, initial_value)
+        self.total_counts = 0
+
+    def select_arm(self):
+        # 动态调整epsilon值
+        epsilon = max(self.min_epsilon, self.initial_epsilon * (1 - self.current_iteration / self.total_iterations))
+        self.current_iteration += 1
+
+        if random.random() < epsilon:
+            # Explore: 随机选择一个动作
+            return random.randint(0, self.num_arms - 1)
+        else:
+            # Use UCB1 strategy
+            if 0 in self.counts:
+                return np.argmin(self.counts)  # 优先选择未被选择过的动作
+            else:
+                ucb_values = self.values + np.sqrt((2 * np.log(self.total_counts + 1)) / self.counts)
+                return np.argmax(ucb_values)
+
+    def update(self, chosen_arm, reward):
+        self.counts[chosen_arm] += 1
+        self.total_counts += 1
+        n = self.counts[chosen_arm]
+        value = self.values[chosen_arm]
+        self.values[chosen_arm] = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+
+
+# 生成整个算子操作序列，二级随机版本
+# def generate_operator_sequence(bandit, action_param_counts, sequence_length=10):
+#     sequence = []
+#     for _ in range(sequence_length):
+#         operator = bandit.select_arm()
+#         param_max = action_param_counts[operator] - 1
+#         parameter = random.randint(0, param_max)
+#         sequence.append((operator, parameter))
+#     return sequence
+
+# 分层生成算子序列
+def generate_operator_sequence(primary_bandits, secondary_bandits, action_param_counts, sequence_length=10):
+    sequence = []
+    for i in range(sequence_length):
+        # 使用每个位置的独立老虎机选择算子
+        operator = primary_bandits[i].select_arm()
+
+        if action_param_counts[operator] > 1:
+            parameter_bandit = secondary_bandits[operator]
+            parameter = parameter_bandit.select_arm()
+        else:
+            parameter = 0
+
+        sequence.append((operator, parameter))
+    return sequence
+
+def find_largest_non_empty_world_file(tar_dir):
+    """
+    在指定目录下寻找所有符合 world_x.sdf 格式的文件，并返回 x 最大且文件不为空的那个文件的路径。
+    如果所有 world_x.sdf 文件都为空，则返回当前目录下的 a.sdf。
+
+    :param tar_dir: 目标目录。
+    :return: 字符串类型，符合条件的 world_x.sdf 文件的路径或 a.sdf 的路径。
+    """
+    now_dir = os.getcwd()
+    os.chdir(tar_dir)
+
+    # 定义文件名的正则表达式模式
+    pattern = re.compile(r'^world_(\d{1,2})\.sdf$')
+    largest_file = None
+
+    # 找到所有符合条件的文件
+    world_files = [
+        filename for filename in os.listdir('.')
+        if pattern.match(filename) and os.path.getsize(filename) > 0
+    ]
+
+    # 按照 x 的值从大到小排序
+    world_files.sort(key=lambda x: int(pattern.match(x).group(1)), reverse=True)
+
+    # 找到第一个不为空的文件
+    if world_files:
+        largest_file = world_files[0]
+
+    # 返回结果
+    if largest_file is not None:
+        ans = os.path.abspath(largest_file)
+    else:
+        ans = os.path.abspath('a.sdf')
+
+    os.chdir(now_dir)
+    return ans
+
+
+
+
 
 # 保证data的utf8编码正确
 def safe_utf8_encode(data):
@@ -361,9 +954,11 @@ class GzCommand:
 
                 return ""
 
+
+
 # 测试用的类
 class SmithUnit:
-    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None):
+    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None, crash_manager = None):
         self.directory = directory
         self.sdf_name = sdf_name
         self.num_seq = num_seq
@@ -392,6 +987,7 @@ class SmithUnit:
         self.seed = seed
         self.bandits = bandits
         self.crashes = crashes
+        self.crash_manager = crash_manager
 
     # 检测是否有新崩溃
     def check_new_crash(self, err_file):
@@ -406,6 +1002,29 @@ class SmithUnit:
             print(f"new crash: {error_log.trace}")
             self.crashes.add(error_log.trace)
             return True
+    
+    # 检测是否有新崩溃
+    def check_crash(self, err_file):
+        """
+        检查错误日志文件中是否包含崩溃的关键字 "Aborted" 或 "Segmentation fault"。
+
+        :param err_file: 错误日志文件路径。
+        :return: 如果包含崩溃关键字返回 True，否则返回 False。
+        """
+        if not os.path.exists(err_file):
+            return False
+
+        try:
+            with open(err_file, 'r') as file:
+                for line in file:
+                    # 检查每一行是否包含关键字
+                    if "Aborted" in line or "Segmentation fault" in line:
+                        return True
+        except Exception as e:
+            print(f"Error reading {err_file}: {e}")
+        
+        return False
+
 
     # 生成服务或话题
     def generate_service_topic(self, st_name, service_list, topic_list, hardcode_list):
@@ -740,11 +1359,14 @@ class SmithUnit:
         # print("DEBUG: before stop_gazebo")
         # self.stop_gazebo(True)
         # print("DEBUG: after stop_gazebo")
+        
+    # unit.generate_and_test_commands_train(bandit, sequence_manager, initial_coverage)
+    def generate_and_test_commands_train(self, primary_bandit, secondary_bandits, sequence_manager, now_coverage):
+        # 生成算子序列，长度为unit.num_seq
+        # action_sequence, action_log_probs = generate_action_sequence(state, actor, low_models, unit.num_seq)  # 修改：使用独立的 actor 模型
+        action_sequence = generate_operator_sequence(primary_bandit, secondary_bandits, action_param_counts)
+        print("DEBUG: action sequence is " + str(action_sequence))
 
-
-
-    # 生成和测试命令
-    def generate_and_test_commands(self):
         # 0. collect coverage info
         print("DEBUG: before cov")
         self.cov_old.collect()
@@ -755,7 +1377,7 @@ class SmithUnit:
             process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         except:
             print("DEBUG: subprocess launch gz error")
-            return None
+            return 0, 0
 
         process_status = psutil.Process(process.pid)
         time.sleep(5)
@@ -765,27 +1387,27 @@ class SmithUnit:
             self.world_name = response.data[0]
         except:
             print("DEBUG: gz process not alive")
-            return None
+            return 0, 0
 
         print("DEBUG: before loop gz commands")
         func_names = []
-        if self.bandits:
-            actions, probs = self.bandits.predict(n_samples=self.num_seq)
-            # print(probs)
-        print("DEBUG: before command range")
-        for i in range(self.num_seq):
 
-            # 1. choose function to apply
-            if self.bandits:
-                # change this to select with bandits
-                func_name = self.funcs[int(actions[i])]
-            else:
-                func_name = random.choice(self.funcs)
-            func_names.append(func_name)
+        print("DEBUG: before command range")
+        i = 0
+        for (operator, parameter) in action_sequence:
+            
+            # 1. 获取操作名
+            # now_act, now_arg = decode_action(act + 1)
+            func_name = SimulatorAction.perform_action(operator)
             func = getattr(self, func_name)
             # 2. apply the action
             print(func_name)
-            command = func()
+
+            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin", "fund_add_random_model_with_plugin_xml"]:
+                command = func(parameter)
+            else:
+                command = func()
+            
             self.gz_cmds.append(command)
             if self.use_text:
                 cmd_filename = f"{self.directory}/cmd_{i}.sh"
@@ -797,25 +1419,27 @@ class SmithUnit:
                 print(f"DEBUG: before execute command {i}")
                 ret = command.execute()
 
-            world = self.dump_sdf(self.world_name)
-            print(f"DEBUG: before dump world {i}")
-            world_file = f"{self.directory}/world_{i}.sdf" 
-            with open(world_file, "w") as f:
-                f.write(world)
+            # 输出当前sdf情况
+            # world = self.dump_sdf(self.world_name)
+            # print(f"DEBUG: before dump world {i}")
+            # world_file = f"{self.directory}/world_{i}.sdf" 
+            # with open(world_file, "w") as f:
+            #     f.write(world)
 
-            if self.diversity:
-                flag, dist = self.diversity.add_and_check(world_file)
-                self.diversity_rewards[i] = 1 if flag else 0
+            # if self.diversity:
+            #     flag, dist = self.diversity.add_and_check(world_file)
+            #     self.diversity_rewards[i] = 1 if flag else 0
 
 
             with open(f"{self.directory}/id", "w") as f:
                 f.write(f"{i}")
-
+            
             # TODO: check gz liveness, if not, check f"{self.directory}/gz.err" for stack trace
             # check the status of the process
             if process_status.status() == psutil.STATUS_ZOMBIE:
                 print("DEBUG: gz process not alive")
                 break
+            i += 1
 
         out = non_blocking_read(process.stdout.fileno())
         err = non_blocking_read(process.stderr.fileno())
@@ -835,7 +1459,9 @@ class SmithUnit:
         process.wait()
         print("DEBUG: after process.wait")
 
-
+        crash_occurred = False  # 模拟检查是否发生崩溃
+        crash_number = 1    # 崩溃发生的数量
+        coverage_increase = 0  # 模拟增加的覆盖率
 
         # 4. collect coverage
         try:
@@ -850,7 +1476,7 @@ class SmithUnit:
                 print(f"DEBUG: killing child: {child.pid}")
                 child.kill()
             process.kill()
-            return None
+            # return None
         except:
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
@@ -859,34 +1485,59 @@ class SmithUnit:
             diff.compare(self.cov_new, self.cov_old)
 
             with open(f"{self.directory}/gz.out", "w") as f:
-                # f.write(process.stdout.read().decode("utf-8"))
                 f.write(out)
             with open(f"{self.directory}/gz.err", "w") as f:
-                # f.write(process.stderr.read().decode("utf-8"))
                 f.write(err)
             print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
-            if self.check_new_crash(f"{self.directory}/gz.err"):
-                print(f"DEBUG: crash rewards: {i}")
-                # TODO: dump crash to file
-                for j in range(i):
-                    self.crash_rewards[j] = 1
+            
 
+            # if self.check_new_crash(f"{self.directory}/gz.err"):
+            #     print(f"DEBUG: crash rewards: {i}")
+                # TODO: dump crash to file
+                # for j in range(i):
+                #     self.crash_rewards[j] = 1
+                # crash_occurred = True
+                # print(f"DEBUG: {self.crash_rewards}")
+            if self.check_crash(f"{self.directory}/gz.err"):
+                crash_occurred = True
+                crash_number = crash_manager.process_error_file(f"{self.directory}/gz.err")
+                print(f"DEBUG: crash rewards: {i}")
                 print(f"DEBUG: {self.crash_rewards}")
 
-            if self.bandits:
-                ### for i in range(len(func_names)):
-                ###     index = self.funcs.index(func_names[i])  
-                ###     self.bandits[i].reward(index)
-                if diff.new_line > 0:
-                    rewards = [(1 if idx <= i else 0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
-                else:
-                    rewards = [(0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
+            # 计算增加的覆盖率
+            # total_line = self.cov_new.get_total_line()
+            # if total_line != 0:
+            #     coverage_increase = diff.new_line / total_line 
+            # else:
+            #     coverage_increase = 0
+            # print(f"Diff coverage increase: {coverage_increase}")
 
-                print(rewards)
-                self.bandits.update(actions, rewards=rewards)
+            
+            # return diff
+        print("DEBUG: now crash occurred is ", crash_occurred)
+        now_coverage += diff.new_line
+        # 计算激励
+        total_reward = calculate_reward(action_sequence, crash_occurred, diff.new_line, sequence_manager, crash_number)
+        print("DEBUG: train begin")
+        
+        # 将总奖励分配给序列中的每个算子及其参数
+        for j, (operator, parameter) in enumerate(action_sequence):
+            if j > id:
+                break
+            # 更新选择的算子
+            primary_bandits[j].update(operator, total_reward)
+            # 更新选择的参数
+            if action_param_counts[operator] > 1:
+                secondary_bandits[operator].update(parameter, total_reward)
 
-            return diff
+        print("DEBUG: train end")
+        # 将当前序列添加到历史
+        sequence_manager.add_to_history(action_sequence)
+        with open(f"{self.directory}/action.txt", 'a', encoding='utf-8') as file:
+            file.write(str(action_sequence) + '\n')
+        return total_reward, diff.new_line
+
 
     # 复制随机的sdf文件
     def copy_random_sdf(self):
@@ -924,15 +1575,23 @@ class SmithUnit:
         return str(response).encode("utf-8").decode("unicode_escape")[7:-3]  # skip data: ""
 
     # 添加随机模型
-    def func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, False)
+    def func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, False)
 
-    # 以true调用helper_func_add_random_model
-    def func_add_mined_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
-        return self.helper_func_add_random_model(pose_min, pose_max, name, sdf_content, True)
+    # 添加带扰动的随机模型
+    def func_add_random_model_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, False, True)
+    
+    # 添加带有plugin的不带扰动的随机模型
+    def fund_add_random_model_with_plugin(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, False)
+    
+    # 添加带有plugin的带扰动的随机模型
+    def fund_add_random_model_with_plugin_xml(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content=""):
+        return self.helper_func_add_random_model(model_id, pose_min, pose_max, name, sdf_content, True, True)
 
     # 添加模型
-    def helper_func_add_random_model(self, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False):
+    def helper_func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
         # def create_model(world, name, x, y, z, sdf_content=None):
 
         scene, reserved_models = self.get_scene()
@@ -942,7 +1601,8 @@ class SmithUnit:
             return None
         service_name = f"/world/{self.world_name}/create"
         request = EntityFactory()
-        if not sdf_content:
+
+        if model_id == -1:
             model_gen = ModelGen(self.sdf_miner)
             if not from_mined:
                 root = model_gen.generate_with_root_wrapper(name, from_mined)
@@ -950,11 +1610,17 @@ class SmithUnit:
                 sdf_content = root.to_string().encode("utf-8")
             else:
                 sdf_content = self.plugin_miner.random_model_with_root()
+        else:
+            sdf_content = retrieve_model_by_index(model_id)
         
-        new_sdf = perturb_xml(str(sdf_content))
-        if new_sdf is not None:
-            request.sdf = new_sdf
-            print("!!!DEBUG: add model request change success")
+        # 是否扰动
+        if xml_random is True:
+            new_sdf = perturb_xml(str(sdf_content))
+            if new_sdf is not None:
+                request.sdf = new_sdf
+                # print("!!!DEBUG: add model request change success")
+            else:
+                request.sdf = sdf_content
         else:
             request.sdf = sdf_content
         request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
@@ -995,8 +1661,16 @@ class SmithUnit:
         result, response = node.request(service_name, request, Empty, Scene, self.timeout)
         return response, reserved_models
 
+    def func_add_random_plugin_to_model(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(False, plugin_id)
+    
+    def func_add_random_plugin_to_model_xml(self, plugin_id):
+        return self.helper_func_add_random_plugin_to_model(True, plugin_id)
+
     # 随机给模型添加组件
-    def func_add_random_plugin_to_model(self):
+    def helper_func_add_random_plugin_to_model(self, random_xml = False, plugin_id = -1):
+        if plugin_id == -1:
+            plugin_id = random(0, action_param_counts[2])
         # print("DEBUG: begin func_add_random_plugin_to_model")
         # 0. get world name
         try:
@@ -1019,39 +1693,36 @@ class SmithUnit:
         else:
             return None
         # 2. get random plugin
-        plugin = random.choice(self.plugin_miner.plugins_within_model)
-        filename = plugin.get("filename")
-        name = plugin.get("name")
-        innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        # plugin = random.choice(self.plugin_miner.plugins_within_model)
+
+        # get plugin though id
+        if plugin_id == -1:
+            plugin = random.choice(self.plugin_miner.plugins_within_model)
+            filename = plugin.get("filename")
+            name = plugin.get("name")
+            innerxml = "\n".join([tostring(c).decode("utf-8") for c in plugin.getchildren()])
+        else:
+            plugin = retrieve_plugin_by_index(plugin_id)
+            filename, name, innerxml = parse_plugin(plugin)
+        
+        
 
         entity_plugin_pb = EntityPlugin_V()
         plugin_pb = Plugin()
         plugin_pb.filename = filename
         # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
         plugin_pb.name = name
-        new_innerxml = perturb_xml(str(innerxml))
-        if(new_innerxml is not None) :
-            print("DEBUG: change plugin success")
-            plugin_pb.innerxml = new_innerxml
+        if random_xml is True:
+            new_innerxml = perturb_xml(str(innerxml))
+            if(new_innerxml is not None) :
+                print("DEBUG: change plugin success")
+                plugin_pb.innerxml = new_innerxml
+            else:
+                plugin_pb.innerxml = innerxml
         else:
             plugin_pb.innerxml = innerxml
         entity_plugin_pb.entity.id = model_id
         entity_plugin_pb.plugins.append(plugin_pb)
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG: plugin_pb name is %s" %(plugin_pb.name))
-        # print("!!!DEBUG: old plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
-
-        # print("!!!DEBUG: plugin_pb filename is %s" %(plugin_pb.filename))
-        # print("!!!DEBUG entity_pulgin_pb begin")
-        # print(type(entity_plugin_pb))
-        # print("!!!DEBUG entity_pulgin_pb end")
-
-        # new_request = perturb_protobuf_like_text(str(entity_plugin_pb))
-        # if new_request is not None :
-        #     entity_plugin_pb = new_request
-        #     print("DEBUG: new_request success")
-        
-        # print("!!!DEBUG: new plugin_pb innerxml is \n%s" %(plugin_pb.innerxml))
 
         # 3. generate gz command
         service_name = f"/world/{world_name}/entity/system/add"
@@ -1097,14 +1768,14 @@ class SmithUnit:
     def func_random_service(self, service_name=""):
         print("DEBUG: got here", service_name)
         node = Node()
-        print("DEBUG: got here2")
+        # print("DEBUG: got here2")
         msg_type_convert = MessageTypeConvert()
         if not service_name:
             service_list = node.service_list()
             if not service_list:
                 return None
             service_name = random.choice(service_list)
-        print("DEBUG: got here3")
+        # print("DEBUG: got here3")
         if self.skipped and service_name in self.skipped:
             print(self.skipped, service_name)
             print("DEBUG: should not be here")
@@ -1115,21 +1786,21 @@ class SmithUnit:
         print("DEBUG: got here x", service_list, info_list)
         if not info_list:
             return None
-        print("DEBUG: got here4")
+        # print("DEBUG: got here4")
         info = random.choice(info_list)
         rep_type = msg_type_convert.get_class_type(info.rep_type_name)
         req_type = msg_type_convert.get_class_type(info.req_type_name)
-        print("DEBUG: got here5")
+        # print("DEBUG: got here5")
         if req_type:
             try:
-                print("DEBUG: got here6")
+                # print("DEBUG: got here6")
                 random_req = randomproto.randproto(req_type)
-                print("DEBUG: got here7")
+                # print("DEBUG: got here7")
                 req_text = str(random_req).strip()
-                print("DEBUG: got here8")
+                # print("DEBUG: got here8")
                 cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype {info.rep_type_name} --reqtype {info.req_type_name} --req '{req_text}'"
                 gz_service = ServiceParam(service_name, random_req, req_type, rep_type, self.timeout)
-                print("DEBUG: got here9")
+                # print("DEBUG: got here9")
 
                 if self.use_text:
                     return GzCommand(GzCommandType.SERVICE, cmd_txt, True)
@@ -1225,20 +1896,26 @@ def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
     print(type(StringMsg))
 
-# Import statements remain unchanged
 
-# Initialization and setup in main
 if __name__ == "__main__":
-    # Set up logging and other configurations
     exp_dir = "/tmp/exp"
-    if not os.path.exists("/tmp/exp"):
-        os.mkdir("/tmp/exp")
+    if not os.path.exists(exp_dir):
+        os.mkdir(exp_dir)
+    
+    print("DEBUG: clean cov")
+    os.system(f"{FIRST_DIR[DIR_FLAG]}/rezilla-modelsmith-fb63e64b5fab/cleanup.sh")
+
     logging.basicConfig(level=logging.DEBUG, filename='/tmp/exp/log', filemode='a')
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': True,
     })
     skipped = [
+        # "/gazebo/resource_paths/resolve",
+        # "/world/world_0/enable_collision",
+        # "/world/world_0/disable_collision",
+        # "/world/world_0/set_physics",
+        # "/world/world_0/playback/control",
         "/server_control",
     ]
     parser = OptionParser()
@@ -1246,11 +1923,17 @@ if __name__ == "__main__":
     parser.add_option("-i", "--iteration", dest="iteration", type="int", default=10, help="max iteration")
     parser.add_option("-m", "--mode", dest="mode", help="one_shot or loop", default="loop")
     parser.add_option("-s", "--seed", dest="seed", type="int", default=0, help="seed for RNG")
-    parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=10, help="number of gz commands")
+    parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=20, help="number of gz commands")
     parser.add_option("-p", "--plugin", dest="plugin", action="store_true", help="enable mined plugin")
     parser.add_option("-t", "--timeout", dest="timeout", type="int", default=10000, help="timeout")
 
     (options, args) = parser.parse_args()
+
+    # print(os.chdir("/home/liyitao/workspace/exp/muti_1/_5"))
+    # print(os.getcwd())
+    # largest_world_file = find_largest_world_file()
+    # print(largest_world_file)
+    # exit()
 
     if options.seed:
         seed = options.seed
@@ -1259,31 +1942,104 @@ if __name__ == "__main__":
 
     print(seed)
     BUILD_DIR = FIRST_DIR[DIR_FLAG] + "/build/"
-    DEBUG_PRINT()
     
     with open("seed", "w") as f:
         f.write(f"seed: {seed}")
+
     start = datetime.now().timestamp()
+    turn = -1
     stop = False
-    # n_objectives也可以是2
-    mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
-    diversity = SdfDiversity("./models")
+
+    cov_line_time = 0
+    cov_line_turn = 0
+    
+    num_operators = 10  # 10种不同的算子
+    initial_value = 1.0  # 乐观初始值
+    initial_epsilon = 1.0  # 初始的探索概率
+    min_epsilon = 0.1  # 最小的探索概率
+    total_iterations = 700  # 总共进行700次迭代
+    sequence_length = 10  # 算子序列长度
+
+    # 为每个序列位置创建一个独立的多臂老虎机
+    primary_bandits = [MultiArmedBandit(num_operators, initial_value, initial_epsilon, min_epsilon, total_iterations) for _ in range(sequence_length)]
+    # 为每个有多个参数的算子创建一个对应的多臂老虎机
+    secondary_bandits = [None] * num_operators
+    for operator, param_count in action_param_counts.items():
+        if param_count > 1:
+            secondary_bandits[operator] = MultiArmedBandit(param_count, initial_value, initial_epsilon, min_epsilon, total_iterations)
+
+
+
+    # 创建序列管理器
+    sequence_manager = OperatorSequenceManager(operator_parameter_counts)
+    # 错误栈字典
+    crash_manager = ErrorLogManager()
+    # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
+    initial_coverage = 0.0
+    # diversity = SdfDiversity("./models")
     crashes = set()
     i = 0
+    
+    total_reward = 0
 
-    # Main testing loop
-    start = datetime.now().timestamp()
-    stop = False
+    # for i in range(0,10):
+    #     que = generate_operator_sequence(primary_bandit, secondary_bandits, action_param_counts, sequence_length=10)
+
+    #     for (operator, parameter) in que:
+    #         print(f"{operator},{parameter}")
+
+
     while not stop:
         now = datetime.now().timestamp()
-        if now - start >= 60 * 60 * 8:
+        # 检查是否有.gcda文件，没有就退出
+        # if now - start > 200 and gcda_flag is False:
+        #     search_path = '../build/*.gcda'
+        #     gcda_files = glob(search_path)
+        #     if not gcda_files:
+        #         print("no gcda file, need execute . ./install/setup.bash")
+        #         sys.exit(1)  # 没有gcda文件就退出
+        #     gcda_flag = True
+
+        if (now - start ) > 600 * turn:
+            with open(f"{options.directory}cov_time.txt", "a") as file:
+                file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
+            turn = (now - start) / 600
+        if now - start >= 60 * 60 * 12:
             stop = True
+        
         exp_dir = f"{options.directory}_{i}"
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, mab, diversity, crashes) # bandits)
+        # print("!!!DEBUG: now reward is " + str(total_reward))
+        
+
+        # sdf_state = get_sdf_initial_state()
+
+        # unit.create_sdf()
+        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes, crash_manager) # bandits)
         unit.copy_random_sdf()
+        # state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
+
+        
         print("DEBUG: before generate_and_test_commands")
-        print("id = " + str(i + 1))
-        diff = unit.generate_and_test_commands()
+        print("id = " + str(i))
+        unit.cov_old.collect()
+        # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
+        # def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic, critic_optimizer):
+
+        reward, cov_line = unit.generate_and_test_commands_train(primary_bandit, secondary_bandits, sequence_manager, initial_coverage)
+        # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
+        total_reward += reward
+        initial_coverage += cov_line
+        cov_line_time += cov_line
+        cov_line_turn += cov_line
+        with open(f"{options.directory}cov_turn.txt", "a") as file:
+            file.write(f"turn is {i}, now time is {now - start}, scover line is {cov_line_turn}\n")
+        print("DEBUG: now total reward is ", total_reward)
         i += 1
+        
+        time.sleep(5)
+        # very dirty, just try it for now
+        kill_ruby_processes()
         subprocess.run("pkill -9 ruby", shell=True)
-    print("end of servicesmith.py")
+        
+    print("End of servicesmith.py")
+
