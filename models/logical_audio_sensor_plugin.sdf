@@ -1,5 +1,31 @@
 <?xml version="1.0" ?>
+<!--
+  An example world to demo how logical audio sources and microphones interact.
 
+  2 sources are created, which are attached to a red and blue box.
+  2 microphones are created, which are attached to a green and yellow box.
+
+  The boxes can be moved to mimic sensors attached to a moving robot.
+
+  To start and stop the audio sources, use the <PREFIX>/source_<id>/play and
+  <PREFIX>/source_<id>/stop service calls.
+
+  To play the source attached to the blue box, run the following command:
+    gz service -s /model/blue_box/sensor/source_1/play
+      --reqtype gz.msgs.Empty --reptype gz.msgs.Boolean
+      --timeout 1000 --req 'unused: false'
+
+  To stop the source attached to the blue box, run the following command:
+    gz service -s /model/blue_box/sensor/source_1/stop
+      --reqtype gz.msgs.Empty --reptype gz.msgs.Boolean
+      --timeout 1000 --req 'unused: false'
+
+  To observe microphone detections, use the <PREFIX>/mic_<id>/detection topic.
+
+  The following command will display detections heard by the microphone attached
+  to the green box:
+    gz topic -e -t /model/green_box/sensor/mic_1/detection
+-->
 <sdf version="1.6">
   <world name="logical_audio_sensor">
     <physics name="1ms" type="ignored">

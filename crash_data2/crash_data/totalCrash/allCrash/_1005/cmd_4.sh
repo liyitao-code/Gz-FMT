@@ -1,1 +1,0 @@
-gz service --timeout 10000 -s /world/center_of_volume/list_parameters --reptype gz.msgs.ParameterDeclarations --reqtype gz.msgs.Empty --req 'unused: true'

@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from gz.msgs10.stringmsg_pb2 import StringMsg
-from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
-from gz.msgs10.pose_pb2 import Pose
-from gz.msgs10.entity_factory_pb2 import EntityFactory
-from gz.msgs10.boolean_pb2 import Boolean
-from gz.msgs10.empty_pb2 import Empty
-from gz.msgs10.scene_pb2 import Scene
-from gz.msgs10.entity_pb2 import Entity
-from gz.msgs10.sdf_generator_config_pb2 import SdfGeneratorConfig
-from gz.msgs10.entity_plugin_v_pb2 import EntityPlugin_V
-from gz.msgs10.plugin_pb2 import Plugin
+from gz.msgs11.stringmsg_pb2 import StringMsg
+from gz.msgs11.stringmsg_v_pb2 import StringMsg_V
+from gz.msgs11.pose_pb2 import Pose
+from gz.msgs11.entity_factory_pb2 import EntityFactory
+from gz.msgs11.boolean_pb2 import Boolean
+from gz.msgs11.empty_pb2 import Empty
+from gz.msgs11.scene_pb2 import Scene
+from gz.msgs11.entity_pb2 import Entity
+from gz.msgs11.sdf_generator_config_pb2 import SdfGeneratorConfig
+from gz.msgs11.entity_plugin_v_pb2 import EntityPlugin_V
+from gz.msgs11.plugin_pb2 import Plugin
 from gz.transport13 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
 from lxml.etree import tostring
@@ -47,7 +47,7 @@ from lxml import etree
 import string
 import sys
 
-FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gazebo/800']
+FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gz_lastest']
 DIR_FLAG = 0
 
 DIR = FIRST_DIR[DIR_FLAG] + '/install/lib/python/gz/msgs10'
@@ -256,9 +256,9 @@ class MessageTypeConvert:
             if "__init__" in file:
                 continue
             try:
-                self.pb2_modules.append(importlib.import_module(f"gz.msgs10.{file}"))
+                self.pb2_modules.append(importlib.import_module(f"gz.msgs11.{file}"))
             except:
-                print(f"error processing gz.msgs10.{file}")
+                print(f"error processing gz.msgs11.{file}")
 
     def get_class_type(self, type_name):
         if type_name.startswith("gz.msgs."):

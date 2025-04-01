@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import sdformat14 as sd
+import sys
+# sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
+
+import sdformat15 as sd
 from enum import Enum
 import random
 from datetime import datetime
-from gz import math7
+from gz import math8
 from plugin_mining import PluginMiner, SdfMiner
 from optparse import OptionParser
 
@@ -102,7 +105,7 @@ class GeometryGen:
         length = random.random() * (len_max - len_min) + len_min
         width = random.random() * (wid_max - wid_min) + wid_min
         height = random.random() * (hei_max - hei_min) + hei_min
-        box.set_size(math7.Vector3d(length, width, height))
+        box.set_size(math8.Vector3d(length, width, height))
         return box
 
     def random_cylinder(self, rad_min, rad_max, len_min, len_max):
@@ -117,8 +120,8 @@ class GeometryGen:
         plane = sd.Plane()
         length = random.random() * (size_max - size_min) + size_min
         width = random.random() * (size_max - size_min) + size_min
-        plane.set_size(math7.Vector2d(length, width))
-        plane.set_normal(math7.Vector3d(normal_x, normal_y, normal_z))
+        plane.set_size(math8.Vector2d(length, width))
+        plane.set_normal(math8.Vector3d(normal_x, normal_y, normal_z))
         return plane
 
     def random_sphere(self, rad_min, rad_max):
@@ -145,7 +148,7 @@ class Pose3dGen:
         roll = random.random() * (roll_max - roll_min) + roll_min
         pitch = random.random() * (pitch_max - pitch_min) + pitch_min
         yaw = random.random() * (yaw_max - yaw_min) + yaw_min
-        return math7.Pose3d(x, y, z, roll, pitch, yaw)
+        return math8.Pose3d(x, y, z, roll, pitch, yaw)
 
 
 class CollisionGen:
@@ -164,7 +167,7 @@ class CollisionGen:
             visual.set_geometry(geometry)
             visual.set_name(f"visual_{name}")
             # random color
-            color = math7.Color(random.random(), random.random(), random.random(), 1)
+            color = math8.Color(random.random(), random.random(), random.random(), 1)
             material = sd.Material()
             material.set_ambient(color)
             material.set_diffuse(color)
@@ -228,11 +231,11 @@ class JointGen:
         joint.set_child_name(child.name())
         joint.set_type(joint_type)
         axis = sd.JointAxis()
-        axis.set_xyz(math7.Vector3d(random.random(), random.random(), random.random()))
+        axis.set_xyz(math8.Vector3d(random.random(), random.random(), random.random()))
         axis.set_max_velocity(random.random() * MAX_VELOCITY)
         joint.set_axis(0, axis)
         axis = sd.JointAxis()
-        axis.set_xyz(math7.Vector3d(random.random(), random.random(), random.random()))
+        axis.set_xyz(math8.Vector3d(random.random(), random.random(), random.random()))
         axis.set_max_velocity(random.random() * MAX_VELOCITY)
         joint.set_axis(1, axis)
 
@@ -292,13 +295,13 @@ class WorldGen:
         visual = sd.Visual()
         visual.set_name(f"{name}_visual")
         visual.set_geometry(geometry)
-        color = math7.Color(0.2, 0.2, 0.2, 0.2)
+        color = math8.Color(0.2, 0.2, 0.2, 0.2)
         material = sd.Material()
         material.set_ambient(color)
         material.set_diffuse(color)
         visual.set_material(material)
         link.add_visual(visual)
-        model.set_raw_pose(math7.Pose3d(x, y, z, 0, 0, 0))
+        model.set_raw_pose(math8.Pose3d(x, y, z, 0, 0, 0))
         model.add_link(link)
         model.set_static(True)
 
@@ -349,7 +352,7 @@ class WorldGen:
             visual = sd.Visual()
             visual.set_name(f"wall_visual_{i}")
             visual.set_geometry(geometry)
-            color = math7.Color(0.2, 0.2, 0.2, 0.2)
+            color = math8.Color(0.2, 0.2, 0.2, 0.2)
             material = sd.Material()
             material.set_ambient(color)
             material.set_diffuse(color)
@@ -361,12 +364,12 @@ class WorldGen:
             model.add_link(link)
             model.set_static(True)
             models.append(model)
-        models[0].set_raw_pose(math7.Pose3d(0, 0, -PLANE_SIZE, 0, 0, 0))
-        models[1].set_raw_pose(math7.Pose3d(0, 0, PLANE_SIZE, 0, 0, 0))
-        models[2].set_raw_pose(math7.Pose3d(0, -PLANE_SIZE, 0, 0, 0, 0))
-        models[3].set_raw_pose(math7.Pose3d(0, PLANE_SIZE, 0, 0, 0, 0))
-        models[4].set_raw_pose(math7.Pose3d(-PLANE_SIZE, 0, 0, 0, 0, 0))
-        models[5].set_raw_pose(math7.Pose3d(PLANE_SIZE, 0, 0, 0, 0, 0))
+        models[0].set_raw_pose(math8.Pose3d(0, 0, -PLANE_SIZE, 0, 0, 0))
+        models[1].set_raw_pose(math8.Pose3d(0, 0, PLANE_SIZE, 0, 0, 0))
+        models[2].set_raw_pose(math8.Pose3d(0, -PLANE_SIZE, 0, 0, 0, 0))
+        models[3].set_raw_pose(math8.Pose3d(0, PLANE_SIZE, 0, 0, 0, 0))
+        models[4].set_raw_pose(math8.Pose3d(-PLANE_SIZE, 0, 0, 0, 0, 0))
+        models[5].set_raw_pose(math8.Pose3d(PLANE_SIZE, 0, 0, 0, 0, 0))
 
         return models
 
@@ -385,7 +388,7 @@ class WorldGen:
         link.add_collision(collision)
         model = sd.Model()
         model.set_name("ground_model")
-        model.set_raw_pose(math7.Pose3d(0, 0, 0, 0, 0, 0))
+        model.set_raw_pose(math8.Pose3d(0, 0, 0, 0, 0, 0))
         model.add_link(link)
         model.set_static(True)
         return model
@@ -427,7 +430,7 @@ class WorldGen:
         wind_x = random.randint(0, WIND_VELOCITY)
         wind_y = random.randint(0, WIND_VELOCITY)
         wind_z = random.randint(0, WIND_VELOCITY)
-        world.set_wind_linear_velocity(math7.Vector3d(wind_x, wind_y, wind_z))
+        world.set_wind_linear_velocity(math8.Vector3d(wind_x, wind_y, wind_z))
 
         return world
 

@@ -1,2 +1,0 @@
-Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
-[1;31m[Err] [Server.cc:204] [0m[1;31mError Code [0m[1;31m14[0m[1;31m: [0m[1;31m[/sdf/world[@name="default"]/include[0]/uri:/home/liyitao/workspace/exp/random_1_crash/unique_crash/_0//a.sdf:L14]: [0m[1;31mMsg: [0m[1;31mUnable to find uri[model://scheme_resource_uri][0m[1;31m[0m

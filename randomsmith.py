@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#   
+
+# valgrind --tool=memcheck          --leak-check=full          --show-leak-kinds=all          --track-origins=yes          --verbose          --log-file=valgrind.log          python3 testfixture_smith_1.py DynamicTestRunner.test_dynamic_workflow -v
+
+# valgrind --tool=memcheck \
+#          --leak-check=full \
+#          --show-leak-kinds=all \
+#          --track-origins=yes \
+#          --read-var-info=yes \
+#          --verbose \
+#          --log-file=valgrind-debug.log \
+#          python3 testfixture_smith_1.py DynamicTestRunner.test_dynamic_workflow -v
 
 import sys
-sys.path.append('/home/liyitao/workspace/install/lib/python')
+sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
 
-from gz.msgs10.stringmsg_pb2 import StringMsg
-from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
-from gz.msgs10.pose_pb2 import Pose
-from gz.msgs10.entity_factory_pb2 import EntityFactory
-from gz.msgs10.boolean_pb2 import Boolean
-from gz.msgs10.empty_pb2 import Empty
-from gz.msgs10.scene_pb2 import Scene
-from gz.msgs10.entity_pb2 import Entity
-from gz.msgs10.sdf_generator_config_pb2 import SdfGeneratorConfig
-from gz.msgs10.entity_plugin_v_pb2 import EntityPlugin_V
-from gz.msgs10.plugin_pb2 import Plugin
-from gz.transport13 import Node
+from gz.msgs11.stringmsg_pb2 import StringMsg
+from gz.msgs11.stringmsg_v_pb2 import StringMsg_V
+from gz.msgs11.pose_pb2 import Pose
+from gz.msgs11.entity_factory_pb2 import EntityFactory
+from gz.msgs11.boolean_pb2 import Boolean
+from gz.msgs11.empty_pb2 import Empty
+from gz.msgs11.scene_pb2 import Scene
+from gz.msgs11.entity_pb2 import Entity
+from gz.msgs11.sdf_generator_config_pb2 import SdfGeneratorConfig
+from gz.msgs11.entity_plugin_v_pb2 import EntityPlugin_V
+from gz.msgs11.plugin_pb2 import Plugin
+from gz.transport14 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
 from lxml.etree import tostring
 import random
@@ -37,11 +49,7 @@ import time
 from plugin_mining import PluginMiner, SdfMiner
 from sdf_diversity import SdfDiversity
 from crash_result import ErrorLog
-### from mab.algs import ThompsomSampling, UCB1, UCBTuned
 
-# from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
-# from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
-# from pybandits.model import Beta
 import logging
 import logging.config
 import func_timeout
@@ -55,10 +63,10 @@ from search_plugin_in_model import retrieve_plugin_by_index
 from search_plugin_in_world import retrieve_plugin_in_world_by_index
 from search_model_with_plugin import retrieve_model_by_index
 
-FIRST_DIR = ['/home/liyitao/workspace', '/home/liyitao/gazebo/800']
+FIRST_DIR = ['/home/liyitao/workspace/gz_lastest', '/home/liyitao/gazebo/800']
 DIR_FLAG = 0
 
-DIR = FIRST_DIR[DIR_FLAG] + '/install/lib/python/gz/msgs10'
+DIR = FIRST_DIR[DIR_FLAG] + '/install/lib/python/gz/msgs11'
 MAX_MODEL_NUM = 20
 NUM_ARM = 7 # dirty, should be calculated, not assigned
 RANDPROTO_TIMEOUT = 10
@@ -338,9 +346,9 @@ class MessageTypeConvert:
             if "__init__" in file:
                 continue
             try:
-                self.pb2_modules.append(importlib.import_module(f"gz.msgs10.{file}"))
+                self.pb2_modules.append(importlib.import_module(f"gz.msgs11.{file}"))
             except:
-                print(f"error processing gz.msgs10.{file}")
+                print(f"error processing gz.msgs11.{file}")
 
     def get_class_type(self, type_name):
         if type_name.startswith("gz.msgs."):
@@ -829,7 +837,7 @@ class SmithUnit:
     def generate_and_test_commands(self):
         # 0. collect coverage info
         print("DEBUG: before cov")
-        self.cov_old.collect()
+        # self.cov_old.collect()
         # 1. run gz sim a.sdf and sleep for a few seconds, dirty
         gz_sim = f"gz sim {self.directory}/{self.sdf_name} --seed {self.seed} -v 0 -r -s --headless-rendering"
         print("DEBUG: before subprocess gz sim")
@@ -941,9 +949,9 @@ class SmithUnit:
         except:
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
-            self.cov_new.collect()
-            diff = CoverageDiff()
-            diff.compare(self.cov_new, self.cov_old)
+            # self.cov_new.collect()
+            # diff = CoverageDiff()
+            # diff.compare(self.cov_new, self.cov_old)
 
             with open(f"{self.directory}/gz.out", "w") as f:
                 # f.write(process.stdout.read().decode("utf-8"))
@@ -951,7 +959,7 @@ class SmithUnit:
             with open(f"{self.directory}/gz.err", "w") as f:
                 # f.write(process.stderr.read().decode("utf-8"))
                 f.write(err)
-            print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
+            # print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
             if self.check_new_crash(f"{self.directory}/gz.err"):
                 print(f"DEBUG: crash rewards: {i}")
@@ -973,7 +981,8 @@ class SmithUnit:
             #     print(rewards)
             #     self.bandits.update(actions, rewards=rewards)
 
-            return diff.new_line
+            # return diff.new_line
+            return 0
 
     # 复制随机的sdf文件
     def copy_random_sdf(self):
@@ -1050,15 +1059,17 @@ class SmithUnit:
             sdf_content = retrieve_model_by_index(model_id)
         
         # 是否扰动
-        if xml_random is True:
-            new_sdf = perturb_xml(str(sdf_content))
-            if new_sdf is not None:
-                request.sdf = new_sdf
-                # print("!!!DEBUG: add model request change success")
-            else:
-                request.sdf = sdf_content
-        else:
-            request.sdf = sdf_content
+        # if xml_random is True:
+        #     new_sdf = perturb_xml(str(sdf_content))
+        #     if new_sdf is not None:
+        #         request.sdf = new_sdf
+        #         # print("!!!DEBUG: add model request change success")
+        #     else:
+        #         request.sdf = sdf_content
+        # else:
+        #     request.sdf = sdf_content
+
+        request.sdf = sdf_content
         request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
         request.pose.position.y = random.random() * (pose_max - pose_min) + pose_min
         request.pose.position.z = random.random() * pose_max
@@ -1275,7 +1286,7 @@ class SmithUnit:
         for publisher in info:
             type_name = publisher.msg_type_name
             type_class = msg_type_convert.get_class_type(type_name)
-            # print(f"DEBUG: type_name: {type_name} type_class: {type_class}")
+            print(f"DEBUG: type_name: {type_name} type_class: {type_class}")
             pub = self.node.advertise(topic_name, type_class)
             try:
                 message = randomproto.randproto(type_class)
@@ -1341,13 +1352,6 @@ if __name__ == "__main__":
         'version': 1,
         'disable_existing_loggers': True,
     })
-    # set_pose("world_0", "model_0", 0, 0, 15)
-    # with open("e.sdf") as f:
-    #     sdf_content = f.read().encode("utf-8")
-
-    # result, response = get_world()
-    # world = response.data[0]
-    # create_model(world, "model_0", 0, 0, 15)
     skipped = [
         # "/gazebo/resource_paths/resolve",
         # "/world/world_0/enable_collision",
@@ -1356,8 +1360,6 @@ if __name__ == "__main__":
         # "/world/world_0/playback/control",
         "/server_control",
     ]
-    # random_service_request(skipped=skipped)
-    # random_topic_publish()
     parser = OptionParser()
     parser.add_option("-d", "--directory", dest="directory", default="exp", help="directory to store test cases")
     parser.add_option("-i", "--iteration", dest="iteration", type="int", default=10, help="max iteration")

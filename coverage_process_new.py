@@ -10,7 +10,7 @@ import os
 import json
 from pathlib import Path
 
-BUILD_DIR = "/home/liyitao/workspace/build/"
+BUILD_DIR = "/home/liyitao/workspace/gz_lastest/build/"
 GCOV_DIR = "gcov"
 
 

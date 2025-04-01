@@ -1,1 +1,0 @@
-gz service --timeout 10000 -s /world/default/state --reptype gz.msgs.SerializedStepMap --reqtype gz.msgs.Empty --req ''

@@ -1,0 +1,14 @@
+time is 0.3658640384674072, cover line is 0
+time is 8.391597986221313, cover line is 0
+time is 0.3501760959625244, cover line is 0
+time is 29.751009941101074, cover line is 22768
+time is 41.85561990737915, cover line is 36606
+time is 0.3593111038208008, cover line is 0
+time is 140.4416491985321, cover line is 1258
+time is 192.1824860572815, cover line is 1431
+time is 203.05240106582642, cover line is 1431
+time is 215.83749914169312, cover line is 3898
+time is 0.6202409267425537, cover line is 0
+time is 0.35184812545776367, cover line is 0
+time is 0.542496919631958, cover line is 0
+time is 0.5339200496673584, cover line is 0

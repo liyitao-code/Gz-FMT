@@ -1,1 +1,0 @@
-gz service --timeout 10000 -s /world/python_system/scene/info --reptype gz.msgs.Scene --reqtype gz.msgs.Empty --req 'unused: true'

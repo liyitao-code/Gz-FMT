@@ -1,0 +1,5 @@
+---
+- service: "/world/default/remove"
+  ros_type_name: "ros_gz_interfaces/srv/DeleteEntity"
+  gz_type_name: "gz.msgs.EntityDelete"
+

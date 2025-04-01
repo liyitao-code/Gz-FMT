@@ -1,5 +1,17 @@
 <?xml version="1.0" ?>
+<!--
 
+  Demo of an optical tactile plugin.
+  Move the tactile sensor to touch different objects and see the output.
+
+  Disable the sensor with:
+
+    gz service -s /optical_tactile_plugin/enable \
+        --reqtype gz.msgs.Boolean \
+        --reptype gz.msgs.Empty \
+        --timeout 2000 --req 'data: false'
+
+-->
 
 <sdf version="1.7">
   <world name="optical_tactile_plugin">

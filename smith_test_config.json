@@ -1,0 +1,17 @@
+{
+    "world_path": "/home/liyitao/workspace/rezilla-modelsmith-sim9/test_model/shapes.sdf",
+    "steps": [
+        {
+            "type": "AddModel",
+            "params": {
+                "name": "box1",
+                "pose_min": -5,
+                "pose_max": 5
+            }
+        },
+        {
+            "type": "RemoveModel",
+            "params": {}
+        }
+    ]
+}

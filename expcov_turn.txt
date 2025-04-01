@@ -1,0 +1,7 @@
+turn is 0, cover line is 0
+turn is 0, cover line is 22768
+turn is 1, cover line is 36606
+turn is 0, cover line is 1258
+turn is 1, cover line is 1431
+turn is 2, cover line is 1431
+turn is 3, cover line is 3898

@@ -1,1 +1,0 @@
-gz service --timeout 10000 -s /gazebo/resource_paths/get --reptype gz.msgs.StringMsg_V --reqtype gz.msgs.Empty --req ''

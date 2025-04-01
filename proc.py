@@ -31,4 +31,4 @@ def launch_gazebo(sdfname):
 
 
 if __name__ == "__main__":
-    launch_gazebo("/home/liyitao/workspace/install/share/gz/gz-sim8/worlds/acoustic_comms.sdf")
+    launch_gazebo("/home/liyitao/workspace/gz_lastest/install/share/gz/gz-sim9/worlds/acoustic_comms.sdf")

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-# sys.path.append('/workspace/install/lib/python')
+sys.path.append('/home/liyitao/workspace/install/lib/python')
 
 from gz.msgs10.stringmsg_pb2 import StringMsg
 from gz.msgs10.stringmsg_v_pb2 import StringMsg_V
@@ -100,31 +100,6 @@ def kill_ruby_processes():
             # 忽略在获取进程信息期间可能发生的异常
             pass
 
-def save_training_metrics(filename, epoch, cumulative_reward, policy_change, loss_value, exploration_rate):
-    """
-    保存训练过程中的各种指标。
-
-    :param filename: 要保存的 CSV 文件名。
-    :param epoch: 当前的训练回合数。
-    :param cumulative_reward: 当前回合的累积奖励。
-    :param policy_change: 策略变化（例如动作选择分布的变化）。
-    :param loss_value: 当前回合的损失值。
-    :param exploration_rate: 当前回合的探索率。
-    """
-    # 检查文件是否存在，以决定是否需要写入表头
-    file_exists = os.path.isfile(filename)
-
-    # 打开文件进行写入
-    with open(filename, mode='a', newline='') as file:
-        writer = csv.writer(file)
-
-        # 如果文件不存在，则写入表头
-        if not file_exists:
-            writer.writerow(['Epoch', 'Cumulative Reward', 'Policy Change', 'Loss Value', 'Exploration Rate'])
-
-        # 写入一行数据
-        writer.writerow([epoch, cumulative_reward, policy_change, loss_value, exploration_rate])
-
 # 提取错误栈
 class ErrorLog:
     def __init__(self, log_file="gz.err"):
@@ -218,26 +193,6 @@ class OperatorSequenceManager:
         div_t = (1 / len(self.history)) * diversity_sum
         return div_t
 
-    # def calculate_reward(self, current_diversity, type=False, m=5):
-    #     """
-    #     计算当前算子序列的奖励值。
-
-    #     :param current_diversity: 当前算子序列的多样性值。
-    #     :param type: 如果为True，仅使用算子序列的开头数字；如果为False，使用完整的算子序列。
-    #     :param m: 用于计算奖励的历史序列数量。
-    #     :return: 当前算子序列的奖励值。
-    #     """
-    #     if len(self.history) < m:
-    #         return 0.0  # 若历史不足m个，则奖励为0
-
-    #     reward_sum = 0
-    #     for i in range(1, m + 1):
-    #         past_diversity = self.calculate_diversity(self.history[-i], type)
-    #         reward_sum += (current_diversity - past_diversity)
-
-    #     reward = (1 / m) * reward_sum
-    #     return reward
-
     def sequence_to_vector(self, sequence, type=False):
         """
         将算子序列转换为向量表示，用于计算余弦相似度。
@@ -309,14 +264,18 @@ action_agent_id = [-1, -1, 0, 1, -1, -1, -1, -1, 2, 3]
 # list形式定义每个算子的参数数量
 operator_parameter_counts = [1, 1, 117, 117, 1, 1, 1, 1, 123, 123]
 
+action_history = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+action_para_history = [0, 0, 0, 0]
+
 class SimulatorState:
-    def __init__(self, sdf_file_path, cover=0, ):
+    def __init__(self, sdf_file_path, cover=0, action_history = action_history):
         self.sdf_file_path = sdf_file_path
         self.model_with_plugin = 0
         self.model_with_none = 0
         self.plugin_in_model = 0
         self.plugin_in_world = 0
         self.cover_rate = cover
+        self.action_his = action_history
         # self.sequence_history = sequence_history
 
         # 提取SDF文件的状态信息
@@ -384,6 +343,16 @@ class SimulatorState:
             self.plugin_in_model,
             self.plugin_in_world,
             self.cover_rate,
+            # self.action_his[0],
+            # self.action_his[1],
+            # self.action_his[2],
+            # self.action_his[3],
+            # self.action_his[4],
+            # self.action_his[5],
+            # self.action_his[6],
+            # self.action_his[7],
+            # self.action_his[8],
+            # self.action_his[9],
             # diversity_score
         ]
 
@@ -426,35 +395,6 @@ class SimulatorAction:
         elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN_XML:
             return "fund_add_random_model_with_plugin_xml"  #
 
-# 策略更新和价值更新
-def update_actor_critic(log_probs, rewards, values, next_values, optimizer, critic_optimizer):
-    advantages = []
-    returns = []
-    G = next_values
-    for r, v in zip(reversed(rewards), reversed(values)):
-        G = r + 0.99 * G
-        returns.insert(0, G)
-        advantages.insert(0, G - v)
-    
-    advantages = torch.tensor(advantages)
-    returns = torch.tensor(returns)
-    
-    # 更新 Actor
-    policy_loss = []
-    for log_prob, advantage in zip(log_probs, advantages):
-        policy_loss.append(-log_prob * advantage.detach())
-    policy_loss = torch.cat(policy_loss).sum()
-    
-    optimizer.zero_grad()
-    policy_loss.backward()
-    optimizer.step()
-    
-    # 更新 Critic
-    value_loss = F.mse_loss(torch.tensor(values), returns)
-    critic_optimizer.zero_grad()
-    value_loss.backward()
-    critic_optimizer.step()
-
 def encode_action(action_type, parameter_index, action_param_counts):
     # 计算从0到当前action_type之前所有动作参数的和
     offset = sum(action_param_counts[i] for i in range(action_type))
@@ -467,37 +407,7 @@ def decode_action(encoded_action):
             parameter_index = encoded_action - total
             return action_type, parameter_index
 
-# class SequenceManager:
-#     def __init__(self, max_history_length=10000):
-#         self.sequence_history = deque(maxlen=max_history_length)
-
-#     def add_sequence(self, sequence):
-#         self.sequence_history.append(sequence)
-
-#     def calculate_similarity(self, current_sequence):
-#         if not self.sequence_history:
-#             return 0  # 没有历史序列时，相似性为0
-        
-#         # 将当前序列转换为向量形式
-#         current_vector = self.sequence_to_vector(current_sequence).reshape(1, -1)
-        
-#         # 将历史序列转换为向量形式
-#         history_vectors = np.array([self.sequence_to_vector(seq) for seq in self.sequence_history])
-        
-#         # 计算相似性
-#         similarities = cosine_similarity(current_vector, history_vectors)
-#         max_similarity = similarities.max()
-#         return max_similarity
-
-#     def sequence_to_vector(self, sequence):
-#         # 将 (算子, 参数) 对转换为一维向量
-#         vector = []
-#         for operator, parameter in sequence:
-#             vector.append(operator)
-#             vector.append(parameter)
-#         return np.array(vector)
-
-def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = False, reward_type = False):
+def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = True, reward_type = True):
     '''奖励函数'''
     reward = 0
     # global sum_reward
@@ -508,11 +418,11 @@ def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequenc
     # 崩溃激励
     if crash_occurred:
         # 如果发生崩溃，给予一个大的奖励
-        if reward_type is False:
-            crash_reward = 4 * (1 / crash_number)  
-        else:
-            crash_reward = 4 * (1.0 / np.power(0.9, crash_number))
-
+        # if crash_number < 12:
+        #     crash_reward = 24 - 4 * crash_number
+        # else:
+        #     crash_reward = 0
+        crash_reward = 4 * crash_number
     # 覆盖率激励
     if coverage_increase > 0:
         cov_reward = 0.2  # 根据覆盖率增加给予奖励
@@ -532,46 +442,38 @@ class HighLevelActor(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(HighLevelActor, self).__init__()
         self.fc1 = nn.Linear(state_dim, 128)
-        self.fc2 = nn.Linear(128, action_dim)
+        #self.fc2 = nn.Linear(32, 32)
+        self.fc3 = nn.Linear(128, action_dim)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        return F.softmax(self.fc2(x), dim=-1)
+        #x = F.relu(self.fc2(x))
+        return F.softmax(self.fc3(x), dim=-1)
 
 class Critic(nn.Module):
     def __init__(self, state_dim):
         super(Critic, self).__init__()
         self.fc1 = nn.Linear(state_dim, 128)
-        self.fc2 = nn.Linear(128, 1)
+        #self.fc2 = nn.Linear(32, 32)
+        self.fc3 = nn.Linear(128, 1)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        return self.fc2(x)
+        #x = F.relu(self.fc2(x))
+        return self.fc3(x)
 
 # 定义低层策略网络（选择参数）
 class LowLevelPolicy(nn.Module):
     def __init__(self, state_size, parameter_count):
         super(LowLevelPolicy, self).__init__()
-        self.fc1 = nn.Linear(state_size, 128)
-        self.fc2 = nn.Linear(128, parameter_count)
+        self.fc1 = nn.Linear(state_dim, 128)
+        #self.fc2 = nn.Linear(32, 32)
+        self.fc3 = nn.Linear(128, parameter_count)
     
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.softmax(self.fc2(x), dim=-1)
-        return x
-
-# 定义 Critic 网络
-class Critic(nn.Module):
-    def __init__(self, state_size):
-        super(Critic, self).__init__()
-        self.fc1 = nn.Linear(state_size, 128)
-        self.fc2 = nn.Linear(128, 1)
-    
-    def forward(self, x):
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-    
+        #x = F.relu(self.fc2(x))
+        return F.softmax(self.fc3(x), dim=-1)
     
 # 生成整个算子操作序列
 def generate_action_sequence(state, actor, low_models, num_actions):
@@ -595,7 +497,7 @@ def generate_action_sequence(state, actor, low_models, num_actions):
 
     return action_sequence, action_log_probs
 
-# 动作选择函数，结合ε-greedy策略
+# 动作选择函数
 def select_action(policy, epsilon=0.1):
     action_prob = policy.detach().numpy().flatten()
     action_prob = np.nan_to_num(action_prob, nan=1e-10)  # 用一个小正数替换 NaN
@@ -644,26 +546,6 @@ def find_largest_non_empty_world_file(tar_dir):
 
     os.chdir(now_dir)
     return ans
-
-
-
-# def select_action_with_exploration(state, policy, epsilon=0.1):
-#     '''带有ε-greedy策略和频率平滑的动作选择函数'''
-#     # 通过增加平滑因子1来避免未选择过的动作被忽略
-#     smoothed_action_count = [count + 1 for count in state.action_count]
-
-#     # 计算选择概率
-#     total = sum(smoothed_action_count)
-#     action_probabilities = [count / total for count in smoothed_action_count]
-
-#     # ε-greedy策略：以epsilon的概率进行随机选择
-#     if random.random() < epsilon:
-#         action = np.random.choice(len(action_probabilities))
-#     else:
-#         action = np.random.choice(len(policy), p=action_probabilities)
-
-#     return action
-
 
 # 保证data的utf8编码正确
 def safe_utf8_encode(data):
@@ -1374,7 +1256,7 @@ class SmithUnit:
         # print("DEBUG: after stop_gazebo")
         
     # def generate_and_test_commands_train(self, state, sequence_manager, model, optimizer):
-    def generate_and_test_commands_train(self, state, sequence_manager, actor, critic, low_models, actor_optimizer, low_optimizers, critic_optimizer, now_coverage):
+    def generate_and_test_commands_train(self, state, sequence_manager, actor, critic, low_models, actor_optimizer, low_optimizers, critic_optimizer):
         state_dim = 5  # 状态共有5维
         action_dim = 10  # 10种不同的算子
         # 清除梯度
@@ -1422,6 +1304,7 @@ class SmithUnit:
             # now_act, now_arg = decode_action(act + 1)
             func_name = SimulatorAction.perform_action(operator)
             func = getattr(self, func_name)
+            action_history[operator] += 1
             # 2. apply the action
             print(func_name)
 
@@ -1441,12 +1324,11 @@ class SmithUnit:
                 print(f"DEBUG: before execute command {i}")
                 ret = command.execute()
 
-            # 输出当前sdf情况
-            world = self.dump_sdf(self.world_name)
-            print(f"DEBUG: before dump world {i}")
-            world_file = f"{self.directory}/world_{i}.sdf" 
-            with open(world_file, "w") as f:
-                f.write(world)
+            # world = self.dump_sdf(self.world_name)
+            # print(f"DEBUG: before dump world {i}")
+            # world_file = f"{self.directory}/world_{i}.sdf" 
+            # with open(world_file, "w") as f:
+            #     f.write(world)
 
             # if self.diversity:
             #     flag, dist = self.diversity.add_and_check(world_file)
@@ -1483,7 +1365,7 @@ class SmithUnit:
         crash_occurred = False  # 模拟检查是否发生崩溃
         crash_number = 1    # 崩溃发生的数量
         coverage_increase = 0  # 模拟增加的覆盖率
-        next_state = state  # 假设状态更新后为 next_state
+        # next_state = state  # 假设状态更新后为 next_state
 
         # 4. collect coverage
         try:
@@ -1538,9 +1420,7 @@ class SmithUnit:
             
             # return diff
         print("DEBUG: now crash occurred is ", crash_occurred)
-        # state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
-        now_coverage += diff.new_line
-        next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), now_coverage)
+        # next_state = SimulatorState(find_largest_non_empty_world_file(self.directory), initial_coverage, sequence_history)
         # 计算激励
         reward = calculate_reward(action_sequence, crash_occurred, diff.new_line, sequence_manager, crash_number)
         print("DEBUG: train begin")
@@ -1548,14 +1428,14 @@ class SmithUnit:
         state_tensor = torch.FloatTensor(state.to_vector()).unsqueeze(0)
         high_policy = actor(state_tensor)  # 修改：使用独立的 actor 模型
         value = critic(state_tensor)  # 修改：使用独立的 critic 模型
-
-        # 计算当前状态的预估价值
-        next_state_tensor = torch.FloatTensor(next_state.to_vector()).unsqueeze(0)  # 计算s'
-        next_value = critic(next_state_tensor)
-        gamma = 0.99
-        advantage = reward + gamma * next_value.item() - value.item()   # 带有V(s')的优势计算
+        
+        advantage = reward - value.item()  # 计算优势
         
         advantage_tensor = torch.tensor(advantage, requires_grad=True)
+        # next_state_tensor = torch.FloatTensor(next_state.to_vector()).unsqueeze(0)    # 每次都是终止态，所以没有s'
+        # next_value = critic(next_state_tensor)
+        # gamma = 0.99
+        # advantage = reward + gamma * next_value.item() - value.item() # 带有V(s')的优势计算
 
         actor_loss = -sum(op_log_prob + param_log_prob for op_log_prob, param_log_prob in action_log_probs) * advantage_tensor
 
@@ -1572,6 +1452,8 @@ class SmithUnit:
         critic_optimizer.zero_grad()
         critic_loss.backward()
         critic_optimizer.step()
+        # 记录损失
+        self.log_training_metrics(self.directory, i, reward, actor_loss.item(), critic_loss.item())
 
         it = 0
         # 不在算子序列里的二级算子就不更新
@@ -1943,6 +1825,17 @@ class SmithUnit:
         else:
             return None
             # return "", None, None
+            
+    def log_training_metrics(self, directory, epoch, reward, actor_loss, critic_loss, exploration_rate=0.1):
+    	filename = f"{directory}/training_metrics.txt"
+    	file_exists = os.path.isfile(filename)
+    	with open(filename, mode='a', newline='') as file:
+        	writer = csv.writer(file)
+        	if not file_exists:
+        		writer.writerow(['Epoch', 'Reward', 'Actor Loss', 'Critic Loss', 'Exploration Rate'])
+        	writer.writerow([epoch, reward, actor_loss, critic_loss, exploration_rate])
+
+
 
 def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
@@ -2007,10 +1900,6 @@ if __name__ == "__main__":
     # 初始化策略网络和优化器
     state_dim = 5  # 状态维度为4
     action_dim = 10  # 算子共有10个
-    # action_dim = sum(action_param_counts.values())  # 动作维度
-
-    # model = ActorCriticNetwork(state_dim, action_dim)
-    # optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     # 创建每个算子的独立底层策略网络
     low_level_policies = []
@@ -2035,26 +1924,14 @@ if __name__ == "__main__":
     sequence_manager = OperatorSequenceManager(operator_parameter_counts)
     # 错误栈字典
     crash_manager = ErrorLogManager()
-    # mab = create_smab_bernoulli_mo_cold_start(action_ids=[str(i) for i in range(NUM_ARM)], n_objectives=3)
-    initial_coverage = 0.0
-    # diversity = SdfDiversity("./models")
     crashes = set()
     i = 0
 
     state_size = 1
-    # sdf_agent = DQNSdfAgent(num_files = 307, state_size = state_size)
     gcda_flag = False
     total_reward = 0
     while not stop:
         now = datetime.now().timestamp()
-        # 检查是否有.gcda文件，没有就退出
-        # if now - start > 200 and gcda_flag is False:
-        #     search_path = '../build/*.gcda'
-        #     gcda_files = glob(search_path)
-        #     if not gcda_files:
-        #         print("no gcda file, need execute . ./install/setup.bash")
-        #         sys.exit(1)  # 没有gcda文件就退出
-        #     gcda_flag = True
 
         if (now - start ) > 600 * turn:
             with open(f"{options.directory}cov_time.txt", "a") as file:
@@ -2072,8 +1949,9 @@ if __name__ == "__main__":
         # unit.create_sdf()
         unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes, crash_manager) # bandits)
         unit.copy_random_sdf()
-        state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
-
+        # state = SimulatorState(os.path.join(exp_dir, "a.sdf"), cov_line_turn, action_history)
+        state = SimulatorState(os.path.join(exp_dir, "a.sdf"), 0, action_history)	# 为了还原，这里覆盖率用0
+        print(f"DEBUG:state is {state.to_vector()}")
         
         print("DEBUG: before generate_and_test_commands")
         print("id = " + str(i))
@@ -2081,10 +1959,9 @@ if __name__ == "__main__":
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
         # def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic, critic_optimizer):
 
-        reward, cov_line = unit.generate_and_test_commands_train(state, sequence_manager, actor, critic, low_level_policies, actor_optimizer, low_optimizers, critic_optimizer, initial_coverage)
+        reward, cov_line = unit.generate_and_test_commands_train(state, sequence_manager, actor, critic, low_level_policies, actor_optimizer, low_optimizers, critic_optimizer)
         # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
         total_reward += reward
-        initial_coverage += cov_line
         cov_line_time += cov_line
         cov_line_turn += cov_line
         with open(f"{options.directory}cov_turn.txt", "a") as file:

@@ -1,0 +1,17 @@
+{
+  "world_path": "/home/liyitao/workspace/rezilla-modelsmith-sim9/test_model/shapes.sdf",
+  "steps": [
+    {
+      "type": "AddModel",
+      "params": {
+        "model_path": "/home/liyitao/workspace/rezilla-modelsmith-sim9/test_model/model.sdf" 
+      }
+    },
+    {
+      "type": "RandomRemoveModel"
+    },
+    {
+      "type": "RandomRemoveModel"
+    }
+  ]
+}

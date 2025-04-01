@@ -1,0 +1,6 @@
+__pycache__
+*.swp
+world*.sdf
+gz.log
+exp
+*.json.gz

@@ -1,0 +1,12 @@
+Stack trace (most recent call last) in thread 2864226:
+#9    Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
+#8    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7b7d1a52684f, in 
+#7    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7b7d1a494ac2, in 
+#6    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7b7d15edc252, in 
+#5    Object "/home/liyitao/workspace/install/lib/libgz-sim8.so.8", at 0x7b7d14be6118, in 
+#4    Object "/home/liyitao/workspace/install/lib/libgz-sim8.so.8", at 0x7b7d14be5d2a, in 
+#3    Object "/home/liyitao/workspace/install/lib/gz-sim-8/plugins/libgz-sim-tracked-vehicle-system.so", at 0x7b7d03325fad, in non-virtual thunk to gz::sim::v8::systems::TrackedVehicle::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+#2    Object "/home/liyitao/workspace/install/lib/gz-sim-8/plugins/libgz-sim-tracked-vehicle-system.so", at 0x7b7d03324002, in gz::sim::v8::systems::TrackedVehiclePrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
+#1    Object "/home/liyitao/workspace/install/lib/libgz-math7.so.7", at 0x7b7d15db04b0, in gz::math::v7::SpeedLimiter::Limit(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+#0    Object "/home/liyitao/workspace/install/lib/libgz-math7.so.7", at 0x7b7d15db03df, in gz::math::v7::SpeedLimiter::LimitJerk(double&, double, double, std::chrono::duration<long, std::ratio<1l, 1000000000l> >) const
+Segmentation fault (Address not mapped to object [(nil)])

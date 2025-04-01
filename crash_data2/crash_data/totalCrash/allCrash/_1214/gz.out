@@ -1,4 +1,0 @@
-[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::Joint | vehicle_blue) The name [fixed] is a duplicate, so it has been renamed to [fixed(1)]
-[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::N4dart8dynamics9ShapeNodeE | vehicle_blue) The name [body:collision] is a duplicate, so it has been renamed to [body:collision(1)]
-[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::Joint | vehicle_blue) The name [fixed] is a duplicate, so it has been renamed to [fixed(2)]
-[1;32mMsg[0m [NameManager::issueNewName] (Skeleton::N4dart8dynamics9ShapeNodeE | vehicle_blue) The name [body:collision] is a duplicate, so it has been renamed to [body:collision(2)]

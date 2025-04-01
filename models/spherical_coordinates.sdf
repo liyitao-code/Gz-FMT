@@ -1,5 +1,53 @@
 <?xml version="1.0" ?>
+<!--
+  Latitude / longitude demo
 
+  The world origin's spherical coordinates can be inspected using the Component
+  Inspector GUI plugin.
+
+  It has a model with a NavSat (GPS) sensor, whose reading is displayed on a
+  NavSatMap plugin.
+
+  Try changing the world origin coordinates with:
+
+gz service \
+-s /world/spherical_coordinates/set_spherical_coordinates \
+--reqtype gz.msgs.SphericalCoordinates \
+--reptype gz.msgs.Boolean \
+--timeout 2000 \
+--req "surface_model: EARTH_WGS84, latitude_deg: 35.6, longitude_deg: 140.1, elevation: 10.0"
+
+  Spawn a model in spherical coordinates:
+
+gz service -s /world/spherical_coordinates/create \
+--reqtype gz.msgs.EntityFactory \
+--reptype gz.msgs.Boolean \
+--timeout 300 \
+--req 'sdf: '\
+'"<?xml version=\"1.0\" ?>'\
+'<sdf version=\"1.6\">'\
+'<model name=\"spawned_model\">'\
+'<link name=\"link\">'\
+'<visual name=\"visual\">'\
+'<geometry><sphere><radius>1.0</radius></sphere></geometry>'\
+'</visual>'\
+'<collision name=\"visual\">'\
+'<geometry><sphere><radius>1.0</radius></sphere></geometry>'\
+'</collision>'\
+'</link>'\
+'</model>'\
+'</sdf>" '\
+'spherical_coordinates: {latitude_deg: 35.59999, longitude_deg: 140.09999, elevation: 11.0} '
+
+  Move a model in spherical coordinates:
+
+gz service -s /world/spherical_coordinates/set_spherical_coordinates \
+--reqtype gz.msgs.SphericalCoordinates \
+--reptype gz.msgs.Boolean \
+--timeout 300 \
+--req 'entity: {name: "spawned_model", type: MODEL}, latitude_deg: 35.59990, longitude_deg: 140.09990'
+
+-->
 <sdf version="1.6">
   <world name="spherical_coordinates">
 

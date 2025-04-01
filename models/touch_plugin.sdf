@@ -1,5 +1,23 @@
 <?xml version="1.0" ?>
+<!--
+This is an example demonstrating the use of the TouchPlugin.  The plugin
+requires that the Contact system be loaded and contact sensors be placed in at
+least one link on the model on which this plugin is attached.
 
+The plugin's parameters are documented in src/systems/touchplugin/TouchPlugin.hh
+
+If the plugin is not enabled by default send this command to enable
+  gz service -s /white_touches_only_green/enable \
+  --reqtype gz.msgs.Boolean \
+  --reptype gz.msgs.Empty \
+  --timeout 3000 \
+  --req 'data:true'
+
+The output of the plugin is via
+
+  gz topic -e -t /white_touches_only_green/touched
+
+-->
 
 <sdf version="1.6">
   <world name="touch">

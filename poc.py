@@ -5,7 +5,7 @@ from gz.transport13 import Node
 from glob import glob
 from os.path import basename
 import importlib
-import gz.msgs10
+import gz.msgs11
 import randomproto
 import subprocess
 import time

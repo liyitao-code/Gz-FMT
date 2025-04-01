@@ -1,0 +1,14 @@
+liyitao@liyitao-OptiPlex-Tower-Plus-7010:~/workspace/rezilla-modelsmith-sim9$ python3 testfixture_smith_1.py DynamicTestRunner.test_dynamic_workflow
+DEBUG: 建立world时，model列表: 
+['ground_plane', 'box', 'cylinder', 'sphere', 'capsule', 'ellipsoid', 'cone']
+DEBUG: 当前world中的model量为 7
+[DEBUG] 添加算子执行成功，响应状态: True, 数据: True
+DEBUG: 删除前，当前world中的model量为 7
+[DEBUG] 随机删除模型成功: cone (ID: 28)
+DEBUG: 删除后，当前world中的model量为 7
+DEBUG: 删除前，当前world中的model量为 8
+[DEBUG] 随机删除模型成功: capsule (ID: 20)
+DEBUG: 删除后，当前world中的model量为 8
+.
+----------------------------------------------------------------------
+Ran 1 test in 2.055s

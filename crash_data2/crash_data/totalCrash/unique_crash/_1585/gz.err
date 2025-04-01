@@ -1,9 +1,0 @@
-Stack trace (most recent call last) in thread 3419555:
-#6    Object "[0xffffffffffffffff]", at 0xffffffffffffffff, in 
-#5    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c443c52684f, in 
-#4    Object "/lib/x86_64-linux-gnu/libc.so.6", at 0x7c443c494ac2, in 
-#3    Object "/lib/x86_64-linux-gnu/libstdc++.so.6", at 0x7c4437edc252, in 
-#2    Object "/lib/x86_64-linux-gnu/libgz-sim8.so.8", at 0x7c4436d4bd5d, in 
-#1    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-ackermann-steering-system.so", at 0x7c4426b7082d, in non-virtual thunk to gz::sim::v8::systems::AckermannSteering::PostUpdate(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
-#0    Object "/usr/lib/x86_64-linux-gnu/gz-sim-8/plugins/libgz-sim-ackermann-steering-system.so", at 0x7c4426b6838c, in gz::sim::v8::systems::AckermannSteeringPrivate::UpdateVelocity(gz::sim::v8::UpdateInfo const&, gz::sim::v8::EntityComponentManager const&)
-Segmentation fault (Address not mapped to object [(nil)])

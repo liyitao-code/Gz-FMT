@@ -1,2 +1,0 @@
-Total traces found: 155
-Total unique traces found: 19

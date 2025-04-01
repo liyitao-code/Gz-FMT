@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from gz.math7 import Vector3d
-from gz.sim8 import Model, Link, Joint
+from gz.math8 import Vector3d
+from gz.sim9 import Model, Link, Joint
 import random
 
 class TestDriver(object):

@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import re
 import os
 import shutil
@@ -30,47 +27,61 @@ class ErrorLog:
                 self.trace.append(m.group(1))
 
 def find_gz_err_files(directory):
-    """递归寻找目录下所有的 gz.err 文件"""
+    """递归寻找目录下所有的 gz.err 文件，并按字典序排序"""
     gz_err_files = []
-    for root, _, files in os.walk(directory):
+    for root, _, files in sorted(os.walk(directory)):
         for file in files:
             if file == "gz.err":
                 gz_err_files.append(os.path.join(root, file))
     return gz_err_files
 
-def compare_directories(dir1, dir2, target_dir):
-    """比较两个目录，找出第二个目录中与第一个目录不同的 gz.err 文件"""
-    traces_dir1 = process_directory(dir1)
-    traces_dir2 = process_directory(dir2)
+def extract_number_from_folder_name(folder_name):
+    """从文件夹名中提取最后一个下划线后的数字"""
+    match = re.search(r'.*_(\d+)$', folder_name)
+    return int(match.group(1)) if match else float('inf')
 
-    unique_traces = set()
-    unique_directories = []
+def process_directory_with_crash_handling(path1, all_trace_dir, unique_trace_dir):
+    """处理路径中的gz.err文件，找出唯一的崩溃并进行处理"""
+    seen_traces = {}
+    gz_err_files = find_gz_err_files(path1)
+    all_trace_count = 0
 
-    gz_err_files_dir2 = find_gz_err_files(dir2)
-    for gz_err_file in gz_err_files_dir2:
-        e = ErrorLog(gz_err_file)
-        if e.trace and e.trace not in unique_traces and e.trace not in traces_dir1:
-            unique_traces.add(e.trace)
-            source_dir = os.path.dirname(gz_err_file)
-            if source_dir not in unique_directories:
-                unique_directories.append(source_dir)
-                target_subdir = os.path.join(target_dir, os.path.basename(source_dir))
-                shutil.copytree(source_dir, target_subdir)
-    
-    return unique_directories, len(unique_traces)
-
-def process_directory(directory):
-    """处理一个目录，返回其 gz.err 文件的堆栈跟踪集合"""
-    traces = set()
-    gz_err_files = find_gz_err_files(directory)
     for gz_err_file in gz_err_files:
         e = ErrorLog(gz_err_file)
         if e.trace:
-            traces.add(e.trace)
-        print(gz_err_file)
-        print(e.trace)
-        # print('\n')
-    return traces
+            all_trace_count += 1
+            trace_key = e.trace
+            source_dir = os.path.dirname(gz_err_file)
+            folder_name = os.path.basename(source_dir)
+            folder_number = extract_number_from_folder_name(folder_name)
+
+            # 将所有崩溃复制到 all_trace_dir
+            target_dir = os.path.join(all_trace_dir, folder_name)
+            if not os.path.exists(target_dir):
+                shutil.copytree(source_dir, target_dir)
+
+            if trace_key not in seen_traces:
+                seen_traces[trace_key] = (folder_number, source_dir, [folder_name])
+            else:
+                _, existing_dir, folder_list = seen_traces[trace_key]
+                folder_list.append(folder_name)
+                # 更新为数字最小的文件夹
+                if folder_number < seen_traces[trace_key][0]:
+                    seen_traces[trace_key] = (folder_number, source_dir, folder_list)
+
+    # 处理并保存每种崩溃的最小文件夹
+    unique_trace_count = 0
+    for trace_key, (_, source_dir, folder_list) in seen_traces.items():
+        target_dir = os.path.join(unique_trace_dir, os.path.basename(source_dir))
+        if not os.path.exists(target_dir):
+            shutil.copytree(source_dir, target_dir)
+            unique_trace_count += 1
+        
+        # 创建 crash_id.txt 文件并记录所有该崩溃类型的文件夹名
+        with open(os.path.join(target_dir, 'crash_id.txt'), 'w') as f:
+            f.write('\n'.join(folder_list))
+
+    return all_trace_count, unique_trace_count
 
 def main(mode, path1, path2, target_path=None):
     """mode参数为0则为从大量数据中筛出crash，1则是对比和合并功能
@@ -83,32 +94,16 @@ def main(mode, path1, path2, target_path=None):
             os.makedirs(path2)
 
         all_trace_dir = os.path.join(path2, "all_crash/")
-        unique_trace_dir = os.path.join(path2, "unique_crash")
-        seen_traces = set()
-        new_trace_count = 0
-        all_trace_count = 0
+        unique_trace_dir = os.path.join(path2, "unique_crash/")
+        if not os.path.exists(all_trace_dir):
+            os.makedirs(all_trace_dir)
+        if not os.path.exists(unique_trace_dir):
+            os.makedirs(unique_trace_dir)
 
-        gz_err_files = find_gz_err_files(path1)
-        for gz_err_file in gz_err_files:
-            e = ErrorLog(gz_err_file)
-            if e.trace :
-                source_dir = os.path.dirname(gz_err_file)
-                target_dir = os.path.join(all_trace_dir, os.path.basename(source_dir))
-                shutil.copytree(source_dir, target_dir)
-                all_trace_count += 1
-                if e.trace not in seen_traces: 
-                    # 如果是新的 trace，保存并拷贝目录
-                    seen_traces.add(e.trace)
-                    print(e.trace)
-                    new_trace_count += 1
+        all_trace_count, unique_trace_count = process_directory_with_crash_handling(path1, all_trace_dir, unique_trace_dir)
 
-                    source_dir = os.path.dirname(gz_err_file)
-                    target_dir = os.path.join(unique_trace_dir, os.path.basename(source_dir))
-                    shutil.copytree(source_dir, target_dir)
-                    print(f"New trace found, copied directory: {source_dir} to {target_dir}")
-                
         print(f"Total traces found: {all_trace_count}")
-        print(f"Total unique traces found: {new_trace_count}")
+        print(f"Total unique traces found: {unique_trace_count}")
 
     elif mode == 1:
         # New functionality: Compare two directories
@@ -124,17 +119,6 @@ def main(mode, path1, path2, target_path=None):
         sys.exit(1)
 
 if __name__ == "__main__":
-    
-    # dir1 = "/home/liyitao/workspace/exp/crash_ren/"
-    # dir2 = "/home/liyitao/workspace/exp/crash_random/"
-    # dir3 = "/home/liyitao/workspace/exp/muti_5_out/unique_crash"
-    # a = process_directory(dir3)
-    # print(len(a))
-    # for i in a:
-    #     print(str(i))
-    #     print("\n")
-
-    
     if len(sys.argv) < 4:
         print("Usage: python script_name.py <mode> <path1> <path2> [<target_path>]")
         sys.exit(1)
@@ -145,3 +129,4 @@ if __name__ == "__main__":
     target_path = sys.argv[4] if len(sys.argv) > 4 else None
 
     main(mode, path1, path2, target_path)
+
