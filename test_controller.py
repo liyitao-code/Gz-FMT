@@ -10,6 +10,7 @@ import shutil
 import glob
 import sys
 import threading
+from coverage_process import CoverageInfo, CoverageDiff, BUILD_DIR, GCOV_DIR
 
 class TeeOutput:
     """同时输出到文件和终端的工具类"""
@@ -105,54 +106,107 @@ def _run_process_with_tee(cmd, log_file, err_file, wait=False):
     return process, retcode
 
 class TestController:
-    def __init__(self):
+    def __init__(self, sdf_dir, output_dir, rounds=1):
+        """初始化测试控制器"""
+        self.sdf_dir = sdf_dir
+        self.output_dir = output_dir
+        self.rounds = rounds
         self.current_gazebo_process = None
-        self.output_dir = None
-        self.current_round = 0
-    
-    def _get_random_sdf(self):
-        """从 ./models 目录随机选择一个 SDF 文件"""
-        models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
-        sdf_files = []
         
-        # 递归搜索所有 .sdf 文件
-        for root, _, files in os.walk(models_dir):
+        # 获取所有SDF文件
+        self.sdf_files = []
+        for root, dirs, files in os.walk(sdf_dir):
             for file in files:
                 if file.endswith('.sdf'):
-                    sdf_files.append(os.path.join(root, file))
+                    self.sdf_files.append(os.path.join(root, file))
         
-        if not sdf_files:
-            raise RuntimeError("No SDF files found in ./models directory")
-            
-        return random.choice(sdf_files)
-    
+        if not self.sdf_files:
+            raise ValueError(f"No SDF files found in {sdf_dir}")
+        
+        # 创建输出目录
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 初始化覆盖率信息
+        self.coverage_old = None
+        self.total_coverage = 0
+        self.total_lines = 0
+        
     def _setup_round_dir(self, round_num):
-        """设置当前轮次的输出目录"""
+        """设置轮次目录"""
         round_dir = os.path.join(self.output_dir, f"_{round_num}")
-        if os.path.exists(round_dir):
-            shutil.rmtree(round_dir)
-        os.makedirs(round_dir)
+        os.makedirs(round_dir, exist_ok=True)
         return round_dir
-    
-    def _copy_sdf(self, src_sdf, round_dir):
-        """复制SDF文件到轮次目录"""
-        # 复制到 world.sdf
-        dst_sdf = os.path.join(round_dir, "world.sdf")
-        shutil.copy2(src_sdf, dst_sdf)
         
-        # 同时保存一份原始的SDF文件
-        src_name = os.path.basename(src_sdf)
-        orig_sdf = os.path.join(round_dir, f"original_{src_name}")
-        shutil.copy2(src_sdf, orig_sdf)
+    def _get_random_sdf(self):
+        """随机选择一个SDF文件"""
+        return random.choice(self.sdf_files)
         
-        return dst_sdf
-    
-    def run_single_test(self, round_num):
-        """运行单轮测试"""
-        print(f"\n=== Starting Test Round {round_num} ===")
+    def _create_test_config(self, config_file):
+        """创建测试配置文件"""
+        test_config = {
+            "steps": [
+                {
+                    "type": "exec_topic",
+                    "topic": "/echo",
+                    "msg_type": "gz.msgs.StringMsg",
+                    "data": {"data": f"test_data_{random.randint(1, 100)}"}
+                },
+                {
+                    "type": "exec_service",
+                    "service": "/world/default/control",
+                    "req_type": "gz.msgs.WorldControl",
+                    "rep_type": "gz.msgs.Boolean",
+                    "data": {"pause": True}
+                },
+                {
+                    "type": "add_model",
+                    "model_type": random.choice(["box", "sphere", "cylinder"])
+                }
+            ]
+        }
+        with open(config_file, 'w') as f:
+            json.dump(test_config, f, indent=2)
+            
+    def _collect_coverage(self, round_dir):
+        """收集覆盖率信息"""
+        coverage_dir = os.path.join(round_dir, "coverage")
+        os.makedirs(coverage_dir, exist_ok=True)
         
+        # 收集新的覆盖率信息
+        coverage_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
+        coverage_new.collect()
+        
+        # 计算差异
+        diff = CoverageDiff()
+        if self.coverage_old is None:
+            diff.compare(coverage_new)
+            self.coverage_old = coverage_new
+        else:
+            diff.compare(coverage_new, self.coverage_old)
+            self.coverage_old = coverage_new
+            
+        # 更新总覆盖率
+        self.total_coverage += diff.new_line
+        
+        # 保存覆盖率信息
+        coverage_info = {
+            "new_lines": diff.new_line,
+            "total_coverage": self.total_coverage,
+        }
+        
+        coverage_file = os.path.join(coverage_dir, "coverage.json")
+        with open(coverage_file, 'w') as f:
+            json.dump(coverage_info, f, indent=2)
+            
+        print(f"\n=== Coverage Report for Round ===")
+        print(f"New Lines Covered: {diff.new_line}")
+        print(f"Total Lines Covered: {self.total_coverage}")
+        
+    def _run_test_round(self, round_num):
+        """运行一轮测试"""
         # 创建轮次目录
-        round_dir = self._setup_round_dir(round_num)
+        round_dir = os.path.join(self.output_dir, f"_{round_num}")
+        os.makedirs(round_dir, exist_ok=True)
         
         # 创建valgrind日志目录
         valgrind_dir = os.path.join(round_dir, "valgrind")
@@ -164,18 +218,22 @@ class TestController:
         open(valgrind_gazebo_log, 'w').close()
         open(valgrind_gazebo_updated_log, 'w').close()
         
-        # 随机选择 SDF 文件并复制
-        sdf_path = self._get_random_sdf()
-        print(f"[DEBUG] Selected SDF file: {sdf_path}")
-        local_sdf = self._copy_sdf(sdf_path, round_dir)
-        
-        # 生成本轮测试的配置
-        test_config = self.generate_operator_config()
-        config_file = os.path.join(round_dir, "test_config.json")
-        with open(config_file, 'w') as f:
-            json.dump(test_config, f, indent=2)
+        print(f"\n=== Starting Test Round {round_num} ===")
         
         try:
+            # 选择并复制SDF文件
+            sdf_file = random.choice(self.sdf_files)
+            print(f"[DEBUG] Selected SDF file: {sdf_file}")
+            
+            # 复制SDF文件到轮次目录
+            local_sdf = os.path.join(round_dir, "world.sdf")
+            with open(sdf_file, 'r') as src, open(local_sdf, 'w') as dst:
+                dst.write(src.read())
+            
+            # 创建测试配置文件
+            config_file = os.path.join(round_dir, "test_config.json")
+            self._create_test_config(config_file)
+            
             # 启动Gazebo环境
             print("[DEBUG] Starting Gazebo process with Valgrind...")
             valgrind_cmd = [
@@ -284,57 +342,41 @@ class TestController:
                             print(err_content)
                 except FileNotFoundError:
                     print("[DEBUG] Gazebo error log file not found")
+                    
+            # 收集覆盖率信息
+            self._collect_coverage(round_dir)
             
         except Exception as e:
-            print(f"Error in round {round_num}: {str(e)}")
+            print(f"[ERROR] Test round {round_num} failed: {str(e)}")
+            raise
+        finally:
+            # 确保进程被终止
+            if self.current_gazebo_process:
+                try:
+                    self.current_gazebo_process.terminate()
+                except:
+                    pass
+                
+    def run_tests(self):
+        """运行所有测试轮次"""
+        for round_num in range(1, self.rounds + 1):
+            self._run_test_round(round_num)
             
-    def run_tests(self, rounds, output_dir):
-        """运行指定轮数的测试"""
-        self.output_dir = os.path.abspath(output_dir)
-        if not os.path.exists(self.output_dir):
-            os.makedirs(self.output_dir)
-        
-        for round_num in range(1, rounds + 1):
-            self.current_round = round_num
-            self.run_single_test(round_num)
-    
-    def generate_operator_config(self):
-        """生成算子配置"""
-        # 这里是示例配置，您可以根据需要修改
-        return {
-            "steps": [
-                {
-                    "type": "exec_topic",
-                    "topic": "/echo",
-                    "msg_type": "gz.msgs.StringMsg",
-                    "data": {"data": f"test_data_{random.randint(0, 100)}"}
-                },
-                {
-                    "type": "exec_service",
-                    "service": "/world/default/control",
-                    "req_type": "gz.msgs.WorldControl",
-                    "rep_type": "gz.msgs.Boolean",
-                    "data": {"pause": True}
-                },
-                {
-                    "type": "add_model",
-                    "model_type": random.choice(["box", "sphere", "cylinder"])
-                }
-            ]
-        }
+        # 生成最终的覆盖率报告
+        print("\n=== Final Coverage Report ===")
+        print(f"Total Lines Covered: {self.total_coverage}")
 
 def main():
+    """主函数"""
     import argparse
-    parser = argparse.ArgumentParser(description="Test Controller")
-    parser.add_argument("-r", "--rounds", type=int, required=True,
-                      help="Number of test rounds to run")
-    parser.add_argument("-o", "--output", type=str, required=True,
-                      help="Output directory for test artifacts")
-    
+    parser = argparse.ArgumentParser(description='Run Gazebo tests with different SDF files')
+    parser.add_argument('-r', '--rounds', type=int, default=1, help='Number of test rounds')
+    parser.add_argument('-o', '--output', type=str, required=True, help='Output directory')
+    parser.add_argument('-s', '--sdf-dir', type=str, default='models', help='Directory containing SDF files')
     args = parser.parse_args()
     
-    controller = TestController()
-    controller.run_tests(args.rounds, args.output)
+    controller = TestController(args.sdf_dir, args.output, args.rounds)
+    controller.run_tests()
 
 if __name__ == "__main__":
     main()
