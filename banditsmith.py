@@ -38,11 +38,12 @@ import time
 from plugin_mining import PluginMiner, SdfMiner
 from sdf_diversity import SdfDiversity
 from crash_result import ErrorLog
-### from mab.algs import ThompsomSampling, UCB1, UCBTuned
+# from mab.algs import ThompsomSampling, UCB1, UCBTuned
 
-# from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
-# from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
-# from pybandits.model import Beta
+from pybandits.smab import SmabBernoulli, create_smab_bernoulli_cold_start
+from pybandits.smab import SmabBernoulliMO, create_smab_bernoulli_mo_cold_start
+from pybandits.model import Beta
+
 import logging
 import logging.config
 import func_timeout
@@ -86,6 +87,36 @@ actions = ['add_model', 'remove_model', 'modify_position', 'add_component']
 import fcntl
 
 sum_reward = 0
+
+def copy_sdf_file_by_index(sdf_index, destination_directory, source_directory=FIRST_DIR[DIR_FLAG]+'/rezilla-modelsmith-fb63e64b5fab/models'):
+    
+    index = int(sdf_index[0])
+    # 获取source_directory中的所有.sdf文件
+    sdf_files = [f for f in os.listdir(source_directory) if f.endswith('.sdf')]
+    
+    # 按字典顺序排序
+    sdf_files.sort()
+    
+    # 检查索引是否在范围内
+    if 0 <= index < len(sdf_files):
+        # 获取对应索引的文件名
+        sdf_filename = sdf_files[index]
+        # 构建完整的源文件路径和目标文件路径
+        source_file_path = os.path.join(source_directory, sdf_filename)
+        destination_file_path = os.path.join(destination_directory, sdf_filename)
+        
+        # 如果目标目录不存在，创建它
+        os.makedirs(destination_directory, exist_ok=True)
+        
+        # 将文件复制到目标目录
+        shutil.copy(source_file_path, destination_file_path)
+        
+        # 返回文件名
+        return sdf_filename
+    else:
+        # 如果索引超出范围，返回错误信息
+        raise IndexError(f"Index {index} is out of range. There are only {len(sdf_files)} .sdf files.")
+
 
 def kill_ruby_processes():
     # 遍历系统中的所有进程
@@ -426,35 +457,6 @@ class SimulatorAction:
         elif action == SimulatorAction.RANDOM_ADD_MODEL_WITH_PLUGIN_XML:
             return "fund_add_random_model_with_plugin_xml"  #
 
-# 策略更新和价值更新
-def update_actor_critic(log_probs, rewards, values, next_values, optimizer, critic_optimizer):
-    advantages = []
-    returns = []
-    G = next_values
-    for r, v in zip(reversed(rewards), reversed(values)):
-        G = r + 0.99 * G
-        returns.insert(0, G)
-        advantages.insert(0, G - v)
-    
-    advantages = torch.tensor(advantages)
-    returns = torch.tensor(returns)
-    
-    # 更新 Actor
-    policy_loss = []
-    for log_prob, advantage in zip(log_probs, advantages):
-        policy_loss.append(-log_prob * advantage.detach())
-    policy_loss = torch.cat(policy_loss).sum()
-    
-    optimizer.zero_grad()
-    policy_loss.backward()
-    optimizer.step()
-    
-    # 更新 Critic
-    value_loss = F.mse_loss(torch.tensor(values), returns)
-    critic_optimizer.zero_grad()
-    value_loss.backward()
-    critic_optimizer.step()
-
 def encode_action(action_type, parameter_index, action_param_counts):
     # 计算从0到当前action_type之前所有动作参数的和
     offset = sum(action_param_counts[i] for i in range(action_type))
@@ -467,87 +469,113 @@ def decode_action(encoded_action):
             parameter_index = encoded_action - total
             return action_type, parameter_index
 
-# class SequenceManager:
-#     def __init__(self, max_history_length=10000):
-#         self.sequence_history = deque(maxlen=max_history_length)
+def calculate_rewards(crash_flag, diff_new_line, similarity, actions, num_seq = 10):
+    # 初始化奖励列表为三元组
+    rewards = [(0, 0, 0) for _ in range(num_seq)]
+    
+    # 设置崩溃奖励
+    if crash_flag == 1:
+        for idx in range(num_seq):
+            rewards[idx] = (1, rewards[idx][1], rewards[idx][2])
+    
+    # 设置新覆盖行奖励
+    if diff_new_line > 0:
+        for idx in range(num_seq):
+            rewards[idx] = (rewards[idx][0], 1, rewards[idx][2])
+    
+    # 设置相似度奖励
+    if similarity > 0.35:
+        for idx in range(num_seq):
+            rewards[idx] = (rewards[idx][0], rewards[idx][1], 1)
 
-#     def add_sequence(self, sequence):
-#         self.sequence_history.append(sequence)
+    # 计算 first_reward
+    first_reward = rewards.copy()
+    for i in range(num_seq):
+        # 计算与之前相同的 action[i][0] 的次数
+        same_operator_count = sum(1 for j in range(i) if actions[j][0] == actions[i][0])
+        # 计算需要扣减的次数
+        penalty_count = same_operator_count // (i // 3 + 1) if i > 0 else 0
 
-#     def calculate_similarity(self, current_sequence):
-#         if not self.sequence_history:
-#             return 0  # 没有历史序列时，相似性为0
+        # 根据扣减次数调整奖励
+        for _ in range(penalty_count):
+            # 将奖励从后往前扣减
+            if first_reward[i][2] == 1:
+                first_reward[i] = (first_reward[i][0], first_reward[i][1], 0)
+            elif first_reward[i][1] == 1:
+                first_reward[i] = (first_reward[i][0], 0, first_reward[i][2])
+            elif first_reward[i][0] == 1:
+                first_reward[i] = (0, first_reward[i][1], first_reward[i][2])
+
+    # 计算 second_reward
+    second_reward = [sum(reward) for reward in rewards]  # 计算每个三元组的和
+    for i in range(num_seq):
+        # 计算与之前相同的 (action[i][0], action[i][1]) 的次数
+        same_full_operator_count = sum(1 for j in range(i) if actions[j] == actions[i])
+        # 计算与之前相同的 action[i][0] 的次数
+        same_operator_count = sum(1 for j in range(i) if actions[j][0] == actions[i][0])
         
-#         # 将当前序列转换为向量形式
-#         current_vector = self.sequence_to_vector(current_sequence).reshape(1, -1)
+        # 确保分母不为零，避免除零错误
+        if same_operator_count > 0:
+            penalty_count = same_full_operator_count // same_operator_count
+            # 根据扣减次数调整奖励
+            for _ in range(penalty_count):
+                if second_reward[i] > 0:
+                    second_reward[i] -= 1
+
+    return first_reward, second_reward
+
+# 假设你有10个位置，每个位置可以选择10种算子
+num_positions = 10
+num_operators = 10
+sdf_number = 309
+
+# 创建动作ID集合，使用字符串类型
+action_ids = {str(i) for i in range(num_operators)}  # 将整数转换为字符串
+
+# 更新多臂老虎机
+def update_bandit(bandit, secondary_bandits, sequence, reward):
+    actions = []
+    rewards = []
+    
+    for position, (operator, parameter) in enumerate(sequence):
+        # 计算当前位置之前的相同算子数量
+        same_operator_count = sum(1 for prev_position in range(position) if sequence[prev_position][0] == operator)
         
-#         # 将历史序列转换为向量形式
-#         history_vectors = np.array([self.sequence_to_vector(seq) for seq in self.sequence_history])
+        # 减少奖励，根据相同算子的数量，每个减少10%
+        adjusted_reward = reward * (0.9 ** same_operator_count)
         
-#         # 计算相似性
-#         similarities = cosine_similarity(current_vector, history_vectors)
-#         max_similarity = similarities.max()
-#         return max_similarity
+        # 收集动作和对应的奖励
+        actions.append(str(operator))
+        
+        # 假设 `bandit` 的策略是 `MultiObjectiveBandit`，并假设每个动作有相同数量的目标
+        # rewards.append([adjusted_reward] * n_objectives)  # 如果你知道目标数量
+        rewards.append([adjusted_reward])  # 如果不确定目标数量，或假设单目标
 
-#     def sequence_to_vector(self, sequence):
-#         # 将 (算子, 参数) 对转换为一维向量
-#         vector = []
-#         for operator, parameter in sequence:
-#             vector.append(operator)
-#             vector.append(parameter)
-#         return np.array(vector)
+        # 更新算子的参数老虎机
+        if action_param_counts[operator] > 1:
+            secondary_bandits[operator].update(parameter, adjusted_reward)
+    
+    print(f"DEBUG: action is {actions}, rewards is {rewards}")
 
-def calculate_reward(action_sequence, crash_occurred, coverage_increase, sequence_manager, crash_number, div_type = False, reward_type = False):
-    '''奖励函数'''
-    reward = 0
-    # global sum_reward
-    crash_reward = 0
-    cov_reward = 0
-    diversity_reward = 0
+    # 更新多目标老虎机
+    bandit.update(actions=actions, rewards=rewards)
 
-    # 崩溃激励
-    if crash_occurred:
-        # 如果发生崩溃，给予一个大的奖励
-        if reward_type is False:
-            crash_reward = 4 * (1 / crash_number)  
+def generate_operator_sequence(bandit, secondary_bandits, action_param_counts):
+    sequence = []
+    # 使用 predict 方法来选择动作
+    selected_actions, _ = bandit.predict(n_samples=num_positions)
+    
+    for position, operator_str in enumerate(selected_actions):
+        operator = int(operator_str)  # 将选择的字符串转换回整数
+        
+        if action_param_counts[operator] > 1:
+            parameter_bandit = secondary_bandits[operator]
+            parameter = parameter_bandit.select_arm()
         else:
-            crash_reward = 4 * (1.0 / np.power(0.9, crash_number))
-
-    # 覆盖率激励
-    if coverage_increase > 0:
-        cov_reward = 0.2  # 根据覆盖率增加给予奖励
-
-    # 多样性激励，使用论文里的公式
-    # diversity_reward = calculate_diversity_reward(action_sequence, sequence_manager)
-    diversity_reward = sequence_manager.calculate_diversity(action_sequence, div_type)
-    reward = diversity_reward + crash_reward + cov_reward
-
-    # sum_reward += reward
-    print(f"DEBUG: crash reward is {crash_reward} , coverage reward is {cov_reward}, disversity reward is {diversity_reward}")
-    return reward
-
-# 多臂老虎机,greed策略
-# class MultiArmedBandit:
-#     def __init__(self, num_arms, epsilon=0.1):
-#         self.num_arms = num_arms
-#         self.epsilon = epsilon
-#         self.counts = np.zeros(num_arms)
-#         self.values = np.zeros(num_arms)
-
-#     def select_arm(self):
-#         if random.random() > self.epsilon:
-#             # 选择当前价值估计最高的动作
-#             return np.argmax(self.values)
-#         else:
-#             # 随机探索新动作
-#             return random.randint(0, self.num_arms - 1)
-
-#     def update(self, chosen_arm, reward):
-#         self.counts[chosen_arm] += 1
-#         n = self.counts[chosen_arm]
-#         value = self.values[chosen_arm]
-#         # Update value estimate using incremental formula
-#         self.values[chosen_arm] = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+            parameter = 0
+        
+        sequence.append((operator, parameter))
+    return sequence
 
 # 多臂老虎机，UCB1策略以及乐观初始值策略，动态调整epsilon
 class MultiArmedBandit:
@@ -595,21 +623,6 @@ class MultiArmedBandit:
 #         sequence.append((operator, parameter))
 #     return sequence
 
-# 分层生成算子序列
-def generate_operator_sequence(primary_bandits, secondary_bandits, action_param_counts, sequence_length=10):
-    sequence = []
-    for i in range(sequence_length):
-        # 使用每个位置的独立老虎机选择算子
-        operator = primary_bandits[i].select_arm()
-
-        if action_param_counts[operator] > 1:
-            parameter_bandit = secondary_bandits[operator]
-            parameter = parameter_bandit.select_arm()
-        else:
-            parameter = 0
-
-        sequence.append((operator, parameter))
-    return sequence
 
 def find_largest_non_empty_world_file(tar_dir):
     """
@@ -647,10 +660,6 @@ def find_largest_non_empty_world_file(tar_dir):
 
     os.chdir(now_dir)
     return ans
-
-
-
-
 
 # 保证data的utf8编码正确
 def safe_utf8_encode(data):
@@ -1360,7 +1369,6 @@ class SmithUnit:
         # self.stop_gazebo(True)
         # print("DEBUG: after stop_gazebo")
         
-    # unit.generate_and_test_commands_train(bandit, sequence_manager, initial_coverage)
     def generate_and_test_commands_train(self, primary_bandit, secondary_bandits, sequence_manager, now_coverage):
         # 生成算子序列，长度为unit.num_seq
         # action_sequence, action_log_probs = generate_action_sequence(state, actor, low_models, unit.num_seq)  # 修改：使用独立的 actor 模型
@@ -1419,18 +1427,6 @@ class SmithUnit:
                 print(f"DEBUG: before execute command {i}")
                 ret = command.execute()
 
-            # 输出当前sdf情况
-            # world = self.dump_sdf(self.world_name)
-            # print(f"DEBUG: before dump world {i}")
-            # world_file = f"{self.directory}/world_{i}.sdf" 
-            # with open(world_file, "w") as f:
-            #     f.write(world)
-
-            # if self.diversity:
-            #     flag, dist = self.diversity.add_and_check(world_file)
-            #     self.diversity_rewards[i] = 1 if flag else 0
-
-
             with open(f"{self.directory}/id", "w") as f:
                 f.write(f"{i}")
             
@@ -1461,8 +1457,8 @@ class SmithUnit:
 
         crash_occurred = False  # 模拟检查是否发生崩溃
         crash_number = 1    # 崩溃发生的数量
-        coverage_increase = 0  # 模拟增加的覆盖率
-
+        new_cover_line = 0  # 新增覆盖行数
+        similarity = 0  # 序列相似度
         # 4. collect coverage
         try:
             os.remove(f"./terminate")
@@ -1488,55 +1484,46 @@ class SmithUnit:
                 f.write(out)
             with open(f"{self.directory}/gz.err", "w") as f:
                 f.write(err)
+            new_cover_line = diff.new_line
             print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
-            
-
-            # if self.check_new_crash(f"{self.directory}/gz.err"):
-            #     print(f"DEBUG: crash rewards: {i}")
-                # TODO: dump crash to file
-                # for j in range(i):
-                #     self.crash_rewards[j] = 1
-                # crash_occurred = True
-                # print(f"DEBUG: {self.crash_rewards}")
             if self.check_crash(f"{self.directory}/gz.err"):
                 crash_occurred = True
                 crash_number = crash_manager.process_error_file(f"{self.directory}/gz.err")
                 print(f"DEBUG: crash rewards: {i}")
                 print(f"DEBUG: {self.crash_rewards}")
 
-            # 计算增加的覆盖率
-            # total_line = self.cov_new.get_total_line()
-            # if total_line != 0:
-            #     coverage_increase = diff.new_line / total_line 
-            # else:
-            #     coverage_increase = 0
-            # print(f"Diff coverage increase: {coverage_increase}")
-
-            
-            # return diff
         print("DEBUG: now crash occurred is ", crash_occurred)
-        now_coverage += diff.new_line
+        # now_coverage += diff.new_line
         # 计算激励
-        total_reward = calculate_reward(action_sequence, crash_occurred, diff.new_line, sequence_manager, crash_number)
-        print("DEBUG: train begin")
+
+        first_action = [str(action[0]) for action in action_sequence]
+
+        similarity = sequence_manager.calculate_diversity(action_sequence, True)
         
-        # 将总奖励分配给序列中的每个算子及其参数
-        for j, (operator, parameter) in enumerate(action_sequence):
-            if j > id:
-                break
-            # 更新选择的算子
-            primary_bandits[j].update(operator, total_reward)
-            # 更新选择的参数
+        first_rewards, second_rewards = calculate_rewards(crash_occurred, new_cover_line, similarity, action_sequence)
+
+        print("DEBUG: reward is :")
+        print(f"DEBUG: first action is {first_action}")
+        print(f"DEBUG: crash is {crash_occurred}, cover line is {new_cover_line}, similarity is  {similarity}")
+        print(f"DEBUG: first rewards is {first_rewards}")
+        print(f"DEBUG: second rewards is {second_rewards}")
+        
+        print("DEBUG: train begin")
+
+        # 更新主老虎机
+        bandit.update(first_action, first_rewards)
+        # 更新算子的参数老虎机
+        for position, (operator, parameter) in enumerate(action_sequence):
             if action_param_counts[operator] > 1:
-                secondary_bandits[operator].update(parameter, total_reward)
+                secondary_bandits[operator].update(parameter, second_rewards[position])        
 
         print("DEBUG: train end")
         # 将当前序列添加到历史
         sequence_manager.add_to_history(action_sequence)
         with open(f"{self.directory}/action.txt", 'a', encoding='utf-8') as file:
             file.write(str(action_sequence) + '\n')
-        return total_reward, diff.new_line
+        return crash_occurred, diff.new_line
 
 
     # 复制随机的sdf文件
@@ -1960,6 +1947,9 @@ if __name__ == "__main__":
     total_iterations = 700  # 总共进行700次迭代
     sequence_length = 10  # 算子序列长度
 
+    # 创建多目标老虎机
+    bandit = create_smab_bernoulli_mo_cold_start(action_ids, n_objectives=3)
+
     # 为每个序列位置创建一个独立的多臂老虎机
     primary_bandits = [MultiArmedBandit(num_operators, initial_value, initial_epsilon, min_epsilon, total_iterations) for _ in range(sequence_length)]
     # 为每个有多个参数的算子创建一个对应的多臂老虎机
@@ -1968,7 +1958,10 @@ if __name__ == "__main__":
         if param_count > 1:
             secondary_bandits[operator] = MultiArmedBandit(param_count, initial_value, initial_epsilon, min_epsilon, total_iterations)
 
-
+    # 创建sdf老虎机
+    # sdf_bandits = MultiArmedBandit(param_count, initial_value, initial_epsilon, min_epsilon, total_iterations)
+    sdf_ids = {str(i) for i in range(sdf_number)} 
+    sdf_bandits = create_smab_bernoulli_mo_cold_start(sdf_ids, n_objectives=2)
 
     # 创建序列管理器
     sequence_manager = OperatorSequenceManager(operator_parameter_counts)
@@ -1988,6 +1981,7 @@ if __name__ == "__main__":
     #     for (operator, parameter) in que:
     #         print(f"{operator},{parameter}")
 
+    
 
     while not stop:
         now = datetime.now().timestamp()
@@ -2012,10 +2006,13 @@ if __name__ == "__main__":
         
 
         # sdf_state = get_sdf_initial_state()
-
+        # selected_actions, _ = bandit.predict(n_samples=num_positions)
+        selected_sdf, _ = sdf_bandits.predict(n_samples=1)
+        print(f"DEBUG: sdf id is {selected_sdf}")
         # unit.create_sdf()
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes, crash_manager) # bandits)
-        unit.copy_random_sdf()
+        sdf_name = copy_sdf_file_by_index(selected_sdf, exp_dir)
+        unit = SmithUnit(exp_dir, sdf_name, options.num_seq, True, skipped, options.timeout, seed, None, None, None, crashes, crash_manager) # bandits)
+        # unit.copy_random_sdf()
         # state = SimulatorState(os.path.join(exp_dir, "a.sdf"), initial_coverage)
 
         
@@ -2025,15 +2022,19 @@ if __name__ == "__main__":
         # print("DEBUG: now coverage is " + str(unit.cov_old.calculate_total_coverage()))
         # def generate_and_test_commands_train(self, state, sequence_manager, high_model, low_models, high_optimizer, low_optimizers, critic, critic_optimizer):
 
-        reward, cov_line = unit.generate_and_test_commands_train(primary_bandit, secondary_bandits, sequence_manager, initial_coverage)
+        crash_occurred, cov_line = unit.generate_and_test_commands_train(bandit, secondary_bandits, sequence_manager, initial_coverage)
         # def generate_and_test_commands_train(self, state, sequence_history, model, optimizer):
-        total_reward += reward
+        # total_reward += reward
         initial_coverage += cov_line
         cov_line_time += cov_line
         cov_line_turn += cov_line
+
+        a = 1 if crash_occurred else 0
+        b = 1 if cov_line > 0 else 0
+        sdf_bandits.update(selected_sdf, [(a, b)])
         with open(f"{options.directory}cov_turn.txt", "a") as file:
             file.write(f"turn is {i}, now time is {now - start}, scover line is {cov_line_turn}\n")
-        print("DEBUG: now total reward is ", total_reward)
+        # print("DEBUG: now total reward is ", total_reward)
         i += 1
         
         time.sleep(5)
