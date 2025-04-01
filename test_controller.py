@@ -106,31 +106,29 @@ def _run_process_with_tee(cmd, log_file, err_file, wait=False):
     return process, retcode
 
 class TestController:
-    def __init__(self, sdf_dir, output_dir, rounds=1):
-        """初始化测试控制器"""
+    """测试控制器"""
+    def __init__(self, sdf_dir, output_dir, rounds=1, steps_per_round=10):
         self.sdf_dir = sdf_dir
-        self.output_dir = output_dir
+        self.output_dir = os.path.abspath(output_dir)
         self.rounds = rounds
-        self.current_gazebo_process = None
+        self.steps_per_round = steps_per_round
         
-        # 获取所有SDF文件
+        # 确保输出目录存在
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # 查找所有SDF文件
         self.sdf_files = []
-        for root, dirs, files in os.walk(sdf_dir):
-            for file in files:
-                if file.endswith('.sdf'):
-                    self.sdf_files.append(os.path.join(root, file))
+        for ext in ['*.sdf', '*.world']:
+            self.sdf_files.extend(glob.glob(os.path.join(sdf_dir, ext)))
         
         if not self.sdf_files:
             raise ValueError(f"No SDF files found in {sdf_dir}")
-        
-        # 创建输出目录
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # 初始化覆盖率信息
+            
+        # 初始化覆盖率追踪
         self.coverage_old = None
         self.total_coverage = 0
-        self.total_lines = 0
-        
+        self.current_gazebo_process = None
+
     def _setup_round_dir(self, round_num):
         """设置轮次目录"""
         round_dir = os.path.join(self.output_dir, f"_{round_num}")
@@ -143,27 +141,38 @@ class TestController:
         
     def _create_test_config(self, config_file):
         """创建测试配置文件"""
-        test_config = {
-            "steps": [
-                {
-                    "type": "exec_topic",
-                    "topic": "/echo",
-                    "msg_type": "gz.msgs.StringMsg",
-                    "data": {"data": f"test_data_{random.randint(1, 100)}"}
-                },
-                {
-                    "type": "exec_service",
-                    "service": "/world/default/control",
-                    "req_type": "gz.msgs.WorldControl",
-                    "rep_type": "gz.msgs.Boolean",
-                    "data": {"pause": True}
-                },
-                {
-                    "type": "add_model",
-                    "model_type": random.choice(["box", "sphere", "cylinder"])
-                }
-            ]
-        }
+        # 可用的操作类型及其参数模板
+        operation_types = [
+            {
+                "type": "exec_topic",
+                "topic": "/echo",
+                "msg_type": "gz.msgs.StringMsg",
+                "data": {"data": f"test_data_{random.randint(1, 100)}"}
+            },
+            {
+                "type": "exec_service",
+                "service": "/world/default/control",
+                "req_type": "gz.msgs.WorldControl",
+                "rep_type": "gz.msgs.Boolean",
+                "data": {"pause": True}
+            },
+            {
+                "type": "add_model",
+                "model_type": random.choice(["box", "sphere", "cylinder"])
+            }
+        ]
+        
+        # 随机选择指定数量的操作
+        steps = []
+        for _ in range(self.steps_per_round):
+            step = random.choice(operation_types).copy()
+            if step["type"] == "exec_topic":
+                step["data"]["data"] = f"test_data_{random.randint(1, 100)}"
+            elif step["type"] == "add_model":
+                step["model_type"] = random.choice(["box", "sphere", "cylinder"])
+            steps.append(step)
+            
+        test_config = {"steps": steps}
         with open(config_file, 'w') as f:
             json.dump(test_config, f, indent=2)
             
@@ -373,9 +382,10 @@ def main():
     parser.add_argument('-r', '--rounds', type=int, default=1, help='Number of test rounds')
     parser.add_argument('-o', '--output', type=str, required=True, help='Output directory')
     parser.add_argument('-s', '--sdf-dir', type=str, default='models', help='Directory containing SDF files')
+    parser.add_argument('-p', '--steps-per-round', type=int, default=10, help='Number of steps per round')
     args = parser.parse_args()
     
-    controller = TestController(args.sdf_dir, args.output, args.rounds)
+    controller = TestController(args.sdf_dir, args.output, args.rounds, args.steps_per_round)
     controller.run_tests()
 
 if __name__ == "__main__":
