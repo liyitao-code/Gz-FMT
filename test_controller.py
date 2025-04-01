@@ -233,17 +233,13 @@ class TestController:
         return self.current_gazebo_process.pid
 
     def _start_gazebo_valgrind(self, round_dir):
-        """以 Valgrind 模式启动 Gazebo"""
-        world_file = os.path.join(round_dir, "world.sdf")
+        """使用Valgrind启动Gazebo"""
+        # 创建valgrind日志目录
         valgrind_dir = os.path.join(round_dir, "valgrind")
         os.makedirs(valgrind_dir, exist_ok=True)
-
-        log_file = os.path.join(round_dir, "gazebo.log")
-        err_file = os.path.join(round_dir, "gazebo.err")
-        valgrind_log = os.path.join(valgrind_dir, "gazebo.log")
-
-        # 构建 Valgrind 命令
-        valgrind_cmd = [
+        
+        # 准备Gazebo命令
+        gazebo_cmd = [
             "valgrind",
             "--tool=memcheck",
             "--leak-check=full",
@@ -251,36 +247,51 @@ class TestController:
             "--track-origins=yes",
             "--read-var-info=yes",
             "--verbose",
-            f"--log-file={valgrind_log}",
+            "--log-file=" + os.path.join(valgrind_dir, "gazebo.log"),
             "python3",
             "gazebo_launcher.py",
-            "--sdf", world_file,
-            "--output", round_dir
+            "--sdf", os.path.join(round_dir, "world.sdf"),
+            "--output", round_dir,
+            "--config", os.path.join(round_dir, "test_config.json")
         ]
-
+        
         print("[DEBUG] Starting Gazebo process with Valgrind...")
-        print(f"[DEBUG] Gazebo command: {' '.join(valgrind_cmd)}")
-        print(f"[DEBUG] Gazebo log file: {log_file}")
-        print(f"[DEBUG] Gazebo error file: {err_file}")
-        print(f"[DEBUG] Valgrind log file: {valgrind_log}")
-
-        # 启动进程并设置输出重定向
-        with open(log_file, 'w') as log, open(err_file, 'w') as err:
-            self.current_gazebo_process = subprocess.Popen(
-                valgrind_cmd,
-                stdout=log,
-                stderr=err,
-                universal_newlines=True,
-                bufsize=1
-            )
-
+        print("[DEBUG] Gazebo command:", " ".join(gazebo_cmd))
+        
+        # 启动进程
+        self.current_gazebo_process = subprocess.Popen(gazebo_cmd)
         print(f"[DEBUG] Gazebo process started with PID: {self.current_gazebo_process.pid}")
         return self.current_gazebo_process.pid
+
+    def _cleanup_gazebo_process(self):
+        """清理 Gazebo 进程"""
+        if self.current_gazebo_process:
+            print("[DEBUG] Attempting to terminate Gazebo process...")
+            try:
+                # 首先尝试发送 SIGTERM 信号
+                self.current_gazebo_process.terminate()
+                try:
+                    # 等待5秒让进程正常退出
+                    self.current_gazebo_process.wait(timeout=5)
+                    print("[DEBUG] Gazebo process terminated gracefully")
+                    return
+                except subprocess.TimeoutExpired:
+                    print("[DEBUG] Gazebo process did not respond to SIGTERM, sending SIGKILL...")
+                    
+                # 如果进程没有响应 SIGTERM，使用 SIGKILL
+                self.current_gazebo_process.kill()
+                self.current_gazebo_process.wait(timeout=2)
+                print("[DEBUG] Gazebo process killed")
+            except Exception as e:
+                print(f"[WARNING] Error cleaning up Gazebo process: {e}")
+            finally:
+                self.current_gazebo_process = None
 
     def _run_test_round(self, round_num):
         """运行一轮测试"""
         # 创建轮次目录
-        round_dir = self._setup_round_dir(round_num)
+        round_dir = os.path.join(self.output_dir, f"_{round_num}")
+        os.makedirs(round_dir, exist_ok=True)
         
         try:
             # 选择并复制SDF文件
@@ -306,63 +317,14 @@ class TestController:
             time.sleep(5)  # 给Gazebo一些启动时间
             print("[DEBUG] Gazebo initialization wait completed")
             
-            # 启动operator
-            print("[DEBUG] Starting operator execution...")
-            operator_cmd = [
-                "python3",
-                "operator_executor.py",
-                "--config", config_file,
-                "--output", round_dir
-            ]
-            print("[DEBUG] Running operator command:", " ".join(operator_cmd))
-            
-            # 准备operator的日志文件
-            operator_log = os.path.join(round_dir, "operator.log")
-            operator_err = os.path.join(round_dir, "operator.err")
-            print(f"[DEBUG] Starting operator with output files:")
-            print(f"[DEBUG] Log: {operator_log}")
-            print(f"[DEBUG] Err: {operator_err}")
-            
-            with open(operator_log, 'w') as log, open(operator_err, 'w') as err:
-                operator_process = subprocess.Popen(operator_cmd, stdout=log, stderr=err)
-                operator_pid = operator_process.pid
-                print(f"[DEBUG] Operator started with PID: {operator_pid}")
-                
-                # 等待operator完成
-                operator_process.wait()
-                retcode = operator_process.returncode
-                print(f"[DEBUG] Operator completed with return code: {retcode}")
-                print("[DEBUG] Operator execution completed")
-            
-            # 如果是覆盖率模式，收集覆盖率数据
-            if self.mode == 'cov':
-                self._collect_coverage(round_dir)
-            
-            # 等待Gazebo进程退出
-            print("[DEBUG] Waiting for Gazebo process to exit...")
-            try:
-                timeout = 20 if self.mode == 'mem' else 5
-                self.current_gazebo_process.wait(timeout=timeout)
-            except subprocess.TimeoutExpired:
-                print("[DEBUG] Gazebo process did not exit in time")
-                # 如果超时，检查错误日志
+            # 等待Gazebo进程结束
+            if self.current_gazebo_process:
                 try:
-                    with open(os.path.join(round_dir, "gazebo.err"), 'r') as f:
-                        err_content = f.read()
-                        if err_content:
-                            print("[DEBUG] Content of gazebo.err:")
-                            print(err_content)
-                except:
-                    pass
-                
-                # 强制终止Gazebo进程
-                try:
-                    self.current_gazebo_process.terminate()
-                    time.sleep(2)
-                    if self.current_gazebo_process.poll() is None:
-                        self.current_gazebo_process.kill()
-                except:
-                    pass
+                    self.current_gazebo_process.wait(timeout=300)  # 设置一个合理的超时时间，比如5分钟
+                    print("[DEBUG] Gazebo process exited")
+                except subprocess.TimeoutExpired:
+                    print("[DEBUG] Gazebo process timed out, this should not happen")
+                    self._cleanup_gazebo_process()
             
             return True
             

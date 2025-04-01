@@ -6,6 +6,8 @@ import subprocess
 import os
 import time
 import datetime
+import sys
+import random
 
 class OperatorExecutor:
     def __init__(self, config_path, output_dir=None):
@@ -17,77 +19,99 @@ class OperatorExecutor:
             self.config = json.load(f)
     
     def _log_command(self, cmd, result):
-        """记录执行的命令和结果"""
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = {
+        """记录命令执行结果"""
+        timestamp = datetime.datetime.now().isoformat()
+        self.command_log.append({
             "timestamp": timestamp,
             "command": cmd,
             "result": result
-        }
-        self.command_log.append(log_entry)
-    
+        })
+
     def _save_command_log(self):
-        """保存命令日志到文件"""
+        """保存命令日志"""
         if self.output_dir:
-            log_file = os.path.join(self.output_dir, "commands.json")
+            log_file = os.path.join(self.output_dir, "command_log.json")
             with open(log_file, 'w') as f:
                 json.dump(self.command_log, f, indent=2)
-    
+
+    def _print_and_log(self, message, stderr=False):
+        """同时打印到终端和日志文件"""
+        print(message, file=sys.stderr if stderr else sys.stdout)
+        sys.stdout.flush()
+        sys.stderr.flush()
+
     def exec_topic(self, step):
-        """执行topic命令"""
-        cmd = [
-            "gz",
-            "topic",
-            "-p", f"{step['data']}",
-            "-t", step["topic"],
-            "-m", step["msg_type"]
-        ]
+        """执行主题命令"""
+        topic = step["topic"]
+        msg_type = step["msg_type"]
+        data = json.dumps(step["data"])
+        
+        cmd = ["gz", "topic", "-p", data, "-t", topic, "-m", msg_type]
         cmd_str = " ".join(cmd)
-        print(f"Executing command: {cmd_str}")
+        self._print_and_log(f"Executing command: {cmd_str}")
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         success = result.returncode == 0
-        print(f"Executed exec_topic: {'Success' if success else 'Failed'}")
+        self._print_and_log(f"Executed exec_topic: {'Success' if success else 'Failed'}")
+        
+        if not success:
+            self._print_and_log(f"Error: {result.stderr}", stderr=True)
         
         self._log_command(cmd_str, {
             "success": success,
             "stdout": result.stdout,
-            "stderr": result.stderr
+            "stderr": result.stderr,
+            "topic": topic
         })
         
         return success
     
     def exec_service(self, step):
-        """执行service命令"""
+        """执行服务命令"""
+        service = step["service"]
+        req_type = step["req_type"]
+        rep_type = step["rep_type"]
+        data = step["data"]
+        
+        # 构建请求字符串
+        req_str = ""
+        for key, value in data.items():
+            req_str += f"{key}: {value} "
+        
         cmd = [
             "gz",
             "service",
-            "-s", step["service"],
-            "--reqtype", step["req_type"],
-            "--reptype", step["rep_type"],
+            "-s", service,
+            "--reqtype", req_type,
+            "--reptype", rep_type,
             "--timeout", "5000",
-            "--req", " ".join(f"{k}: {v}" for k, v in step["data"].items())
+            "--req", req_str.strip()
         ]
         cmd_str = " ".join(cmd)
-        print(f"Executing command: {cmd_str}")
+        self._print_and_log(f"Executing command: {cmd_str}")
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         success = result.returncode == 0
-        print(f"Executed exec_service: {'Success' if success else 'Failed'}")
+        self._print_and_log(f"Executed exec_service: {'Success' if success else 'Failed'}")
+        
+        if not success:
+            self._print_and_log(f"Error: {result.stderr}", stderr=True)
         
         self._log_command(cmd_str, {
             "success": success,
             "stdout": result.stdout,
-            "stderr": result.stderr
+            "stderr": result.stderr,
+            "service": service
         })
         
         return success
     
     def add_model(self, step):
         """添加模型"""
-        model_type = step.get("model_type", "box")
-        model_name = f"model_{int(time.time() * 1000) % 100}"
+        model_type = step["model_type"]
+        model_name = f"model_{random.randint(1, 100)}"
         
+        # 创建SDF内容
         sdf_content = f"""<sdf version='1.6'>
             <model name='{model_name}'>
                 <pose>0 0 0 0 0 0</pose>
@@ -116,11 +140,14 @@ class OperatorExecutor:
             "--req", f"sdf: \"{sdf_content}\""
         ]
         cmd_str = " ".join(cmd)
-        print(f"Executing command: {cmd_str}")
+        self._print_and_log(f"Executing command: {cmd_str}")
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         success = result.returncode == 0
-        print(f"Executed add_model: {'Success' if success else 'Failed'}")
+        self._print_and_log(f"Executed add_model: {'Success' if success else 'Failed'}")
+        
+        if not success:
+            self._print_and_log(f"Error: {result.stderr}", stderr=True)
         
         self._log_command(cmd_str, {
             "success": success,
@@ -134,8 +161,13 @@ class OperatorExecutor:
     def execute_steps(self):
         """执行所有步骤"""
         success = True
-        for step in self.config.get("steps", []):
+        total_steps = len(self.config.get("steps", []))
+        self._print_and_log(f"\n=== Starting to execute {total_steps} steps ===\n")
+        
+        for i, step in enumerate(self.config.get("steps", []), 1):
             step_type = step["type"]
+            self._print_and_log(f"\n[Step {i}/{total_steps}] Executing {step_type}...")
+            
             try:
                 if step_type == "exec_topic":
                     success &= self.exec_topic(step)
@@ -144,11 +176,16 @@ class OperatorExecutor:
                 elif step_type == "add_model":
                     success &= self.add_model(step)
                 else:
-                    print(f"Unknown step type: {step_type}")
+                    self._print_and_log(f"Unknown step type: {step_type}", stderr=True)
                     success = False
             except Exception as e:
-                print(f"Error executing step {step_type}: {str(e)}")
+                self._print_and_log(f"Error executing step {step_type}: {str(e)}", stderr=True)
                 success = False
+            
+            # 在每个步骤后等待一小段时间
+            time.sleep(0.5)
+        
+        self._print_and_log(f"\n=== Completed executing all steps with {'success' if success else 'failure'} ===\n")
         
         # 保存命令日志
         self._save_command_log()

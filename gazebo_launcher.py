@@ -7,6 +7,7 @@ import signal
 import time
 import os
 import traceback
+import subprocess
 
 sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
 sys.path.append('/home/liyitao/workspace/gz_lastest/src/gz-sim/python/test')
@@ -20,14 +21,14 @@ from gz.msgs11.boolean_pb2 import Boolean
 from gz_test_deps.common import set_verbosity
 
 class GazeboLauncher:
-    def __init__(self, sdf_path, output_dir=None):
+    def __init__(self, sdf_path, output_dir=None, config_file=None):
         print("[DEBUG] Initializing GazeboLauncher...")
         self.world_path = os.path.abspath(sdf_path) if sdf_path else None
         self.output_dir = output_dir
+        self.config_file = config_file
         self.fixture = None
         self.server = None
         self.running = True
-        self.operator_pid = None
         
         # 设置信号处理
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -84,27 +85,6 @@ class GazeboLauncher:
         
         print("[DEBUG] Cleanup completed")
     
-    def set_operator_pid(self, pid):
-        """设置要监听的operator进程ID"""
-        print(f"[DEBUG] Setting operator PID to: {pid}")
-        self.operator_pid = pid
-        
-    def _check_operator_status(self):
-        """检查operator进程状态"""
-        if self.operator_pid is None:
-            return True
-            
-        try:
-            # 尝试获取进程信息，如果进程不存在会抛出异常
-            os.kill(self.operator_pid, 0)
-            return True
-        except ProcessLookupError:
-            print("[DEBUG] Operator process has ended")
-            return False
-        except Exception as e:
-            print(f"[DEBUG] Error checking operator status: {str(e)}")
-            return False
-        
     def launch(self):
         """启动Gazebo环境"""
         try:
@@ -126,14 +106,55 @@ class GazeboLauncher:
             
             print("Gazebo environment started successfully")
             
-            print("[DEBUG] Entering main loop...")
-            # 保持进程运行直到operator进程结束
-            while self.running and self._check_operator_status():
-                time.sleep(0.1)
+            # 启动operator进程
+            if self.config_file and self.output_dir:
+                operator_cmd = [
+                    "python3",
+                    "operator_executor.py",
+                    "--config", self.config_file,
+                    "--output", self.output_dir
+                ]
+                print("[DEBUG] Starting operator process:", " ".join(operator_cmd))
                 
-            if self.running:
-                print("[DEBUG] Operator process has ended, initiating cleanup...")
-                self._cleanup()
+                operator_process = subprocess.Popen(
+                    operator_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                    bufsize=1
+                )
+                print(f"[DEBUG] Operator process started with PID: {operator_process.pid}")
+                
+                # 创建线程来处理operator的输出
+                def handle_output(pipe, prefix=""):
+                    for line in pipe:
+                        print(prefix + line.strip())
+                
+                import threading
+                stdout_thread = threading.Thread(
+                    target=handle_output,
+                    args=(operator_process.stdout, "[OPERATOR] ")
+                )
+                stderr_thread = threading.Thread(
+                    target=handle_output,
+                    args=(operator_process.stderr, "[OPERATOR ERR] ")
+                )
+                
+                stdout_thread.start()
+                stderr_thread.start()
+                
+                # 等待operator进程结束
+                print("[DEBUG] Waiting for operator process to complete...")
+                operator_process.wait()
+                stdout_thread.join()
+                stderr_thread.join()
+                
+                retcode = operator_process.returncode
+                print(f"[DEBUG] Operator process completed with return code: {retcode}")
+            
+            # 主动清理资源
+            print("[DEBUG] Operator process has ended, initiating cleanup...")
+            self._cleanup()
                 
         except Exception as e:
             print(f"Error launching Gazebo: {str(e)}")
@@ -149,14 +170,12 @@ def main():
                       help="Path to SDF file")
     parser.add_argument("--output", type=str,
                       help="Output directory for logs")
-    parser.add_argument("--operator-pid", type=int,
-                      help="PID of the operator process to monitor")
+    parser.add_argument("--config", type=str,
+                      help="Path to test configuration file")
     
     args = parser.parse_args()
     
-    launcher = GazeboLauncher(args.sdf, args.output)
-    if args.operator_pid:
-        launcher.set_operator_pid(args.operator_pid)
+    launcher = GazeboLauncher(args.sdf, args.output, args.config)
     launcher.launch()
 
 if __name__ == "__main__":
