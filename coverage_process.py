@@ -2,17 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import cxxfilt
-import glob
+from glob import glob
 import gzip
 import subprocess
 import json
 import os
 import json
 from pathlib import Path
-import time
 
 BUILD_DIR = "/home/liyitao/workspace/gz_lastest/build/"
-# BUILD_DIR = "/new/workspace/build/"
 GCOV_DIR = "gcov"
 
 
@@ -57,39 +55,15 @@ class CoverageInfo:
         owd = os.getcwd()
         os.chdir(self.gcov_dir)
 
-        # 运行 gcov 命令并等待完成
-        print("[DEBUG] Running gcov command...")
-        try:
-            subprocess.run(
-                f"find {self.build_dir} -name '*.gcda' | parallel gcov --json-format -p",
-                shell=True,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            print("[DEBUG] gcov command completed")
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] gcov command failed: {e}")
-            print(f"stdout: {e.stdout.decode()}")
-            print(f"stderr: {e.stderr.decode()}")
-            raise
-
-        # 等待一会儿确保文件都写入完成
-        time.sleep(1)
-        
-        # 读取生成的 JSON 文件
-        print("[DEBUG] Reading gcov JSON files...")
-        for json_file in glob.glob("*.gcov.json.gz"):
-            try:
-                with gzip.open(json_file, "rb") as f:
-                    content = f.read()
-                    coverage = json.loads(content)
-                    coverage_list.append(coverage)
-            except Exception as e:
-                print(f"[ERROR] Failed to read {json_file}: {e}")
-                continue
-
+        # dirty yet fast...
+        subprocess.run(f"find {self.build_dir} -name '*.gcda' | parallel gcov --json -p > /dev/null", shell=True)
+        for gz_file in glob("*.json.gz"):
+            with gzip.open(gz_file, "rb") as f:
+                content = f.read()
+                coverage = json.loads(content)
+                coverage_list.append(coverage)
         os.chdir(owd)
+
         return coverage_list
 
     def cleanup(self, rm_gcda=True, rm_json=True):
@@ -123,16 +97,18 @@ class CoverageInfo:
                     else:
                         self.file_cov[filename].add(line_number)
 
-    def calculate_total_coverage(self):
-        total_lines = 0
-        covered_lines = 0
-        for filename in self.file_cov:
-            total_lines += len(self.file_cov[filename])
-            covered_lines += len(self.file_cov[filename])
-        return covered_lines / total_lines if total_lines > 0 else 0
+
+    def merge(self, cov_info):
+        for f in cov_info.file_cov:
+            if f in self.cov_info.file_cov:
+                self.file_cov[f] = self.file_cov[f].union(cov_info.file_cov[f])
+            else:
+                self.file_cov[f] = cov_info.file_cov[f].copy()
+
+
 
 if __name__ == "__main__":
     cov = CoverageInfo(BUILD_DIR, GCOV_DIR)
     cov.collect()
-    print("Coverage:", cov.calculate_total_coverage())
-    print("Files:", len(cov.file_cov))
+    # cov.cleanup(False, False)
+    
