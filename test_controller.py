@@ -154,6 +154,16 @@ class TestController:
         # 创建轮次目录
         round_dir = self._setup_round_dir(round_num)
         
+        # 创建valgrind日志目录
+        valgrind_dir = os.path.join(round_dir, "valgrind")
+        os.makedirs(valgrind_dir, exist_ok=True)
+        
+        # 预先创建valgrind日志文件
+        valgrind_gazebo_log = os.path.join(valgrind_dir, "gazebo.log")
+        valgrind_gazebo_updated_log = os.path.join(valgrind_dir, "gazebo_updated.log")
+        open(valgrind_gazebo_log, 'w').close()
+        open(valgrind_gazebo_updated_log, 'w').close()
+        
         # 随机选择 SDF 文件并复制
         sdf_path = self._get_random_sdf()
         print(f"[DEBUG] Selected SDF file: {sdf_path}")
@@ -167,31 +177,40 @@ class TestController:
         
         try:
             # 启动Gazebo环境
-            print("[DEBUG] Starting Gazebo process...")
-            gazebo_cmd = [
+            print("[DEBUG] Starting Gazebo process with Valgrind...")
+            valgrind_cmd = [
+                "valgrind",
+                "--tool=memcheck",
+                "--leak-check=full",
+                "--show-leak-kinds=all",
+                "--track-origins=yes",
+                "--read-var-info=yes",
+                "--verbose",
+                "--log-file=" + valgrind_gazebo_log,  # 使用=而不是空格
                 "python3",
                 "gazebo_launcher.py",
                 "--sdf", local_sdf,
                 "--output", round_dir
             ]
-            print("[DEBUG] Gazebo command:", " ".join(gazebo_cmd))
+            print("[DEBUG] Gazebo command:", " ".join(valgrind_cmd))
             
             # 创建日志文件并设置Tee输出
             gazebo_log = os.path.join(round_dir, "gazebo.log")
             gazebo_err = os.path.join(round_dir, "gazebo.err")
             print(f"[DEBUG] Gazebo log file: {gazebo_log}")
             print(f"[DEBUG] Gazebo error file: {gazebo_err}")
+            print(f"[DEBUG] Valgrind log file: {valgrind_gazebo_log}")
             
             with open(gazebo_log, 'w') as log_file, open(gazebo_err, 'w') as err_file:
                 print("[DEBUG] Starting Gazebo process with Tee output...")
-                self.current_gazebo_process, _ = _run_process_with_tee(gazebo_cmd, log_file, err_file, wait=False)
+                self.current_gazebo_process, _ = _run_process_with_tee(valgrind_cmd, log_file, err_file, wait=False)
                 print("[DEBUG] _run_process_with_tee returned")
                 
             print(f"[DEBUG] Gazebo process started with PID: {self.current_gazebo_process.pid}")
             
             # 等待Gazebo完全启动
             print("[DEBUG] Waiting for Gazebo to initialize...")
-            time.sleep(5)
+            time.sleep(5)  # 由于使用valgrind，可能需要更长的启动时间
             print("[DEBUG] Gazebo initialization wait completed")
             
             # 执行算子
@@ -220,6 +239,14 @@ class TestController:
                 
                 # 更新Gazebo进程的operator PID
                 update_cmd = [
+                    "valgrind",
+                    "--tool=memcheck",
+                    "--leak-check=full",
+                    "--show-leak-kinds=all",
+                    "--track-origins=yes",
+                    "--read-var-info=yes",
+                    "--verbose",
+                    "--log-file=" + valgrind_gazebo_updated_log,  # 使用=而不是空格
                     "python3",
                     "gazebo_launcher.py",
                     "--sdf", local_sdf,
@@ -228,7 +255,7 @@ class TestController:
                 ]
                 print("[DEBUG] Updating Gazebo with operator PID...")
                 self.current_gazebo_process.terminate()
-                time.sleep(1)  # 给一点时间让旧进程退出
+                time.sleep(2)  # 给valgrind更多时间来完成清理
                 self.current_gazebo_process, _ = _run_process_with_tee(update_cmd, log_file, err_file, wait=False)
                 print(f"[DEBUG] New Gazebo process started with PID: {self.current_gazebo_process.pid}")
                 
@@ -244,7 +271,7 @@ class TestController:
             # 等待Gazebo进程自行退出
             print("[DEBUG] Waiting for Gazebo process to exit...")
             try:
-                self.current_gazebo_process.wait(timeout=10)
+                self.current_gazebo_process.wait(timeout=20)  # 增加超时时间，因为valgrind会使进程变慢
                 print("[DEBUG] Gazebo process exited normally")
             except subprocess.TimeoutExpired:
                 print("[DEBUG] Gazebo process did not exit in time")
