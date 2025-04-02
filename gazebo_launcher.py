@@ -21,11 +21,12 @@ from gz.msgs11.boolean_pb2 import Boolean
 from gz_test_deps.common import set_verbosity
 
 class GazeboLauncher:
-    def __init__(self, sdf_path, output_dir=None, config_file=None):
+    def __init__(self, sdf_path, output_dir=None, config_file=None, test_mode=False):
         print("[DEBUG] Initializing GazeboLauncher...")
         self.world_path = os.path.abspath(sdf_path) if sdf_path else None
         self.output_dir = output_dir
         self.config_file = config_file
+        self.test_mode = test_mode
         self.fixture = None
         self.server = None
         self.running = True
@@ -151,9 +152,21 @@ class GazeboLauncher:
                 
                 retcode = operator_process.returncode
                 print(f"[DEBUG] Operator process completed with return code: {retcode}")
+                
+                # 在测试模式下，立即退出
+                if self.test_mode:
+                    print("[DEBUG] Test mode: exiting after operator completion")
+                    self._cleanup()
+                    sys.exit(0)  # 确保进程完全退出
+            
+            # 在非测试模式下，保持服务器运行
+            if not self.test_mode:
+                print("[DEBUG] Keeping server running...")
+                while self.running:
+                    time.sleep(1)
             
             # 主动清理资源
-            print("[DEBUG] Operator process has ended, initiating cleanup...")
+            print("[DEBUG] Initiating cleanup...")
             self._cleanup()
                 
         except Exception as e:
@@ -172,10 +185,17 @@ def main():
                       help="Output directory for logs")
     parser.add_argument("--config", type=str,
                       help="Path to test configuration file")
+    parser.add_argument("--test-mode", action="store_true",
+                      help="Run in test mode (exit after operator completion)")
     
     args = parser.parse_args()
     
-    launcher = GazeboLauncher(args.sdf, args.output, args.config)
+    launcher = GazeboLauncher(
+        args.sdf,
+        args.output,
+        args.config,
+        test_mode=args.test_mode
+    )
     launcher.launch()
 
 if __name__ == "__main__":

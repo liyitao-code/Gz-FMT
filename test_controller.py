@@ -116,12 +116,13 @@ def _run_process_with_tee(cmd, log_file, err_file, wait=False):
 
 class TestController:
     """测试控制器"""
-    def __init__(self, sdf_dir, output_dir, rounds=1, steps_per_round=10, mode='mem'):
+    def __init__(self, sdf_dir, output_dir, rounds=1, steps_per_round=10, mode='mem', test_mode=False):
         self.sdf_dir = sdf_dir
         self.output_dir = os.path.abspath(output_dir)
         self.rounds = rounds
         self.steps_per_round = steps_per_round
-        self.mode = mode  # 'cov' 或 'mem'
+        self.mode = mode  # 'cov' 或 'mem' 或 'test'
+        self.test_mode = test_mode
         
         # 确保输出目录存在
         os.makedirs(self.output_dir, exist_ok=True)
@@ -145,7 +146,7 @@ class TestController:
             coverage_info = CoverageInfo()
             coverage_info.cleanup(rm_gcda=True, rm_json=True)
             print("[DEBUG] Coverage files cleanup completed")
-        
+
     def _setup_round_dir(self, round_num):
         """设置轮次目录"""
         round_dir = os.path.join(self.output_dir, f"_{round_num}")
@@ -158,48 +159,64 @@ class TestController:
         
     def _create_test_config(self, config_file):
         """创建测试配置文件"""
-        # 定义可用的操作类型
-        operation_types = [
-            {
-                "type": "exec_topic",
-                "topic": "/echo",
-                "msg_type": "gz.msgs.StringMsg",
-                "data": {"data": ""}
-            },
-            {
-                "type": "exec_service",
-                "service": "/world/default/control",
-                "req_type": "gz.msgs.WorldControl",
-                "rep_type": "gz.msgs.Boolean",
-                "data": {"pause": True}
-            },
-            {
-                "type": "add_model",
-                "model_type": "box"
-            }
-        ]
+        if self.test_mode:
+            # 在测试模式下，每个算子执行一次
+            steps = [
+                {"type": "add_model"},
+                {"type": "list_models"},
+                {"type": "remove_model"},
+                {
+                    "type": "exec_service",
+                    "service": "/gazebo/worlds",
+                    "reqtype": "gz.msgs.Empty",
+                    "reptype": "gz.msgs.StringMsg_V"
+                },
+                {
+                    "type": "exec_topic",
+                    "topic": "/clock",
+                    "msgtype": "gz.msgs.Clock"
+                }
+            ]
+        else:
+            # 在正常模式下，随机生成步骤
+            steps = []
+            for _ in range(self.steps_per_round):
+                step_type = random.choice([
+                    "add_model",
+                    "list_models",
+                    "remove_model",
+                    "exec_service",
+                    "exec_topic"
+                ])
+                
+                if step_type == "add_model":
+                    step = {
+                        "type": step_type,
+                        "model_type": random.choice(["box", "sphere", "cylinder"])
+                    }
+                elif step_type in ["list_models", "remove_model"]:
+                    step = {"type": step_type}
+                elif step_type == "exec_service":
+                    step = {
+                        "type": step_type,
+                        "service": "/gazebo/worlds",
+                        "reqtype": "gz.msgs.Empty",
+                        "reptype": "gz.msgs.StringMsg_V"
+                    }
+                else:  # exec_topic
+                    step = {
+                        "type": step_type,
+                        "topic": "/clock",
+                        "msgtype": "gz.msgs.Clock"
+                    }
+                steps.append(step)
         
-        # 随机选择指定数量的操作
-        steps = []
-        for _ in range(self.steps_per_round):
-            step = random.choice(operation_types).copy()
-            if step["type"] == "exec_topic":
-                step["data"]["data"] = f"test_data_{random.randint(1, 100)}"
-            elif step["type"] == "add_model":
-                step["model_type"] = random.choice(["box", "sphere", "cylinder"])
-            steps.append(step)
-        
-        # 创建配置
-        test_config = {
-            "steps": steps,
-            "timeout": 10
-        }
-        
-        # 保存配置文件
+        # 写入配置文件
         with open(config_file, 'w') as f:
-            json.dump(test_config, f, indent=2)
-            print(f"[DEBUG] Created test config with {len(steps)} steps")
+            json.dump(steps, f, indent=2)
             
+        print(f"[DEBUG] Created test config with {len(steps)} steps")
+
     def _start_gazebo_coverage(self, round_dir):
         """以覆盖率模式启动 Gazebo"""
         world_file = os.path.join(round_dir, "world.sdf")
@@ -254,6 +271,10 @@ class TestController:
             "--output", round_dir,
             "--config", os.path.join(round_dir, "test_config.json")
         ]
+        
+        # 在测试模式下添加 --test-mode 参数
+        if self.mode == "test":
+            gazebo_cmd.append("--test-mode")
         
         print("[DEBUG] Starting Gazebo process with Valgrind...")
         print("[DEBUG] Gazebo command:", " ".join(gazebo_cmd))
@@ -365,21 +386,35 @@ class TestController:
             print(f"Total Lines Covered: {self.total_coverage}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Run Gazebo tests with different SDF files')
-    parser.add_argument('-r', '--rounds', type=int, default=1, help='Number of test rounds')
-    parser.add_argument('-o', '--output', type=str, required=True, help='Output directory')
-    parser.add_argument('-s', '--sdf-dir', type=str, default='models', help='Directory containing SDF files')
-    parser.add_argument('-p', '--steps-per-round', type=int, default=10, help='Number of steps per round')
-    parser.add_argument('-m', '--mode', choices=['cov', 'mem'], default='mem',
-                      help='Test mode: cov (coverage) or mem (memory checking with valgrind)')
+    parser = argparse.ArgumentParser(description="Test Controller")
+    parser.add_argument("--sdf-dir", type=str, required=True,
+                      help="Directory containing SDF files")
+    parser.add_argument("--output", type=str, required=True,
+                      help="Output directory for test results")
+    parser.add_argument("--rounds", type=int, default=1,
+                      help="Number of test rounds to run")
+    parser.add_argument("--steps", type=int, default=10,
+                      help="Number of steps per round")
+    parser.add_argument("--mode", type=str, default="mem",
+                      choices=["mem", "cov", "test"],
+                      help="Test mode: 'mem' for memory check, 'cov' for coverage, 'test' for single test")
     
     args = parser.parse_args()
     
-    # 创建输出目录
-    os.makedirs(args.output, exist_ok=True)
+    # 在测试模式下，强制设置为1轮
+    if args.mode == "test":
+        args.rounds = 1
+        print("[INFO] Test mode enabled: forcing rounds=1")
     
-    # 运行测试
-    controller = TestController(args.sdf_dir, args.output, args.rounds, args.steps_per_round, args.mode)
+    controller = TestController(
+        args.sdf_dir,
+        args.output,
+        rounds=args.rounds,
+        steps_per_round=args.steps,
+        mode=args.mode,
+        test_mode=(args.mode == "test")
+    )
+    
     controller.run_tests()
 
 if __name__ == "__main__":
