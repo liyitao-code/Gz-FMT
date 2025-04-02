@@ -16,7 +16,8 @@
 
 import sys
 sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
-
+sys.path.append('/home/liyitao/workspace/gz_lastest/src/gz-sim/python/test')
+from gz_test_deps.sim import TestFixture
 from gz.msgs11.stringmsg_pb2 import StringMsg
 from gz.msgs11.stringmsg_v_pb2 import StringMsg_V
 from gz.msgs11.pose_pb2 import Pose
@@ -25,6 +26,7 @@ from gz.msgs11.boolean_pb2 import Boolean
 from gz.msgs11.empty_pb2 import Empty
 from gz.msgs11.scene_pb2 import Scene
 from gz.msgs11.entity_pb2 import Entity
+from gz.msgs11.model_pb2 import Model
 from gz.msgs11.sdf_generator_config_pb2 import SdfGeneratorConfig
 from gz.msgs11.entity_plugin_v_pb2 import EntityPlugin_V
 from gz.msgs11.plugin_pb2 import Plugin
@@ -483,6 +485,7 @@ class SmithUnit:
         self.seed = seed
         self.bandits = bandits
         self.crashes = crashes
+        self.model_list = []  # 添加model_list来跟踪当前场景中的模型
 
     # 检测是否有新崩溃
     def check_new_crash(self, err_file):
@@ -517,62 +520,68 @@ class SmithUnit:
 
     # 启动gazebo模拟器
     def launch_gazebo(self, filename=""):
-        # gz_sim = f"gz sim {self.directory}/{self.sdf_name} --seed {self.seed} -v 0 -r -s --headless-rendering" 
-        if filename:
-            gz_sim = f"gz sim {filename} --seed {self.seed} -v 0 -r -s --headless-rendering" 
-        else:
-            gz_sim = f"gz sim empty.sdf --seed {self.seed} -v 0 -r -s --headless-rendering" 
-        print("DEBUG: before subprocess gz sim")
+        """启动 Gazebo 环境"""
         try:
-            self.process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-        except:
-            print("DEBUG: subprocess launch gz error")
+            # 创建测试夹具
+            if filename:
+                world_file = filename
+            else:
+                world_file = "empty.sdf"
+            print(f"[DEBUG] Creating test fixture with world: {world_file}")
+            
+            self.fixture = TestFixture(world_file)
+            print("[DEBUG] TestFixture created")
+            
+            # 等待初始化完成
+            print("[DEBUG] Waiting for initialization...")
+            time.sleep(2)
+            
+            # 获取服务器实例
+            server = self.fixture.server()
+            if not server:
+                print("[DEBUG] Failed to get server")
+                return False
+                
+            # 完成初始化
+            self.fixture.finalize()
+            print("[DEBUG] Finalized test fixture")
+            
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to launch Gazebo: {str(e)}")
             return False
-        return True
 
     # 停止gazebo模拟器并存储输出
     def stop_gazebo(self, dump=False):
-        if not hasattr(self, "process"):
+        """停止 Gazebo 环境"""
+        if not hasattr(self, "fixture") or not self.fixture:
             return False
-
-        if dump:
-            out = non_blocking_read(self.process.stdout.fileno())
-            err = non_blocking_read(self.process.stderr.fileno())
-            with open(f"{self.directory}/gz.out", "a") as f:
-                # f.write(process.stdout.read().decode("utf-8"))
-                f.write(out)
-            with open(f"{self.directory}/gz.err", "a") as f:
-                # f.write(process.stderr.read().decode("utf-8"))
-                f.write(err)
-
-        # actually stop gazebo
-
-        print("DEBUG: before psutil")
-        with open(f"./terminate", "w") as f:
-            f.write(f"{self.process.pid}")
-
+            
         try:
-            for child in psutil.Process(self.process.pid).children(recursive=True):
-                print(f"DEBUG: terminating child: {child.pid}")
-                child.terminate()
-                child.wait()
-                # child.kill()
-        except:
-            print("DEBUG: something happens during terminating children")
-
-        print("DEBUG: before process.terminate")
-        self.process.terminate()
-        print("DEBUG: before process.wait")
-        self.process.wait()
-        print("DEBUG: after process.wait")
-
-
-        try:
-            os.remove(f"./terminate")
-        except:
-            print("DEBUG: exception removing terminate file")
-
-        return True
+            print("[DEBUG] Stopping Gazebo...")
+            
+            if dump:
+                # 获取输出
+                server = self.fixture.server()
+                if server:
+                    out = non_blocking_read(server.stdout.fileno())
+                    err = non_blocking_read(server.stderr.fileno())
+                    with open(f"{self.directory}/gz.out", "a") as f:
+                        f.write(out)
+                    with open(f"{self.directory}/gz.err", "a") as f:
+                        f.write(err)
+            
+            # 清理资源
+            print("[DEBUG] Finalizing test fixture...")
+            self.fixture.finalize()
+            self.fixture = None
+            
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to stop Gazebo: {str(e)}")
+            return False
 
     # 进行topic的fuzzing
     def topic_fuzzing(self):
@@ -602,7 +611,7 @@ class SmithUnit:
                     self.directory = old_directory
                     i += 1
                     continue
-                process_status = psutil.Process(self.process.pid)
+                process_status = psutil.Process(self.fixture.server().pid)
                 time.sleep(5)
 
                 try:
@@ -678,11 +687,10 @@ class SmithUnit:
         # 0. collect coverage info
         self.cov_old.collect()
         # 1. run gz sim a.sdf and sleep for a few seconds, dirty
-
         retcode = self.launch_gazebo()
         if not retcode:
             return 
-        process_status = psutil.Process(self.process.pid)
+        process_status = psutil.Process(self.fixture.server().pid)
         time.sleep(5)
 
         try:
@@ -743,7 +751,7 @@ class SmithUnit:
                 if not retcode:
                     return 
                 time.sleep(1)
-                process_status = psutil.Process(self.process.pid)
+                process_status = psutil.Process(self.fixture.server().pid)
 
                 node = Node()
                 i = 0
@@ -839,127 +847,112 @@ class SmithUnit:
         # 0. collect coverage info
         print("DEBUG: before cov")
         # self.cov_old.collect()
-        # 1. run gz sim a.sdf and sleep for a few seconds, dirty
-        gz_sim = f"gz sim {self.directory}/{self.sdf_name} --seed {self.seed} -v 0 -r -s --headless-rendering"
-        print("DEBUG: before subprocess gz sim")
+        
+        # 1. 使用 TestFixture 启动 Gazebo
         try:
-            process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
-        except:
-            print("DEBUG: subprocess launch gz error")
-            return 0
-
-        process_status = psutil.Process(process.pid)
-        time.sleep(5)
-
-        try:
-            result, response = self.get_world()
-            self.world_name = response.data[0]
-        except:
-            print("DEBUG: gz process not alive")
-            return 0
-
-        print("DEBUG: before loop gz commands")
-        func_names = []
-        # if self.bandits:
-        #     actions, probs = self.bandits.predict(n_samples=self.num_seq)
-            # print(probs)
-        print("DEBUG: before command range")
-        for i in range(self.num_seq):
-
-            # 1. 随机选择一个func_函数执行
-            func_id = random.randint(0, 9)
-            func_name = SimulatorAction.perform_action(func_id)
-            func_pare = random.randint(0, operator_parameter_counts[func_id] - 1)
-            func_names.append((func_name, func_pare))
+            world_file = f"{self.directory}/{self.sdf_name}"
+            print(f"[DEBUG] Creating test fixture with world: {world_file}")
             
-            func = getattr(self, func_name)
-            # 2. apply the action
-            print(func_name)
-            # print("!!!DEBUG: 展示随机选择的函数")
-            # print("!!!DEBUG: func_name：" + func_name)
-            if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin", "fund_add_random_model_with_plugin_xml"]:
-                command = func(func_pare)
-            else:
-                command = func()
-            # print("!!!DEBUG: command：" + str(command))
-            self.gz_cmds.append(command)
-            if self.use_text:
-                cmd_filename = f"{self.directory}/cmd_{i}.sh"
-                if command:
-                    command.dump(cmd_filename)
+            self.fixture = TestFixture(world_file)
+            print("[DEBUG] TestFixture created")
+            
+            # 等待初始化完成
+            print("[DEBUG] Waiting for initialization...")
+            time.sleep(2)
+            
+            # 获取服务器实例
+            server = self.fixture.server()
+            if not server:
+                print("[DEBUG] Failed to get server")
+                return 0
+                
+            # 完成初始化
+            self.fixture.finalize()
+            print("[DEBUG] Finalized test fixture")
+            
+            # 等待系统完全启动
+            time.sleep(5)
+            
+            # 通过获取世界名称来验证系统是否正常运行
+            try:
+                result, response = self.get_world()
+                if not result:
+                    print("[DEBUG] Failed to get world")
+                    return 0
+                self.world_name = response.data[0]
+                print(f"[DEBUG] Got world name: {self.world_name}")
+            except Exception as e:
+                print(f"[DEBUG] Error getting world: {str(e)}")
+                return 0
+
+            print("DEBUG: before loop gz commands")
+            func_names = []
+            print("DEBUG: before command range")
+            
+            # 用于收集所有输出
+            all_outputs = []
+            all_errors = []
+            
+            for i in range(self.num_seq):
+                # 1. 随机选择一个func_函数执行
+                func_id = random.randint(0, 9)
+                func_name = SimulatorAction.perform_action(func_id)
+                func_pare = random.randint(0, operator_parameter_counts[func_id] - 1)
+                func_names.append((func_name, func_pare))
+                
+                func = getattr(self, func_name)
+                # 2. apply the action
+                print(func_name)
+                if func_name in ["func_add_random_plugin_to_model", "func_add_random_plugin_to_model_xml", "fund_add_random_model_with_plugin", "fund_add_random_model_with_plugin_xml"]:
+                    command = func(func_pare)
                 else:
-                    GzCommand.dump_empty(cmd_filename)
-            if command:
-                print(f"DEBUG: before execute command {i}")
-                ret = command.execute()
+                    command = func()
+                self.gz_cmds.append(command)
+                if self.use_text:
+                    cmd_filename = f"{self.directory}/cmd_{i}.sh"
+                    if command:
+                        command.dump(cmd_filename)
+                    else:
+                        GzCommand.dump_empty(cmd_filename)
+                if command:
+                    print(f"DEBUG: before execute command {i}")
+                    ret = command.execute()
+                    if ret:  # 如果命令有输出
+                        all_outputs.append(f"Command {i} ({func_name}) output:\n{ret}")
 
-            # world = self.dump_sdf(self.world_name)
-            # print(f"DEBUG: before dump world {i}")
-            # world_file = f"{self.directory}/world_{i}.sdf" 
-            # with open(world_file, "w") as f:
-            #     f.write(world)
+                with open(f"{self.directory}/id", "w") as f:
+                    f.write(f"{i}")
 
-            # if self.diversity:
-            #     flag, dist = self.diversity.add_and_check(world_file)
-            #     self.diversity_rewards[i] = 1 if flag else 0
+                # 检查命令执行后系统是否仍在运行
+                try:
+                    result, _ = self.get_world()
+                    if not result:
+                        print("[DEBUG] Gazebo is no longer running")
+                        break
+                except Exception as e:
+                    print(f"[DEBUG] Failed to check Gazebo status: {str(e)}")
+                    all_errors.append(f"Command {i} ({func_name}) error:\n{str(e)}")
+                    break
 
-
-            with open(f"{self.directory}/id", "w") as f:
-                f.write(f"{i}")
-
-            # TODO: check gz liveness, if not, check f"{self.directory}/gz.err" for stack trace
-            # check the status of the process
-            if process_status.status() == psutil.STATUS_ZOMBIE:
-                print("DEBUG: gz process not alive")
-                break
-
-        out = non_blocking_read(process.stdout.fileno())
-        err = non_blocking_read(process.stderr.fileno())
-        # 3. terminate gz sim
-        print("DEBUG: before psutil")
-        with open(f"./terminate", "w") as f:
-            f.write(f"{process.pid}")
-
-        for child in psutil.Process(process.pid).children(recursive=True):
-            print(f"DEBUG: terminating child: {child.pid}")
-            child.terminate()
-            child.wait()
-            # child.kill()
-        print("DEBUG: before process.terminate")
-        process.terminate()
-        print("DEBUG: before process.wait")
-        process.wait()
-        print("DEBUG: after process.wait")
-
-
-
-        # 4. collect coverage
-        try:
-            os.remove(f"./terminate")
-        except:
-            print("DEBUG: exception removing terminate file")
-
-        try:
-            process_status = psutil.Process(process.pid)
-            print("DEBUG: before kill")
-            for child in process_status.children(recursive=True):
-                print(f"DEBUG: killing child: {child.pid}")
-                child.kill()
-            process.kill()
-            return 0
-        except:
+            # 4. collect coverage
             print("DEBUG: before coverage")
             self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
             self.cov_new.collect()
             diff = CoverageDiff()
             diff.compare(self.cov_new, self.cov_old)
 
+            # 保存所有输出
             with open(f"{self.directory}/gz.out", "w") as f:
-                # f.write(process.stdout.read().decode("utf-8"))
-                f.write(out)
+                f.write("\n".join(all_outputs))
             with open(f"{self.directory}/gz.err", "w") as f:
-                # f.write(process.stderr.read().decode("utf-8"))
-                f.write(err)
+                f.write("\n".join(all_errors))
+
+            # 清理资源
+            if hasattr(self, "fixture") and self.fixture:
+                print("[DEBUG] Finalizing test fixture...")
+                self.fixture.finalize()
+                self.fixture = None
+
             print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
             if self.check_new_crash(f"{self.directory}/gz.err"):
@@ -970,19 +963,13 @@ class SmithUnit:
 
                 print(f"DEBUG: {self.crash_rewards}")
 
-            # if self.bandits:
-            #     ### for i in range(len(func_names)):
-            #     ###     index = self.funcs.index(func_names[i])  
-            #     ###     self.bandits[i].reward(index)
-            #     if diff.new_line > 0:
-            #         rewards = [(1 if idx <= i else 0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
-            #     else:
-            #         rewards = [(0, self.diversity_rewards[idx], self.crash_rewards[idx]) for idx in range(self.num_seq)]
-
-            #     print(rewards)
-            #     self.bandits.update(actions, rewards=rewards)
-
-            # return diff.new_line
+            return diff.new_line
+            
+        except Exception as e:
+            print(f"[ERROR] Error in generate_and_test_commands: {str(e)}")
+            if hasattr(self, "fixture") and self.fixture:
+                self.fixture.finalize()
+                self.fixture = None
             return 0
 
     # 复制随机的sdf文件
@@ -1038,76 +1025,105 @@ class SmithUnit:
 
     # 添加模型
     def helper_func_add_random_model(self, model_id = -1, pose_min=-POSE, pose_max=POSE, name="model", sdf_content="", from_mined=False, xml_random = False):
-        # def create_model(world, name, x, y, z, sdf_content=None):
-
         scene, reserved_models = self.get_scene()
         if not reserved_models:
+            print("DEBUG: Cannot get scene info")
             return None
         if len(scene.model) > MAX_MODEL_NUM:
+            print("DEBUG: Maximum number of models reached")
             return None
+            
         service_name = f"/world/{self.world_name}/create"
         request = EntityFactory()
 
-        if model_id == -1:
-            model_gen = ModelGen(self.sdf_miner)
-            if not from_mined:
-                root = model_gen.generate_with_root_wrapper(name, from_mined)
-                # TODO: check for exception
-                sdf_content = root.to_string().encode("utf-8")
+        try:
+            # 如果提供了 sdf_content，直接使用它
+            if sdf_content:
+                request.sdf = sdf_content
+            # 否则，根据 model_id 和其他参数生成内容
             else:
-                sdf_content = self.plugin_miner.random_model_with_root()
-        else:
-            sdf_content = retrieve_model_by_index(model_id)
-        
-        # 是否扰动
-        # if xml_random is True:
-        #     new_sdf = perturb_xml(str(sdf_content))
-        #     if new_sdf is not None:
-        #         request.sdf = new_sdf
-        #         # print("!!!DEBUG: add model request change success")
-        #     else:
-        #         request.sdf = sdf_content
-        # else:
-        #     request.sdf = sdf_content
-
-        request.sdf = sdf_content
-        request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
-        request.pose.position.y = random.random() * (pose_max - pose_min) + pose_min
-        request.pose.position.z = random.random() * pose_max
-        request.name = name
-        request.allow_renaming = True
-        req_txt = str(request).replace(r"\'", r'\"')
-        # print("!!!DEBUG: old add model sdf\n%s",str(request.sdf))
-        # print("!!!DEBUG: add model request type:")
-        # print(type(request))
-        
-        # print("!!!DEBUG: new sdf is \n%s", str(request.sdf))
-        if self.use_text:
-            cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.EntityFactory --req '{req_txt}'"
-            return GzCommand(GzCommandType.SERVICE, cmd_txt, True)
-        else:
-            gz_service = ServiceParam(service_name, request, EntityFactory, Boolean, self.timeout)
-            return GzCommand(GzCommandType.SERVICE, gz_service, False)
-        # result, response = self.node.request(service_name, request, EntityFactory, Boolean, self.timeout)
-        # return cmd_txt, result, response
-
+                if model_id < 0:  
+                    model_gen = ModelGen(self.sdf_miner)
+                    if not from_mined:
+                        root = model_gen.generate_with_root_wrapper(name, from_mined)
+                        if root is None:
+                            print("DEBUG: Failed to generate model")
+                            return None
+                        sdf_content = root.to_string().encode("utf-8")
+                    else:
+                        sdf_content = self.plugin_miner.random_model_with_root()
+                        if not sdf_content:
+                            print("DEBUG: Failed to get model from plugin miner")
+                            return None
+                    model_id = len(self.model_list) + 1
+                else:
+                    try:
+                        sdf_content = retrieve_model_by_index(model_id)
+                    except (ValueError, IndexError) as e:
+                        print(f"DEBUG: Invalid model_id: {model_id}")
+                        return None
+                    if not sdf_content:
+                        print(f"DEBUG: Failed to retrieve model with id {model_id}")
+                        return None
+                        
+                request.sdf = sdf_content
+                    
+            request.name = name
+            request.allow_renaming = True
+            request.pose.position.x = random.random() * (pose_max - pose_min) + pose_min
+            request.pose.position.y = random.random() * (pose_max - pose_min) + pose_min
+            request.pose.position.z = random.random() * pose_max
+            req_txt = str(request).replace(r"\'", r'\"')
+            
+            if self.use_text:
+                cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.EntityFactory --req '{req_txt}'"
+                cmd = GzCommand(GzCommandType.SERVICE, cmd_txt, True)
+            else:
+                gz_service = ServiceParam(service_name, request, EntityFactory, Boolean, self.timeout)
+                cmd = GzCommand(GzCommandType.SERVICE, gz_service, False)
+                
+            # 添加模型到列表中
+            self.add_model_to_list(name, model_id)
+            return cmd
+            
+        except Exception as e:
+            print(f"DEBUG: Error in helper_func_add_random_model: {str(e)}")
+            return None
 
     def get_scene(self):
-        # gz service -s /world/world_0/scene/info --reqtype gz.msgs.Empty --reptype gz.msgs.Scene --timeout 300 --req ''
+        """获取场景信息，现在直接返回维护的model_list"""
         try:
             result, response = self.get_world()
             world_name = response.data[0]
         except:
             print("DEBUG: gz process not alive")
             return None, None
+            
         self.world_name = world_name
-        node = Node()
-        service_name = f"/world/{self.world_name}/scene/info"
         reserved_models = {"ground_model", "ceiling_model", "west_model", "east_model", "north_model", "south_model"}
-        request = Empty()
-        # request = safe_utf8_encode(request)
-        result, response = node.request(service_name, request, Empty, Scene, self.timeout)
-        return response, reserved_models
+        
+        # 创建一个Scene对象来保持兼容性
+        scene = Scene()
+        for entity in self.model_list:
+            model = Model()
+            model.name = entity.name
+            model.id = entity.id
+            scene.model.append(model)
+            
+        return scene, reserved_models
+
+    def add_model_to_list(self, model_name, model_id):
+        """添加模型到model_list"""
+        model = Entity()
+        model.name = model_name
+        model.id = model_id
+        self.model_list.append(model)
+        print(f"DEBUG: Added model {model_name} (id: {model_id}) to model_list")
+
+    def remove_model_from_list(self, model_name):
+        """从model_list中移除模型"""
+        self.model_list = [m for m in self.model_list if m.name != model_name]
+        print(f"DEBUG: Removed model {model_name} from model_list")
 
     def func_add_random_plugin_to_model(self, plugin_id):
         return self.helper_func_add_random_plugin_to_model(False, plugin_id)
@@ -1202,12 +1218,14 @@ class SmithUnit:
             request.id = model_to_remove.id
             cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.Entity --req '{request}'"
             if self.use_text:
-                return GzCommand(GzCommandType.SERVICE, cmd_txt, True)
+                cmd = GzCommand(GzCommandType.SERVICE, cmd_txt, True)
             else:
                 gz_service = ServiceParam(service_name, request, Entity, Boolean, self.timeout)
-                return GzCommand(GzCommandType.SERVICE, gz_service, False)
-            # result, response = self.node.request(service_name, request, Entity, Boolean, self.timeout)
-            # return cmd_txt, result, response
+                cmd = GzCommand(GzCommandType.SERVICE, gz_service, False)
+            
+            # 从列表中移除模型
+            self.remove_model_from_list(model_to_remove.name)
+            return cmd
         else:
             return None
             # return "", None, None
@@ -1313,32 +1331,31 @@ class SmithUnit:
 
     # 随机设置模型的位置
     def func_random_pose(self, pose_min=-POSE, pose_max=POSE):
+        """随机设置模型的位置"""
         service_name = f"/world/{self.world_name}/set_pose"
         request = Pose()
         scene, reserved_models = self.get_scene()
-        if not reserved_models:
+        if not scene or not reserved_models:
+            print("DEBUG: Cannot get scene info")
             return None
+            
         available_models = [m for m in scene.model if m.name not in reserved_models]
-        # print(f"available_models: {available_models}, scene.model: {scene.model}")
-        if available_models:
-            model_to_move = random.choice(available_models)
-            request.name = model_to_move.name
-            request.position.x = random.random() * (pose_max - pose_min) + pose_min
-            request.position.y = random.random() * (pose_max - pose_min) + pose_min
-            request.position.z = random.random() * pose_max
-            cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.Pose --req '{request}'"
-            gz_service = ServiceParam(service_name, request, Pose, Boolean, self.timeout)
-
-            if self.use_text:
-                return GzCommand(GzCommandType.SERVICE, cmd_txt, True)
-            else:
-                return GzCommand(GzCommandType.SERVICE, gz_service, False)
-
-            # result, response = self.node.request(service_name, request, Pose, Boolean, self.timeout)
-            # return cmd_txt, result, response
-        else:
+        if not available_models:
+            print("DEBUG: No available models to move")
             return None
-            # return "", None, None
+            
+        model_to_move = random.choice(available_models)
+        request.name = model_to_move.name
+        request.position.x = random.random() * (pose_max - pose_min) + pose_min
+        request.position.y = random.random() * (pose_max - pose_min) + pose_min
+        request.position.z = random.random() * pose_max
+        cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.Pose --req '{request}'"
+        
+        if self.use_text:
+            return GzCommand(GzCommandType.SERVICE, cmd_txt, True)
+        else:
+            gz_service = ServiceParam(service_name, request, Pose, Boolean, self.timeout)
+            return GzCommand(GzCommandType.SERVICE, gz_service, False)
 
 def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
