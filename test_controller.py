@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+'''
+全链路为 test_controller.py - gazebo_launcher.py - operator.py
+'''
+
 
 import subprocess
 import json
@@ -13,6 +17,7 @@ import random
 import shutil
 from coverage_process import CoverageInfo, CoverageDiff
 import argparse
+import xml.etree.ElementTree as ET
 
 # 添加 Gazebo Python 库路径
 sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
@@ -157,8 +162,38 @@ class TestController:
         """随机选择一个SDF文件"""
         return random.choice(self.sdf_files)
         
+    def _parse_sdf_models(self, sdf_file):
+        """解析SDF文件中的模型名称"""
+        try:
+            tree = ET.parse(sdf_file)
+            root = tree.getroot()
+            
+            # 收集所有模型名称
+            models = []
+            for model in root.findall(".//model"):
+                name = model.get("name")
+                if name:
+                    models.append(name)
+            return models
+        except ET.ParseError as e:
+            print(f"[WARNING] Failed to parse SDF file: {e}")
+            return []
+        
     def _create_test_config(self, config_file):
         """创建测试配置文件"""
+        round_dir = os.path.dirname(config_file)
+        models_file = os.path.join(round_dir, "active_models.json")
+        world_file = os.path.join(round_dir, "world.sdf")
+        
+        # 复制选中的 SDF 文件
+        selected_sdf = self._get_random_sdf()
+        print(f"[DEBUG] Selected SDF file: {selected_sdf}")
+        shutil.copy2(selected_sdf, world_file)
+        
+        # 解析 SDF 文件中的模型
+        initial_models = self._parse_sdf_models(world_file)
+        print(f"[DEBUG] Found {len(initial_models)} models in world.sdf: {', '.join(initial_models)}")
+        
         if self.test_mode:
             # 在测试模式下，每个算子执行一次
             steps = [
@@ -190,9 +225,13 @@ class TestController:
                 ])
                 
                 if step_type == "add_model":
+                    # 获取 models_all.txt 中的模型总数
+                    with open("models_all.txt", "r") as f:
+                        model_count = sum(1 for line in f if line.strip().startswith("<model"))
+                    
                     step = {
                         "type": step_type,
-                        "model_type": random.choice(["box", "sphere", "cylinder"])
+                        "model_id": random.randint(0, model_count - 1)  # 随机选择一个模型 ID
                     }
                 elif step_type in ["list_models", "remove_model"]:
                     step = {"type": step_type}
@@ -214,6 +253,10 @@ class TestController:
         # 写入配置文件
         with open(config_file, 'w') as f:
             json.dump(steps, f, indent=2)
+            
+        # 创建初始的 active_models.json，包含 world.sdf 中的模型
+        with open(models_file, 'w') as f:
+            json.dump({"active_models": initial_models}, f, indent=2)
             
         print(f"[DEBUG] Created test config with {len(steps)} steps")
 
@@ -256,22 +299,30 @@ class TestController:
         os.makedirs(valgrind_dir, exist_ok=True)
         
         # 准备Gazebo命令
+        # gazebo_cmd = [
+        #     "valgrind",
+        #     "--tool=memcheck",
+        #     "--leak-check=full",
+        #     "--show-leak-kinds=all",
+        #     "--track-origins=yes",
+        #     "--read-var-info=yes",
+        #     "--verbose",
+        #     "--log-file=" + os.path.join(valgrind_dir, "gazebo.log"),
+        #     "python3",
+        #     "gazebo_launcher.py",
+        #     "--sdf", os.path.join(round_dir, "world.sdf"),
+        #     "--output", round_dir,
+        #     "--config", os.path.join(round_dir, "test_config.json")
+        # ]
+        
         gazebo_cmd = [
-            "valgrind",
-            "--tool=memcheck",
-            "--leak-check=full",
-            "--show-leak-kinds=all",
-            "--track-origins=yes",
-            "--read-var-info=yes",
-            "--verbose",
-            "--log-file=" + os.path.join(valgrind_dir, "gazebo.log"),
             "python3",
             "gazebo_launcher.py",
             "--sdf", os.path.join(round_dir, "world.sdf"),
             "--output", round_dir,
             "--config", os.path.join(round_dir, "test_config.json")
         ]
-        
+
         # 在测试模式下添加 --test-mode 参数
         if self.mode == "test":
             gazebo_cmd.append("--test-mode")
@@ -384,6 +435,8 @@ class TestController:
         if self.mode == 'cov' and self.coverage_old is not None:
             print("\n=== Final Coverage Report ===")
             print(f"Total Lines Covered: {self.total_coverage}")
+
+# python3 test_controller.py --sdf-dir /home/liyitao/workspace/rezilla-modelsmith-sim9/models --rounds 10 --steps 10 -[DEBUG] TestFixture created54 --mode mem
 
 def main():
     parser = argparse.ArgumentParser(description="Test Controller")

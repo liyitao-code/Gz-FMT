@@ -478,7 +478,7 @@ class SmithUnit:
         # result, response = self.get_world()
         # self.world_name = response.data[0]
         self.funcs = [member for member in dir(self) if member.startswith("func_")]
-        self.cov_old = CoverageInfo(BUILD_DIR, GCOV_DIR)
+        # self.cov_old = CoverageInfo(BUILD_DIR, GCOV_DIR)
         self.cov_new = None
         self.root_gen = RootGen(self.sdf_miner)
         self.sdf = None
@@ -685,7 +685,7 @@ class SmithUnit:
     # 成对地 生成命令并测试
     def pairwise_generate_and_test_commands(self, iteration=1000000):
         # 0. collect coverage info
-        self.cov_old.collect()
+        # self.cov_old.collect()
         # 1. run gz sim a.sdf and sleep for a few seconds, dirty
         retcode = self.launch_gazebo()
         if not retcode:
@@ -845,7 +845,7 @@ class SmithUnit:
     # 生成和测试命令
     def generate_and_test_commands(self):
         # 0. collect coverage info
-        print("DEBUG: before cov")
+        # print("DEBUG: before cov")
         # self.cov_old.collect()
         
         # 1. 使用 TestFixture 启动 Gazebo
@@ -935,11 +935,11 @@ class SmithUnit:
                     break
 
             # 4. collect coverage
-            print("DEBUG: before coverage")
-            self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
-            self.cov_new.collect()
-            diff = CoverageDiff()
-            diff.compare(self.cov_new, self.cov_old)
+            # print("DEBUG: before coverage")
+            # self.cov_new = CoverageInfo(BUILD_DIR, GCOV_DIR)
+            # self.cov_new.collect()
+            # diff = CoverageDiff()
+            # diff.compare(self.cov_new, self.cov_old)
 
             # 保存所有输出
             with open(f"{self.directory}/gz.out", "w") as f:
@@ -953,17 +953,18 @@ class SmithUnit:
                 self.fixture.finalize()
                 self.fixture = None
 
-            print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
+            # print(f"Diff new line: {diff.new_line}, new file: {diff.new_file}")
 
-            if self.check_new_crash(f"{self.directory}/gz.err"):
-                print(f"DEBUG: crash rewards: {i}")
-                # TODO: dump crash to file
-                for j in range(i):
-                    self.crash_rewards[j] = 1
+            # if self.check_new_crash(f"{self.directory}/gz.err"):
+            #     print(f"DEBUG: crash rewards: {i}")
+            #     # TODO: dump crash to file
+            #     for j in range(i):
+            #         self.crash_rewards[j] = 1
 
-                print(f"DEBUG: {self.crash_rewards}")
+            #     print(f"DEBUG: {self.crash_rewards}")
 
-            return diff.new_line
+            # return diff.new_line
+            return 0
             
         except Exception as e:
             print(f"[ERROR] Error in generate_and_test_commands: {str(e)}")
@@ -1386,6 +1387,7 @@ if __name__ == "__main__":
     parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=10, help="number of gz commands")
     parser.add_option("-p", "--plugin", dest="plugin", action="store_true", help="enable mined plugin")
     parser.add_option("-t", "--timeout", dest="timeout", type="int", default=10000, help="timeout")
+    parser.add_option("--id", dest="test_id", type="int", default=0, help="test id from controller")
 
     (options, args) = parser.parse_args()
 
@@ -1424,28 +1426,20 @@ if __name__ == "__main__":
     cov_line_turn = 0
     turn = -1
     # while i < options.iteration:
-    while not stop:
-        now = datetime.now().timestamp()
-        if (now - start) > 600 * turn:
-            with open(f"{options.directory}cov_time.txt", "a") as file:
-                file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
-            turn = (now - start) / 600
-        if now - start >= 60 * 60 * 24:
-            stop = True
-        exp_dir = f"{options.directory}_{i}"
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, diversity, crashes) # bandits)
-        # unit.create_sdf()
-        unit.copy_random_sdf()
-        print("DEBUG: before generate_and_test_commands")
-        print("id = " + str(i + 1))
-        cov_line = unit.generate_and_test_commands()
-        cov_line_time += cov_line
-        cov_line_turn += cov_line
-        with open(f"{options.directory}cov_turn.txt", "a") as file:
-            file.write(f"turn is {i}, cover line is {cov_line_turn}\n")
-        i += 1
-        # very dirty, just try it for now
-        subprocess.run("pkill -9 ruby", shell=True)
+    # while not stop:
+    exp_dir = f"{options.directory}_{options.test_id}"
+    unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, diversity, crashes)
+    unit.copy_random_sdf()
+    print("DEBUG: before generate_and_test_commands")
+    print("id = " + str(options.test_id + 1))
+    cov_line = unit.generate_and_test_commands()
+    # cov_line_time += cov_line
+    # cov_line_turn += cov_line
+    # with open(f"{options.directory}cov_turn.txt", "a") as file:
+    #     file.write(f"turn is {i}, cover line is {cov_line_turn}\n")
+    # i += 1
+    # very dirty, just try it for now
+    subprocess.run("pkill -9 ruby", shell=True)
 
 
 

@@ -311,7 +311,7 @@
                 </instance_geometry>
             </node>
             <node name="node_1" id="node_1">
-                <matrix>1.00000000 0 0 0 0 1.00000000 0 0 0 0 1.00000000 0.50000000 0 0 0 1.00000000</matrix>
+                <matrix>1.00000000 0.00000000 0.00000000 0.00000000 -0.00000000 1.00000000 0.00000000 0.00000000 -0.00000000 -0.00000000 1.00000000 0.50000000 0 0 0 1.00000000</matrix>
                 <instance_geometry url="#mesh_1">
                     <bind_material>
                         <technique_common>
@@ -321,7 +321,7 @@
                 </instance_geometry>
             </node>
             <node name="node_2" id="node_2">
-                <matrix>1.00000000 0 0 0 0 1.00000000 0 -1.50000000 0 0 1.00000000 0.50000000 0 0 0 1.00000000</matrix>
+                <matrix>1.00000000 0 0 0 0 1.00000000 0 -1.50000000 0 0 1.00000000 0.49999020 0 0 0 1.00000000</matrix>
                 <instance_geometry url="#mesh_2">
                     <bind_material>
                         <technique_common>

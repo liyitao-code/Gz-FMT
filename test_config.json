@@ -2,16 +2,31 @@
   "world_path": "/home/liyitao/workspace/rezilla-modelsmith-sim9/test_model/shapes.sdf",
   "steps": [
     {
-      "type": "AddModel",
+      "type": "add_model",
       "params": {
-        "model_path": "/home/liyitao/workspace/rezilla-modelsmith-sim9/test_model/model.sdf" 
+        "model_type": "box"
       }
     },
     {
-      "type": "RandomRemoveModel"
+      "type": "list_models"
     },
     {
-      "type": "RandomRemoveModel"
+      "type": "remove_model"
+    },
+    {
+      "type": "exec_service",
+      "params": {
+        "service": "/gazebo/worlds",
+        "reqtype": "gz.msgs.Empty",
+        "reptype": "gz.msgs.StringMsg_V"
+      }
+    },
+    {
+      "type": "exec_topic",
+      "params": {
+        "topic": "/clock",
+        "msgtype": "gz.msgs.Clock"
+      }
     }
   ]
 }

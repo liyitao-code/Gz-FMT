@@ -4,6 +4,7 @@
 import sys
 sys.path.append('/home/liyitao/workspace/gz_lastest/install/lib/python')
 
+import re
 from gz.msgs11.stringmsg_pb2 import StringMsg
 from gz.msgs11.stringmsg_v_pb2 import StringMsg_V
 from gz.msgs11.pose_pb2 import Pose
@@ -23,23 +24,144 @@ import os
 import time
 import tempfile
 import xml.etree.ElementTree as ET
+from enum import Enum
+
+class GzCommandType(Enum):
+    SERVICE = 1
+    TOPIC = 2
+
+# 表示和执行gazebo命令
+class GzCommand:
+    def __init__(self, gz_type, cmd, use_text=True):
+        self.gz_type = gz_type
+        self.use_text = use_text
+        self.cmd = cmd
+
+
+    @staticmethod
+    def dump_empty(filename):
+        with open(filename, "w") as f:
+            f.write("")
+
+    def dump(self, filename):
+        if self.use_text:
+            with open(filename, "w") as f:
+                if type(self.cmd) == list:
+                    f.write("\n".join(self.cmd))
+                else:
+                    f.write(self.cmd)
+
+    def execute(self):
+        if self.use_text:
+            if self.gz_type == GzCommandType.SERVICE:
+                if self.cmd:
+                    try:
+                        ret = subprocess.run(self.cmd, shell=True, stdout=subprocess.PIPE, timeout=100) # TODO: check this
+                        # what to return here?
+                        return ret.stdout.decode("utf-8")
+                    except:
+                        print("DEBUG: subprocess error")
+                        return ""
+                else:
+                    return None
+            elif self.gz_type == GzCommandType.TOPIC:
+                # traverse gz_topics
+                rets = list()
+                for topic in self.cmd:
+                    try:
+                        ret = subprocess.run(topic, shell=True, stdout=subprocess.PIPE, timeout=100)
+                        rets.append(ret.stdout.decode("utf-8"))
+                    except:
+                        print("DEBUG: subprocess error")
+
+                return "\n".join(rets)
+        else:
+
+            if self.gz_type == GzCommandType.SERVICE:
+                node = Node()
+                msg_type_convert = MessageTypeConvert()
+                service_name = self.cmd.service_name
+                request = self.cmd.request
+                req_type = self.cmd.req_type
+                rep_type = self.cmd.rep_type
+                timeout = self.cmd.timeout
+
+                info_list = node.service_info(service_name)
+                if not info_list:
+                    return ""
+                info = random.choice(info_list)
+                rep_type = msg_type_convert.get_class_type(info.rep_type_name)
+                req_type = msg_type_convert.get_class_type(info.req_type_name)
+                if req_type:
+                    try:
+                        random_req = func_timeout.func_timeout(RANDPROTO_TIMEOUT, randomproto.randproto, args=[req_type])
+                        req_text = str(random_req).strip()
+                        cmd_txt = f"gz service --timeout {self.timeout} -s {service_name} --reptype {info.rep_type_name} --reqtype {info.req_type_name} --req '{req_text}'"
+                        result, response = self.node.request(service_name, random_req, req_type, rep_type, self.timeout)
+
+                        return response
+                    except:
+                        return ""
+                else:
+                    return ""
+            elif self.gz_type == GzCommandType.TOPIC:
+                for topic_param in self.cmd:
+                    publisher = topic_param.publisher
+                    publisher.publish(topic_param.message)
+
+                return ""
 
 class OperatorExecutor:
     def __init__(self, config_file, output_dir):
+        """初始化执行器"""
         self.config_file = config_file
         self.output_dir = output_dir
         self.node = Node()
         self.world_name = None
         self.timeout = 5000
-        self.model_types = ['box', 'sphere', 'cylinder']
         
-        # 加载配置文件
+        # 从配置文件加载测试步骤
         with open(config_file, 'r') as f:
             self.config = json.load(f)
-    
+            
+        # 创建输出目录
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        # 创建日志文件
+        self.log_file = os.path.join(output_dir, "operator_log.json")
+        self.logs = []
+        
+        # 加载活动模型列表
+        self.models_file = os.path.join(os.path.dirname(config_file), "active_models.json")
+        self._load_active_models()
+
+    def _load_active_models(self):
+        """加载活动模型列表"""
+        try:
+            with open(self.models_file, 'r') as f:
+                data = json.load(f)
+                self.active_models = set(data.get("active_models", []))
+        except FileNotFoundError:
+            print(f"[WARNING] Active models file not found: {self.models_file}")
+            self.active_models = set()
+
+    def _save_active_models(self):
+        """保存活动模型列表"""
+        with open(self.models_file, 'w') as f:
+            json.dump({"active_models": list(self.active_models)}, f, indent=2)
+
+    def _print_model_info(self, prefix=""):
+        """打印当前模型信息"""
+        active_models = sorted(list(self.active_models))
+        print(f"{prefix}Current model count: {len(active_models)}")
+        if active_models:
+            print(f"{prefix}Active models: {', '.join(active_models)}")
+        else:
+            print(f"{prefix}No active models")
+
     def get_world(self):
-        """获取当前世界的名称"""
-        # gz service -s /gazebo/worlds --reqtype gz.msgs.Empty --reptype gz.msgs.StringMsg_V --timeout 300 --req ''
+        """获取当前world名称"""
         service_name = "/gazebo/worlds"
         request = Empty()
         result, response = self.node.request(service_name, request, Empty, StringMsg_V, self.timeout)
@@ -47,7 +169,142 @@ class OperatorExecutor:
             self.world_name = response.data[0]
             return True
         return False
-    
+
+    def add_model(self, step):
+        """添加模型"""
+        self._print_model_info("[Before add_model] ")
+        
+        # 生成一个随机的模型名称
+        model_name = f"model_{random.randint(1, 1000)}"
+        while model_name in self.active_models:  # 确保名称唯一
+            model_name = f"model_{random.randint(1, 1000)}"
+        
+        # 从 models_all.txt 中读取指定 ID 的模型
+        model_id = step.get("model_id", 0)
+        model_sdf = ""
+        model_found = False
+        current_model = ""
+        current_id = 0
+        service_name = f"/world/{self.world_name}/create"
+        try:
+            with open("models_all.txt", "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("<model"):
+                        if model_found:  # 已找到目标模型，结束当前模型
+                            # model_sdf += "</model>\n"
+                            break
+                        elif current_id == model_id:  # 找到目标模型
+                            model_found = True
+                            # 替换模型名称
+                            model_sdf = line.replace(line.split('"')[1], model_name)
+                            model_sdf += "\n"
+                        else:  # 未找到目标模型，继续计数
+                            current_id += 1
+                    elif model_found:  # 在目标模型内，继续添加内容
+                        model_sdf += line + "\n"
+        except FileNotFoundError:
+            print("[ERROR] models_all.txt not found")
+            return False
+            
+        if not model_found:
+            print(f"[ERROR] Model with ID {model_id} not found")
+            return False
+        
+        # 添加随机位置
+        x = random.uniform(-10, 10)
+        y = random.uniform(-10, 10)
+        z = random.uniform(0, 5)
+        # model_sdf = "<sdf version=\"1.12\">\n" + model_sdf + "</sdf>"
+        model_sdf = "<sdf version=\"1.12\">\n<model name=\"model_8\">\n<pose>-159.0 -1.5 0.5 0 0 0</pose>\n<link name=\"cylinder_link\">\n<inertial>\n<inertia>\n<ixx>2</ixx>\n<ixy>0</ixy>\n<ixz>0</ixz>\n<iyy>2</iyy>\n<iyz>0</iyz>\n<izz>2</izz>\n</inertia>\n<mass>2.0</mass>\n</inertial>\n<collision name=\"cylinder_collision\">\n<geometry>\n<cylinder>\n<radius>0.5</radius>\n<length>1.0</length>\n</cylinder>\n</geometry>\n</collision>\n\n<visual name=\"cylinder_visual\">\n<geometry>\n<cylinder>\n<radius>0.5</radius>\n<length>1.0</length>\n</cylinder>\n</geometry>\n<material>\n<ambient>0 1 0 1</ambient>\n<diffuse>0 1 0 1</diffuse>\n<specular>0 1 0 1</specular>\n</material>\n</visual>\n</link>\n</model>\n\n</sdf>"
+        # 构建请求参数
+        model_request = EntityFactory()
+        model_request.sdf = model_sdf
+        model_request.pose.position.x = x
+        model_request.pose.position.y = y
+        model_request.pose.position.z = z
+        model_request.name = model_name
+        model_request.allow_renaming = True
+        req_txt = str(model_request).replace(r"\'", r'\"')
+        
+        # 构建命令
+        cmd = f"gz service --timeout {self.timeout} -s {service_name} --reptype gz.msgs.Boolean --reqtype gz.msgs.EntityFactory --req '{req_txt}'"
+        
+        print(f"[DEBUG] Executing add_model command: {cmd}")
+        
+        result = GzCommand(GzCommandType.SERVICE, cmd, True).execute()
+        # result = subprocess.run(cmd, capture_output=True, text=True)
+        # success = result.returncode == 0
+        
+        self._log_command(cmd, {
+            "result": result,
+        })
+
+        # if result:
+        #     print(f"[DEBUG] Add model response: {result.stdout.strip()}")
+        #     time.sleep(0.5)  # 等待模型加载
+        #     self.active_models.add(model_name)
+        #     self._save_active_models()
+        #     print(f"[DEBUG] Model {model_name} added successfully")
+        # else:
+        #     print(f"Failed to add model: {result.stderr}")
+            
+        # self._print_model_info("[After add_model] ")
+        return result
+
+    def remove_model(self, step):
+        """删除模型"""
+        self._print_model_info("[Before remove_model] ")
+        scene, reserved_models = self.get_scene()
+        self.active_models = scene
+        # 检查是否有可删除的模型
+        if not self.active_models:
+            print("No available models to remove")
+            return False
+            
+        # 随机选择一个模型删除
+        model_to_remove = random.choice(list(self.active_models))
+        
+        # 构建命令
+        cmd = [
+            "gz",
+            "service",
+            "-s", f"/world/{self.world_name}/remove",
+            "--reqtype", "gz.msgs.Entity",
+            "--reptype", "gz.msgs.Boolean",
+            "--timeout", str(self.timeout),
+            "--req", f'name: "{model_to_remove}"'
+        ]
+        
+        cmd_str = " ".join(cmd)
+        print(f"[DEBUG] Executing remove_model command: {cmd_str}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        self._log_command(cmd_str.replace('\\', ''), {
+            "success": success,
+            "stdout": result.stdout,
+            "stderr": result.stderr
+        })
+        
+        if success:
+            print(f"[DEBUG] Remove model response: {result.stdout.strip()}")
+            time.sleep(0.5)  # 等待模型删除
+            self.active_models.remove(model_to_remove)
+            self._save_active_models()
+            print(f"[DEBUG] Model {model_to_remove} removed successfully")
+        else:
+            print(f"Failed to remove model: {result.stderr}")
+            
+        self._print_model_info("[After remove_model] ")
+        return success
+
+    def list_models(self, step):
+        """列出当前世界中的所有模型"""
+        self._print_model_info("[list_models] ")
+        return True
+
     def _get_scene_from_sdf(self):
         """通过生成和解析 SDF 文件来获取场景信息"""
         if not self.world_name:
@@ -113,232 +370,38 @@ class OperatorExecutor:
             print(f"[DEBUG] Error during SDF parsing: {str(e)}")
             return None, None
 
+
+
     def get_scene(self):
         """获取当前场景信息"""
-        return self._get_scene_from_sdf()
+        # gz service -s /world/gravity/scene/info --reqtype gz.msgs.Empty --reptype gz.msgs.Scene --timeout 300 --req ''
+        # try:
+        #     result, response = self.get_world()
+        #     world_name = response.data[0]
+        # except:
+        #     print("DEBUG: gz process not alive")
+        #     return None, None
+        # self.world_name = world_name
+        node = Node()
+        service_name = f"/world/{self.world_name}/scene/info"
+        reserved_models = {"ground_model", "ceiling_model", "west_model", "east_model", "north_model", "south_model"}
+        request = Empty()
+        # request = safe_utf8_encode(request)
+        result, response = node.request(service_name, request, Empty, Scene, self.timeout)
+        model_blocks = re.findall(r'model\s*{([^}]+)}', str(response), re.DOTALL)
+        model_names = []
+        for block in model_blocks:
+            # 在每个model块中查找name字段
+            name_match = re.search(r'name:\s*"([^"]+)"', block)
+            if name_match:
+                model_names.append(name_match.group(1))
+        
+        # return names
+        # models = [m for m in response.model if m.name not in reserved_models]
+        print("DEBUG: now models is ", model_names)
+        return model_names, reserved_models
+        # return self._get_scene_from_sdf()
 
-    def _print_model_list(self, prefix=""):
-        """打印当前世界中的模型列表"""
-        scene, _ = self.get_scene()
-        if scene and scene.model:
-            print(f"{prefix}Current models in world:")
-            for model in scene.model:
-                print(f"{prefix}  - {model.name}")
-        else:
-            print(f"{prefix}No models in world")
-
-    def add_model(self, step):
-        """添加模型"""
-        self._print_model_list("[Before add_model] ")
-        
-        # 生成一个随机的模型名称
-        model_name = f"model_{random.randint(1, 1000)}"
-        
-        # 随机选择一个基本形状
-        shapes = ["box", "sphere", "cylinder"]
-        shape = random.choice(shapes)
-        
-        # 构建 SDF 字符串
-        sdf = f"""<sdf version='1.6'>
-<model name='{model_name}'>
-<pose>0 0 0 0 0 0</pose>
-<link name='link'>
-<visual name='visual'>
-<geometry>
-<{shape}/>
-</geometry>
-</visual>
-<collision name='collision'>
-<geometry>
-<{shape}/>
-</geometry>
-</collision>
-</link>
-</model>
-</sdf>"""
-        
-        # 构建命令
-        cmd = [
-            "gz",
-            "service",
-            "-s", f"/world/{self.world_name}/create",
-            "--reqtype", "gz.msgs.EntityFactory",
-            "--reptype", "gz.msgs.Boolean",
-            "--timeout", str(self.timeout),
-            "--req", f'sdf: "{sdf}"'
-        ]
-        
-        cmd_str = " ".join(cmd)
-        print(f"[DEBUG] Executing add_model command: {cmd_str}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        success = result.returncode == 0
-        
-        self._log_command(cmd_str, {
-            "success": success,
-            "stdout": result.stdout,
-            "stderr": result.stderr
-        })
-        
-        if not success:
-            print(f"Failed to add model: {result.stderr}")
-            return False
-            
-        # 检查命令的实际输出
-        print(f"[DEBUG] Add model response: {result.stdout.strip()}")
-        
-        # 等待一小段时间让模型真正加入到世界中
-        time.sleep(0.5)
-        
-        self._print_model_list("[After add_model] ")
-        
-        # 再次获取场景，检查模型是否真的添加了
-        scene, _ = self.get_scene()
-        if scene and scene.model:
-            model_names = [m.name for m in scene.model]
-            if model_name not in model_names:
-                print(f"[WARNING] Model {model_name} was not found in the world after adding")
-                return False
-        
-        return True
-
-    def remove_model(self, step):
-        """删除模型"""
-        self._print_model_list("[Before remove_model] ")
-        
-        # 获取当前场景中的模型
-        scene, reserved_models = self.get_scene()
-        if not scene or not scene.model:
-            print("No available models to remove")
-            return False
-            
-        # 过滤掉保留的模型
-        available_models = [m.name for m in scene.model if m.name not in reserved_models]
-        if not available_models:
-            print("No available models to remove")
-            return False
-            
-        # 随机选择一个模型删除
-        model_to_remove = random.choice(available_models)
-        
-        # 构建命令
-        cmd = [
-            "gz",
-            "service",
-            "-s", f"/world/{self.world_name}/remove",
-            "--reqtype", "gz.msgs.Entity",
-            "--reptype", "gz.msgs.Boolean",
-            "--timeout", str(self.timeout),
-            "--req", f'name: "{model_to_remove}"'
-        ]
-        
-        cmd_str = " ".join(cmd)
-        print(f"[DEBUG] Executing remove_model command: {cmd_str}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        success = result.returncode == 0
-        
-        self._log_command(cmd_str, {
-            "success": success,
-            "stdout": result.stdout,
-            "stderr": result.stderr
-        })
-        
-        if not success:
-            print(f"Failed to remove model: {result.stderr}")
-            return False
-            
-        # 检查命令的实际输出
-        print(f"[DEBUG] Remove model response: {result.stdout.strip()}")
-        
-        # 等待一小段时间让模型真正从世界中移除
-        time.sleep(0.5)
-        
-        self._print_model_list("[After remove_model] ")
-        
-        # 再次获取场景，检查模型是否真的被删除了
-        scene, _ = self.get_scene()
-        if scene and scene.model:
-            model_names = [m.name for m in scene.model]
-            if model_to_remove in model_names:
-                print(f"[WARNING] Model {model_to_remove} is still in the world after removal")
-                return False
-        
-        return True
-    
-    def list_models(self, step):
-        """列出当前世界中的所有模型"""
-        self._print_model_list("[list_models] ")
-        return True
-    
-    def exec_service(self, step):
-        """执行service指令"""
-        service = step.get("service", "")
-        if not service:
-            print("No service specified")
-            return False
-            
-        cmd = [
-            "gz",
-            "service",
-            "-s", service,
-            "--reqtype", step.get("reqtype", "gz.msgs.Empty"),
-            "--reptype", step.get("reptype", "gz.msgs.Boolean"),
-            "--timeout", str(step.get("timeout", "5000"))
-        ]
-        
-        req = step.get("req", "")
-        if req:
-            cmd.extend(["--req", req])
-            
-        cmd_str = " ".join(cmd)
-        print(f"[DEBUG] Executing exec_service command: {cmd_str}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        success = result.returncode == 0
-        
-        self._log_command(cmd_str, {
-            "success": success,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "service": service
-        })
-        
-        return success
-    
-    def exec_topic(self, step):
-        """执行topic指令"""
-        topic = step.get("topic", "")
-        if not topic:
-            print("No topic specified")
-            return False
-            
-        cmd = [
-            "gz",
-            "topic",
-            "-t", topic,
-            "-m", step.get("msgtype", "gz.msgs.StringMsg")
-        ]
-        
-        msg = step.get("msg", "")
-        if msg:
-            cmd.extend(["-p", msg])
-            
-        cmd_str = " ".join(cmd)
-        print(f"[DEBUG] Executing exec_topic command: {cmd_str}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        success = result.returncode == 0
-        
-        self._log_command(cmd_str, {
-            "success": success,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "topic": topic
-        })
-        
-        return success
-    
     def _print_and_log(self, message):
         """同时打印和记录消息"""
         print(message)
@@ -384,6 +447,73 @@ class OperatorExecutor:
         
         print("\n=== Completed executing all steps ===\n")
         return True
+
+    def exec_service(self, step):
+        """执行service指令"""
+        service = step.get("service", "")
+        if not service:
+            print("No service specified")
+            return False
+            
+        cmd = [
+            "gz",
+            "service",
+            "-s", service,
+            "--reqtype", step.get("reqtype", "gz.msgs.Empty"),
+            "--reptype", step.get("reptype", "gz.msgs.Boolean"),
+            "--timeout", str(step.get("timeout", "5000"))
+        ]
+        
+        req = step.get("req", "")
+        if req:
+            cmd.extend(["--req", req])
+            
+        cmd_str = " ".join(cmd)
+        print(f"[DEBUG] Executing exec_service command: {cmd_str}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        self._log_command(cmd_str.replace('\\', ''), {
+            "success": success,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "service": service
+        })
+        
+        return success
+    
+    def exec_topic(self, step):
+        """执行topic指令"""
+        topic = step.get("topic", "")
+        if not topic:
+            print("No topic specified")
+            return False
+        cmd = [
+            "gz",
+            "topic",
+            "-t", topic,
+            "-m", step.get("msgtype", "gz.msgs.StringMsg")
+        ]
+        
+        msg = step.get("msg", "")
+        if msg:
+            cmd.extend(["-p", msg])
+            
+        cmd_str = " ".join(cmd)
+        print(f"[DEBUG] Executing exec_topic command: {cmd_str}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        success = result.returncode == 0
+        
+        self._log_command(cmd_str.replace('\\', ''), {
+            "success": success,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "topic": topic
+        })
+        
+        return success
 
 def main():
     parser = argparse.ArgumentParser(description='Execute test steps')

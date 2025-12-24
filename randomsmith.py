@@ -28,6 +28,9 @@ from gz.msgs11.entity_pb2 import Entity
 from gz.msgs11.sdf_generator_config_pb2 import SdfGeneratorConfig
 from gz.msgs11.entity_plugin_v_pb2 import EntityPlugin_V
 from gz.msgs11.plugin_pb2 import Plugin
+from gz.msgs11.entity_wrench_pb2 import EntityWrench
+from gz.msgs11.vector3d_pb2 import Vector3d
+from gz.msgs11.entity_pb2 import Entity_Type
 from gz.transport14 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
 from lxml.etree import tostring
@@ -1091,9 +1094,9 @@ class SmithUnit:
         # result, response = self.node.request(service_name, request, EntityFactory, Boolean, self.timeout)
         # return cmd_txt, result, response
 
-
+# 
     def get_scene(self):
-        # gz service -s /world/world_0/scene/info --reqtype gz.msgs.Empty --reptype gz.msgs.Scene --timeout 300 --req ''
+        # gz service -s /world/gravity/scene/info --reqtype gz.msgs.Empty --reptype gz.msgs.Scene --timeout 300 --req ''
         try:
             result, response = self.get_world()
             world_name = response.data[0]
@@ -1340,6 +1343,226 @@ class SmithUnit:
             return None
             # return "", None, None
 
+    # 对模型施加力，使其按指定方向运动
+    def func_apply_model_force(self, model_name=None, force_x=0.0, force_y=0.0, force_z=0.0, 
+                                torque_x=0.0, torque_y=0.0, torque_z=0.0, persistent=False):
+        """
+        对模型施加力或力矩，使其按指定方向运动
+        
+        Args:
+            model_name: 模型名称，如果为None则随机选择一个模型
+            force_x, force_y, force_z: 沿x、y、z轴的力（牛顿）
+            torque_x, torque_y, torque_z: 绕x、y、z轴的力矩
+            persistent: 如果为True，力将持续施加；如果为False，只施加一次
+        
+        Returns:
+            GzCommand对象，可以通过execute()方法执行
+        """
+        scene, reserved_models = self.get_scene()
+        if not reserved_models:
+            return None
+        
+        # 获取模型名称
+        if model_name is None:
+            available_models = [m for m in scene.model if m.name not in reserved_models]
+            if not available_models:
+                return None
+            model_name = random.choice(available_models).name
+        
+        # 创建EntityWrench消息
+        entity_wrench = EntityWrench()
+        entity_wrench.entity.name = model_name
+        entity_wrench.entity.type = Entity_Type.MODEL  # 设置为MODEL类型
+        
+        # 设置力
+        entity_wrench.wrench.force.x = force_x
+        entity_wrench.wrench.force.y = force_y
+        entity_wrench.wrench.force.z = force_z
+        
+        # 设置力矩
+        entity_wrench.wrench.torque.x = torque_x
+        entity_wrench.wrench.torque.y = torque_y
+        entity_wrench.wrench.torque.z = torque_z
+        
+        # 确定topic名称
+        # 注意：需要确保世界中加载了 gz-sim-apply-link-wrench-system 插件
+        if persistent:
+            topic_name = f"/world/{self.world_name}/wrench/persistent"
+        else:
+            topic_name = f"/world/{self.world_name}/wrench"
+        
+        if self.use_text:
+            # 生成命令行文本
+            # 将消息转换为字符串格式，用于命令行
+            wrench_str = str(entity_wrench).replace('\n', ' ').replace("'", "\\'")
+            cmd_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str}'"
+            return GzCommand(GzCommandType.TOPIC, [cmd_txt], True)
+        else:
+            # 使用Node API发布消息
+            # 注意：需要先advertise topic，然后publish
+            publisher = self.node.advertise(topic_name, EntityWrench)
+            time.sleep(0.1)  # 等待连接建立
+            publisher.publish(entity_wrench)
+            # 返回一个简单的命令对象用于记录
+            return GzCommand(GzCommandType.TOPIC, None, False)
+
+    # 设置模型的线性速度（如果模型支持速度控制）
+    def func_set_model_velocity(self, model_name=None, velocity_x=0.0, velocity_y=0.0, velocity_z=0.0):
+        """
+        设置模型的线性速度，使其按指定速度运动
+        
+        注意：此方法需要模型具有free_group（自由刚体组），通常只有没有关节约束的模型才支持
+        
+        Args:
+            model_name: 模型名称，如果为None则随机选择一个模型
+            velocity_x, velocity_y, velocity_z: 沿x、y、z轴的速度（m/s）
+        
+        Returns:
+            GzCommand对象或None
+        """
+        scene, reserved_models = self.get_scene()
+        if not reserved_models:
+            return None
+        
+        # 获取模型名称
+        if model_name is None:
+            available_models = [m for m in scene.model if m.name not in reserved_models]
+            if not available_models:
+                return None
+            model_name = random.choice(available_models).name
+        
+        # 注意：gz-sim中设置模型速度通常需要通过组件系统，而不是直接的服务
+        # 这里提供一个通过施加持续力来近似实现速度控制的方法
+        # 或者可以通过设置模型的pose来实现瞬间移动（但不适合持续运动）
+        
+        # 方法1：通过施加力来实现速度控制（需要根据模型质量调整力的大小）
+        # 这里简化处理，使用一个固定的力值
+        # 实际应用中可能需要根据模型质量和期望速度计算合适的力
+        
+        # 使用施加力的方法来实现速度控制
+        # 注意：这只是一个近似方法，实际效果取决于模型的物理属性
+        force_magnitude = 100.0  # 可以根据需要调整
+        force_x = velocity_x * force_magnitude
+        force_y = velocity_y * force_magnitude
+        force_z = velocity_z * force_magnitude
+        
+        return self.func_apply_model_force(
+            model_name=model_name,
+            force_x=force_x,
+            force_y=force_y,
+            force_z=force_z,
+            persistent=True  # 持续施加力以维持速度
+        )
+
+    # 蜕变测试示例：让模型沿x轴运动，然后验证位置
+    def metamorphic_test_example(self, model_name, initial_pose=(0.0, 0.0, 0.0), 
+                                  velocity_x=1.0, test_duration=5.0):
+        """
+        蜕变测试示例：让模型从初始位置沿x轴正方向运动，验证t秒后的位置
+        
+        预期：如果模型从(0,0,0)开始，以v m/s的速度沿x轴运动t秒，
+              那么最终位置应该是(v*t, 0, 0)附近（考虑物理引擎的误差）
+        
+        Args:
+            model_name: 要测试的模型名称
+            initial_pose: 初始位置 (x, y, z)
+            velocity_x: x轴方向的速度（m/s）
+            test_duration: 测试持续时间（秒）
+        
+        Returns:
+            (initial_position, final_position, expected_position, success)
+        """
+        # 1. 获取初始位置
+        scene, reserved_models = self.get_scene()
+        if not reserved_models:
+            return None
+        
+        # 找到目标模型
+        target_model = None
+        for m in scene.model:
+            if m.name == model_name:
+                target_model = m
+                break
+        
+        if target_model is None:
+            print(f"Model {model_name} not found")
+            return None
+        
+        initial_pos = (
+            target_model.pose.position.x,
+            target_model.pose.position.y,
+            target_model.pose.position.z
+        )
+        print(f"Initial position: {initial_pos}")
+        
+        # 2. 设置模型到初始位置（如果需要）
+        if initial_pose != initial_pos:
+            pose_cmd = self.func_random_pose()
+            if pose_cmd:
+                # 修改pose命令中的位置
+                # 这里简化处理，实际需要修改request中的位置
+                pass
+        
+        # 3. 对模型施加力，使其沿x轴运动
+        # 计算需要的力（简化处理，假设模型质量为1kg）
+        force_x = velocity_x * 10.0  # 根据模型质量调整
+        force_cmd = self.func_apply_model_force(
+            model_name=model_name,
+            force_x=force_x,
+            force_y=0.0,
+            force_z=0.0,
+            persistent=True
+        )
+        
+        if force_cmd:
+            force_cmd.execute()
+        
+        # 4. 等待指定时间
+        print(f"Applying force for {test_duration} seconds...")
+        time.sleep(test_duration)
+        
+        # 5. 获取最终位置
+        scene, _ = self.get_scene()
+        final_model = None
+        for m in scene.model:
+            if m.name == model_name:
+                final_model = m
+                break
+        
+        if final_model is None:
+            print(f"Model {model_name} not found after test")
+            return None
+        
+        final_pos = (
+            final_model.pose.position.x,
+            final_model.pose.position.y,
+            final_model.pose.position.z
+        )
+        print(f"Final position: {final_pos}")
+        
+        # 6. 计算预期位置
+        expected_pos = (
+            initial_pos[0] + velocity_x * test_duration,
+            initial_pos[1],
+            initial_pos[2]
+        )
+        print(f"Expected position: {expected_pos}")
+        
+        # 7. 验证结果（允许一定的误差）
+        error_threshold = 0.5  # 允许0.5米的误差
+        error_x = abs(final_pos[0] - expected_pos[0])
+        error_y = abs(final_pos[1] - expected_pos[1])
+        error_z = abs(final_pos[2] - expected_pos[2])
+        
+        success = (error_x < error_threshold and 
+                   error_y < error_threshold and 
+                   error_z < error_threshold)
+        
+        print(f"Position error: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}")
+        print(f"Test {'PASSED' if success else 'FAILED'}")
+        
+        return (initial_pos, final_pos, expected_pos, success)
+
 def DEBUG_PRINT():
     print("BUILD DIR = " + BUILD_DIR)
     print(type(StringMsg))
@@ -1413,7 +1636,7 @@ if __name__ == "__main__":
             with open(f"{options.directory}cov_time.txt", "a") as file:
                 file.write(f"time is {now - start}, cover line is {cov_line_time}\n")
             turn = (now - start) / 600
-        if now - start >= 60 * 60 * 24:
+        if now - start >= 60 * 60 * 240:
             stop = True
         exp_dir = f"{options.directory}_{i}"
         unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, diversity, crashes) # bandits)

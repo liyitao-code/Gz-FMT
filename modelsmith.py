@@ -31,10 +31,8 @@ PLUGIN_DIR = "./models/" # "/home/ren/play/robot/workspace/install/share/gz/gz-s
 
 MAX_VELOCITY = 10
 
-link_id = 0
-model_id = 0
 collision_id = 0
-joint_id = 0
+model_id = 0
 
 
 class GeometryEnum(Enum):
@@ -301,7 +299,6 @@ class WorldGen:
         material.set_diffuse(color)
         visual.set_material(material)
         link.add_visual(visual)
-        model.set_raw_pose(math8.Pose3d(x, y, z, 0, 0, 0))
         model.add_link(link)
         model.set_static(True)
 
@@ -461,13 +458,17 @@ class ModelGen:
     def __init__(self, sdf_miner=None):
         self.link_gen = LinkGen()
         self.pose_gen = Pose3dGen()
-        # self.id = 0
         self.links = list()
         self.joint_gen = JointGen()
-        self.sdf_miner=sdf_miner
+        self.sdf_miner = sdf_miner
+        self.link_id = 0
+        self.joint_id = 0
+        self.model_id = 0  # 添加 model_id 实例变量
 
     def generate_with_root_wrapper(self, name, from_mined=False):
         model = self.generate(name, from_mined)
+        if model is None:
+            return None
         root = sd.Root()
         root.set_model(model)
         return root
@@ -478,35 +479,44 @@ class ModelGen:
             if model:
                 return model
 
-        global link_id
         model = sd.Model()
         model.set_name(name)
         self.links = list()
-        for i in range(NUM_LINK):
-            link = self.link_gen.generate(f"link_{link_id}")
-            link_id += 1
-            # print(f"link {link_id} in model {name}")
-            pose = self.pose_gen.generate(-POSE, POSE, -POSE, POSE, 0, POSE, 0, 0, 0, 0, 0, 0)
-            link.set_raw_pose(pose)
-            self.links.append(link)
-            model.add_link(link)
-        global joint_id
-        for i in range(NUM_JOINT):
-            idx1, idx2 = random.sample(range(NUM_LINK), 2)
-            joint, m, n = self.joint_gen.generate(f"joint_{joint_id}", self.links[idx1], self.links[idx2])
-            joint_id += 1
-            model.add_joint(joint)
-        pose = self.pose_gen.generate(-POSE, POSE, -POSE, POSE, 0, POSE, 0, 0, 0, 0, 0, 0)
-        model.set_raw_pose(pose)
-        # if self.add_plugin:
-        #     plugin = sd.Plugin(PLUGIN_FILENAME, PLUGIN_NAME)
-        #     plugin.insert_content(PLUGIN_CONTENT)
-        #     model.add_plugin(plugin)
+        try:
+            for i in range(NUM_LINK):
+                link = self.link_gen.generate(f"link_{self.link_id}")
+                self.link_id += 1
+                pose = self.pose_gen.generate(-POSE, POSE, -POSE, POSE, 0, POSE, 0, 0, 0, 0, 0, 0)
+                link.set_raw_pose(pose)
+                self.links.append(link)
+                model.add_link(link)
 
-        model.set_enable_wind(random.getrandbits(1))
-        model.set_static(random.getrandbits(1))
-        model.set_self_collide(random.getrandbits(1))
-        return model
+            for i in range(NUM_JOINT):
+                if len(self.links) < 2:  # 确保有足够的link来创建joint
+                    break
+                idx1, idx2 = random.sample(range(len(self.links)), 2)
+                joint, m, n = self.joint_gen.generate(f"joint_{self.joint_id}", self.links[idx1], self.links[idx2])
+                self.joint_id += 1
+                model.add_joint(joint)
+
+            pose = self.pose_gen.generate(-POSE, POSE, -POSE, POSE, 0, POSE, 0, 0, 0, 0, 0, 0)
+            model.set_raw_pose(pose)
+            
+            # 添加其他必要的属性
+            model.set_enable_wind(random.getrandbits(1))
+            model.set_static(random.getrandbits(1))
+            model.set_self_collide(random.getrandbits(1))
+            
+            # 设置模型ID
+            # model.set_id(self.model_id)  # sdformat15.Model 没有 set_id 方法
+            # 我们可以在这里增加模型ID，但不设置给模型
+            self.model_id += 1
+            
+            return model
+            
+        except Exception as e:
+            print(f"DEBUG: Error in ModelGen.generate: {str(e)}")
+            return None
 
 
 if __name__ == "__main__":

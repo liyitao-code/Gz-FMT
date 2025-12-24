@@ -83,6 +83,63 @@ def process_directory_with_crash_handling(path1, all_trace_dir, unique_trace_dir
 
     return all_trace_count, unique_trace_count
 
+def compare_directories(path1, path2, target_path):
+    """比较两个目录中的崩溃情况，找出在path2中但不在path1中的独特崩溃
+    
+    Args:
+        path1: 基准目录路径
+        path2: 要比较的目录路径
+        target_path: 存放独特崩溃的目标路径
+    
+    Returns:
+        tuple: (独特崩溃的目录列表, 独特崩溃的数量)
+    """
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
+    
+    # 获取path1中所有的崩溃轨迹
+    path1_traces = set()
+    for gz_err_file in find_gz_err_files(path1):
+        e = ErrorLog(gz_err_file)
+        if e.trace:
+            path1_traces.add(e.trace)
+    
+    # 在path2中查找独特的崩溃轨迹
+    unique_directories = []
+    unique_count = 0
+    seen_traces = {}
+    
+    for gz_err_file in find_gz_err_files(path2):
+        e = ErrorLog(gz_err_file)
+        if e.trace and e.trace not in path1_traces:
+            trace_key = e.trace
+            source_dir = os.path.dirname(gz_err_file)
+            folder_name = os.path.basename(source_dir)
+            folder_number = extract_number_from_folder_name(folder_name)
+            
+            if trace_key not in seen_traces:
+                seen_traces[trace_key] = (folder_number, source_dir, [folder_name])
+                unique_count += 1
+            else:
+                _, existing_dir, folder_list = seen_traces[trace_key]
+                folder_list.append(folder_name)
+                # 更新为数字最小的文件夹
+                if folder_number < seen_traces[trace_key][0]:
+                    seen_traces[trace_key] = (folder_number, source_dir, folder_list)
+    
+    # 复制独特的崩溃到目标目录
+    for trace_key, (_, source_dir, folder_list) in seen_traces.items():
+        target_dir = os.path.join(target_path, os.path.basename(source_dir))
+        if not os.path.exists(target_dir):
+            shutil.copytree(source_dir, target_dir)
+            unique_directories.append(os.path.basename(source_dir))
+            
+            # 创建 crash_id.txt 文件并记录所有该崩溃类型的文件夹名
+            with open(os.path.join(target_dir, 'crash_id.txt'), 'w') as f:
+                f.write('\n'.join(folder_list))
+    
+    return unique_directories, unique_count
+
 def main(mode, path1, path2, target_path=None):
     """mode参数为0则为从大量数据中筛出crash，1则是对比和合并功能
     mode = 0 是从path1中筛出crash存放在path2
@@ -129,4 +186,3 @@ if __name__ == "__main__":
     target_path = sys.argv[4] if len(sys.argv) > 4 else None
 
     main(mode, path1, path2, target_path)
-
