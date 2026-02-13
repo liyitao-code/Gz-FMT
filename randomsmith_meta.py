@@ -1539,6 +1539,78 @@ class SmithUnit:
         print(f"DEBUG: Failed to start simulation after {max_retries} attempts")
         return False
 
+    def step_simulation(self, num_steps):
+        """
+        精确推进仿真指定步数。使用 WorldControl.multi_step 替代原来的
+        'resume → time.sleep → pause' 模式，确保仿真时间精确可控，
+        消除 wall-clock timing 导致的不确定性。
+        
+        multi_step 完成后仿真自动暂停。
+        
+        Args:
+            num_steps: 要推进的仿真步数
+                       (step_size=0.001 时，1000步=1秒 sim-time)
+        
+        Returns:
+            bool: 是否成功
+        """
+        if not hasattr(self, 'world_name') or not self.world_name:
+            print("DEBUG: world_name not set, cannot step simulation")
+            return False
+        
+        step_size = 0.001  # Gazebo 默认步长
+        sim_time = num_steps * step_size
+        
+        print(f"DEBUG: Stepping simulation {num_steps} steps ({sim_time:.3f}s sim-time)...")
+        
+        # 发送 multi_step 命令（仿真从暂停状态开始推进，完成后自动暂停）
+        if self.use_text:
+            cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                       f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                       f"--timeout {self.timeout} "
+                       f"--req 'multi_step: {num_steps}'")
+            cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+            cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+        else:
+            service_name = f"/world/{self.world_name}/control"
+            request = WorldControl()
+            request.multi_step = num_steps
+            result, response = self.node.request(
+                service_name, request, WorldControl, Boolean, self.timeout)
+            if not (result and response.data):
+                print(f"DEBUG: Failed to send multi_step command")
+                return False
+        
+        # 记录步进操作到实验日志
+        if hasattr(self, 'experiment_log'):
+            self.log_sleep(sim_time,
+                f"Stepping {num_steps} steps ({sim_time:.3f}s sim-time)")
+        
+        # 等待步进完成
+        # multi_step 完成后自动暂停。等待时间取决于系统性能和 RTF 设置。
+        # 保守估计：sim_time * 3（覆盖 RTF < 0.33 的极端情况）+ 基础等待时间
+        wait_time = max(sim_time * 3.0, 8.0)
+        time.sleep(wait_time)
+        
+        # 安全措施：发送 pause 指令确保仿真已暂停
+        # （如果 multi_step 已完成，这是一个无害的 no-op）
+        if self.use_text:
+            pause_txt = (f"gz service -s /world/{self.world_name}/control "
+                         f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                         f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_txt], True)
+            pause_cmd.execute(None)  # 不记录到实验日志（安全措施）
+        else:
+            service_name = f"/world/{self.world_name}/control"
+            request = WorldControl()
+            request.pause = True
+            self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+        
+        time.sleep(0.3)  # 等待暂停状态稳定
+        
+        print(f"DEBUG: Stepped {num_steps} steps ({sim_time:.3f}s sim-time) - complete")
+        return True
+
     # 导出世界的sdf文件
     def dump_sdf(self, world):
         print("DEBUG: before dump_sdf")
@@ -2974,31 +3046,18 @@ class SmithUnit:
             print("DEBUG: Warning - force_cmd is None")
             return None
         
-        # 恢复模拟，开始计时
-        play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-        play_cmd.execute(self.experiment_log)
-        self.log_sleep(0.1, "Brief wait after resume (test A)")
-        time.sleep(0.1)
+        # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+        num_steps = int(test_duration / 0.001)
+        print(f"Running test A for {test_duration:.2f} seconds ({num_steps} steps)...")
+        self.step_simulation(num_steps)
         
-        # 等待测试时间
-        print(f"Running test A for {test_duration:.2f} seconds...")
-        self.log_sleep(test_duration, f"Running test A for {test_duration:.2f} seconds")
-        time.sleep(test_duration)
-        
-        # 获取最终位置（模拟运行状态下）
-        print("DEBUG: Getting position after test A (simulation still running)...")
-        pos_after_A = self.get_model_pose_from_topic(model_name)
+        # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+        print("DEBUG: Getting position after test A...")
+        pos_after_A = self.get_model_pose_from_scene(model_name)
         if pos_after_A is None:
             print(f"DEBUG: Failed to get position after test A for model {model_name}")
             return None
         print(f"Position after test A: {pos_after_A}")
-        
-        # 暂停模拟
-        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-        pause_cmd.execute(self.experiment_log)
-        self.log_sleep(0.2, "Wait for pause after test A")
-        time.sleep(0.2)
         
         # 计算测试A的位移
         d1 = (pos_after_A[0] - initial_pos[0],
@@ -3013,9 +3072,6 @@ class SmithUnit:
             error_info = f"Model '{model_name}' did not move (displacement: {d1_magnitude:.6f} m < {MIN_DISPLACEMENT_THRESHOLD} m). Skipping."
             print(f"DEBUG: {error_info}")
             self.clear_model_wrench(model_name)
-            # 恢复模拟
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
             return None
         
         # ===== 重置模型状态（仿真保持暂停状态） =====
@@ -3066,36 +3122,17 @@ class SmithUnit:
             print("DEBUG: Warning - force_cmd_B is None")
             return None
         
-        # 恢复模拟，开始计时
-        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-        play_cmd.execute(self.experiment_log)
-        self.log_sleep(0.1, "Brief wait after resume (test B)")
-        time.sleep(0.1)
+        # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+        print(f"Running test B for {test_duration:.2f} seconds ({num_steps} steps)...")
+        self.step_simulation(num_steps)
         
-        # 等待同样的测试时间
-        print(f"Running test B for {test_duration:.2f} seconds...")
-        self.log_sleep(test_duration, f"Running test B for {test_duration:.2f} seconds")
-        time.sleep(test_duration)
-        
-        # 获取最终位置（模拟运行状态下）
-        print("DEBUG: Getting position after test B (simulation still running)...")
-        pos_after_B = self.get_model_pose_from_topic(model_name)
+        # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+        print("DEBUG: Getting position after test B...")
+        pos_after_B = self.get_model_pose_from_scene(model_name)
         if pos_after_B is None:
             print(f"DEBUG: Failed to get position after test B for model {model_name}")
             return None
         print(f"Position after test B: {pos_after_B}")
-        
-        # 暂停模拟
-        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-        pause_cmd.execute(self.experiment_log)
-        self.log_sleep(0.2, "Wait for pause after test B")
-        time.sleep(0.2)
-        
-        # 恢复模拟
-        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-        play_cmd.execute(self.experiment_log)
-        self.log_sleep(0.1, "Brief wait after final resume")
-        time.sleep(0.1)
         
         # 清除力
         self.clear_model_wrench(model_name)
@@ -3234,22 +3271,14 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait for F2 message to be received")
             time_module.sleep(0.1)  # 等待消息被接收
             
-            # 步骤4：恢复模拟（使用 gz service 指令），并从此时开始计时
-            print("DEBUG: Resuming simulation using gz service command...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect")
-            time_module.sleep(0.1)  # 短暂等待确保恢复命令生效
+            # 步骤4：精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            num_steps = int(test_duration / 0.001)
+            print(f"Running with F1+F2 for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 从恢复模拟开始计时
-            print(f"Running with F1+F2 for {test_duration} seconds (timing starts from simulation resume)...")
-            self.log_sleep(test_duration, f"Test A: Running with F1+F2 for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print("DEBUG: Getting position after F1+F2 (simulation still running)...")
-            pos_with_f1_f2 = self.get_model_pose_from_topic(model_name)
+            # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+            print("DEBUG: Getting position after F1+F2...")
+            pos_with_f1_f2 = self.get_model_pose_from_scene(model_name)
             if pos_with_f1_f2 is None:
                 print(f"DEBUG: Failed to get position after F1+F2")
                 return None
@@ -3268,14 +3297,6 @@ class SmithUnit:
                       f"Model is likely constrained by ground contact/joints. Skipping this test.")
                 self.clear_model_wrench(model_name)
                 return None
-            
-            # 暂停模拟
-            print("DEBUG: Pausing simulation after getting position...")
-            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
-            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-            pause_cmd.execute(self.experiment_log)
-            self.log_sleep(0.2, "Wait for pause to complete")
-            time_module.sleep(0.2)
             
             # 5. 重置到初始状态（仿真保持暂停状态）
             # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
@@ -3341,42 +3362,17 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait for F_total message to be received")
             time_module.sleep(0.1)  # 等待消息被接收
             
-            # 步骤3：恢复模拟（使用 gz service 指令），并从此时开始计时
-            print("DEBUG: Resuming simulation using gz service command...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
-            time_module.sleep(0.1)  # 短暂等待确保恢复命令生效
+            # 步骤3：精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            print(f"Running with F_total for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 从恢复模拟开始计时（与测试A相同）
-            print(f"Running with F_total for {test_duration} seconds (timing starts from simulation resume)...")
-            self.log_sleep(test_duration, f"Test B: Running with F_total for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print("DEBUG: Getting position after F_total (simulation still running)...")
-            pos_with_f_total = self.get_model_pose_from_topic(model_name)
+            # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+            print("DEBUG: Getting position after F_total...")
+            pos_with_f_total = self.get_model_pose_from_scene(model_name)
             if pos_with_f_total is None:
                 print(f"DEBUG: Failed to get position after F_total")
                 return None
             print(f"Position with F_total: {pos_with_f_total}")
-            
-            # 暂停模拟
-            print("DEBUG: Pausing simulation after getting position...")
-            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
-            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-            pause_cmd.execute(self.experiment_log)
-            self.log_sleep(0.2, "Wait for pause to complete")
-            time_module.sleep(0.2)
-            
-            # 恢复模拟，继续后续操作
-            print("DEBUG: Resuming simulation...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait after resuming")
-            time_module.sleep(0.1)
             
             # 7. 验证结果
             # 混合阈值：绝对误差 < 0.5m 或 相对误差 < 10%，满足其一即通过
@@ -3717,22 +3713,14 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait after applying F1 (test A)")
             time_module.sleep(0.1)
             
-            # 恢复模拟，从此时开始计时
-            print("DEBUG: Resuming simulation (timing starts from here)...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test A)")
-            time_module.sleep(0.1)
+            # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            num_steps = int(test_duration / 0.001)
+            print(f"Running with F1 and rtf=1.0 for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 等待指定时间（物理时间）
-            print(f"Running with F1 and rtf=1.0 for {test_duration} seconds (physical time)...")
-            self.log_sleep(test_duration, f"Test A: Running with F1 and rtf=1.0 for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print("DEBUG: Getting position after F1 with rtf=1.0 (simulation still running)...")
-            pos_with_rtf1 = self.get_model_pose_from_topic(model_name)
+            # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+            print("DEBUG: Getting position after F1 with rtf=1.0...")
+            pos_with_rtf1 = self.get_model_pose_from_scene(model_name)
             if pos_with_rtf1 is None:
                 print(f"DEBUG: Failed to get position after F1 with rtf=1.0")
                 return None
@@ -3751,14 +3739,6 @@ class SmithUnit:
                       f"Model is likely constrained by ground contact/joints. Skipping this test.")
                 self.clear_model_wrench(model_name)
                 return None
-            
-            # 暂停模拟
-            print("DEBUG: Pausing simulation after getting position...")
-            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
-            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-            pause_cmd.execute(self.experiment_log)
-            self.log_sleep(0.2, "Wait for pause to complete")
-            time_module.sleep(0.2)
             
             # 5. 重置模型状态（仿真保持暂停状态）
             # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
@@ -3845,42 +3825,17 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait after applying F1 (test B)")
             time_module.sleep(0.1)
             
-            # 恢复模拟，从此时开始计时
-            print("DEBUG: Resuming simulation (timing starts from here)...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
-            time_module.sleep(0.1)
+            # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            print(f"Running with F1 and rtf={rtf2:.2f} for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 等待指定时间（物理时间，与测试A相同）
-            print(f"Running with F1 and rtf={rtf2:.2f} for {test_duration} seconds (physical time)...")
-            self.log_sleep(test_duration, f"Test B: Running with F1 and rtf={rtf2:.2f} for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print(f"DEBUG: Getting position after F1 with rtf={rtf2:.2f} (simulation still running)...")
-            pos_with_rtf2 = self.get_model_pose_from_topic(model_name)
+            # 获取最终位置（仿真已暂停，使用 scene 服务获取）
+            print(f"DEBUG: Getting position after F1 with rtf={rtf2:.2f}...")
+            pos_with_rtf2 = self.get_model_pose_from_scene(model_name)
             if pos_with_rtf2 is None:
                 print(f"DEBUG: Failed to get position after F1 with rtf={rtf2:.2f}")
                 return None
             print(f"Position with rtf={rtf2:.2f}: {pos_with_rtf2}")
-            
-            # 暂停模拟
-            print("DEBUG: Pausing simulation after getting position...")
-            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
-            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-            pause_cmd.execute(self.experiment_log)
-            self.log_sleep(0.2, "Wait for pause to complete")
-            time_module.sleep(0.2)
-            
-            # 恢复模拟，继续后续操作
-            print("DEBUG: Resuming simulation...")
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait after resuming")
-            time_module.sleep(0.1)
             
             # 8. 验证结果
             # 理论上，在相同的物理时间内，无论 real_time_factor 如何，模型的位置应该相同
@@ -4122,8 +4077,8 @@ class SmithUnit:
             # 添加XML声明
             model_sdf_str = f'<sdf version="1.6">\n{model_sdf_str}\n</sdf>'
             
-            # 6. 获取模型的当前位置和姿态
-            current_pose = self.get_model_pose_from_topic(model_name)
+            # 6. 获取模型的当前位置和姿态（使用 scene 服务，暂停状态下也可工作）
+            current_pose = self.get_model_pose_from_scene(model_name)
             if current_pose is None:
                 print(f"DEBUG: Failed to get current pose for model {model_name}")
                 return False
@@ -4275,21 +4230,14 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait after applying F1 (test A)")
             time_module.sleep(0.1)
             
-            # 恢复模拟，开始计时
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test A)")
-            time_module.sleep(0.1)
+            # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            num_steps = int(test_duration / 0.001)
+            print(f"Running with F1 and mass m={initial_mass:.6f} kg for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 等待指定时间
-            print(f"Running with F1 and mass m={initial_mass:.6f} kg for {test_duration} seconds...")
-            self.log_sleep(test_duration, f"Test A: Running with F1 and mass m={initial_mass:.6f} kg for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print("DEBUG: Getting position after F1 with mass m (simulation still running)...")
-            pos_with_m1 = self.get_model_pose_from_topic(model_name)
+            # 获取位置（仿真已暂停，使用 scene 服务获取）
+            print("DEBUG: Getting position after F1 with mass m...")
+            pos_with_m1 = self.get_model_pose_from_scene(model_name)
             if pos_with_m1 is None:
                 print(f"DEBUG: Failed to get position after F1 with mass m")
                 return None
@@ -4311,14 +4259,6 @@ class SmithUnit:
                       f"Model is likely constrained by ground contact/joints. Skipping this test.")
                 self.clear_model_wrench(model_name)
                 return None
-            
-            # 暂停模拟（Test A 结束后需要暂停，以便在暂停状态下完成 Test B 重置）
-            print("DEBUG: Pausing simulation after test A...")
-            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
-            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
-            pause_cmd.execute(self.experiment_log)
-            self.log_sleep(0.2, "Wait for pause after test A")
-            time_module.sleep(0.2)
             
             # 6. 重置模型状态（仿真保持暂停状态）
             # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
@@ -4381,21 +4321,13 @@ class SmithUnit:
             self.log_sleep(0.1, "Wait after applying F1 (test B)")
             time_module.sleep(0.1)
             
-            # 恢复模拟，开始计时
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
-            time_module.sleep(0.1)
+            # 精确推进仿真（使用 multi_step，消除 wall-clock timing 影响）
+            print(f"Running with F1 and mass k*m={new_mass:.6f} kg for {test_duration} seconds ({num_steps} steps)...")
+            self.step_simulation(num_steps)
             
-            # 等待指定时间（与测试A相同）
-            print(f"Running with F1 and mass k*m={new_mass:.6f} kg for {test_duration} seconds...")
-            self.log_sleep(test_duration, f"Test B: Running with F1 and mass k*m={new_mass:.6f} kg for {test_duration} seconds")
-            time_module.sleep(test_duration)
-            
-            # 获取位置（在模拟运行状态下读取，确保 topic 正常发布）
-            print("DEBUG: Getting position after F1 with mass k*m (simulation still running)...")
-            pos_with_m2 = self.get_model_pose_from_topic(model_name)
+            # 获取位置（仿真已暂停，使用 scene 服务获取）
+            print("DEBUG: Getting position after F1 with mass k*m...")
+            pos_with_m2 = self.get_model_pose_from_scene(model_name)
             if pos_with_m2 is None:
                 print(f"DEBUG: Failed to get position after F1 with mass k*m")
                 return None
@@ -4409,13 +4341,6 @@ class SmithUnit:
             )
             d2_magnitude = (d2[0]**2 + d2[1]**2 + d2[2]**2)**0.5
             print(f"Displacement d2: ({d2[0]:.6f}, {d2[1]:.6f}, {d2[2]:.6f}) m, magnitude: {d2_magnitude:.6f} m")
-            
-            # 恢复模拟
-            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
-            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
-            play_cmd.execute(self.experiment_log)
-            self.log_sleep(0.1, "Brief wait after resuming")
-            time_module.sleep(0.1)
             
             # 9. 验证结果
             # 理论上：d2 = d1/k，即 d1/d2 = k
