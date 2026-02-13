@@ -1039,7 +1039,8 @@ class SmithUnit:
         print("DEBUG: starting metamorphic test")
         
         # 随机选择一种蜕变测试关系
-        test_type = random.choice(['motion', 'force_additivity', 'time_scaling', 'mass_scaling'])  # 随机选择测试类型（rewind 已禁用：set_pose 无法恢复速度，导致结果不可靠）
+        test_type = random.choice(['determinism', 'zero_input_stability', 'force_isolation', 'force_removal', 'temporal_monotonicity'])  # 新范式蜕变关系
+        # test_type = random.choice(['motion', 'force_additivity', 'time_scaling', 'mass_scaling', 'determinism', 'symmetry'])  # 旧蜕变关系（reset-compare 范式）
         print(f"DEBUG: Selected metamorphic test type: {test_type}")
         # test_type = 'time_scaling'  # 临时固定测试类型（用于调试）
         
@@ -1123,6 +1124,222 @@ class SmithUnit:
                 test_result = self.metamorphic_test_mass_scaling(test_duration=test_duration)
             except Exception as e:
                 print(f"DEBUG: Exception during mass scaling test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'determinism':
+            # 第六种蜕变测试：确定性重复测试
+            # 在两个独立的 Gazebo 实例中执行完全相同的实验，验证结果一致
+            test_duration = random.uniform(3.0, 6.0)
+            
+            try:
+                # ===== Run 1：在当前 Gazebo 实例中运行 =====
+                print("DEBUG: Determinism test - Run 1 (current Gazebo)...")
+                run1_result = self._determinism_single_run(test_duration=test_duration)
+                
+                if run1_result is None:
+                    print("DEBUG: Determinism test Run 1 failed (model may be constrained)")
+                    test_result = None
+                else:
+                    d_model_name, d_force_x, d_force_y, d_force_z, pos_run1, d_num_steps = run1_result
+                    print(f"Run 1 complete - model: {d_model_name}, pos: {pos_run1}")
+                    
+                    # ===== 关闭第一个 Gazebo =====
+                    print("DEBUG: Shutting down first Gazebo for determinism test...")
+                    # 先读取 stdout/stderr（之后第一个进程就没了）
+                    out_run1 = non_blocking_read(process.stdout.fileno())
+                    err_run1 = non_blocking_read(process.stderr.fileno())
+                    
+                    try:
+                        for child in psutil.Process(process.pid).children(recursive=True):
+                            child.terminate()
+                            child.wait()
+                        process.terminate()
+                        process.wait(timeout=10)
+                    except Exception as e:
+                        print(f"DEBUG: Error terminating first Gazebo: {e}")
+                        try:
+                            process.kill()
+                            process.wait(timeout=5)
+                        except:
+                            pass
+                    
+                    time.sleep(2)
+                    
+                    # 彻底清理残留进程
+                    try:
+                        subprocess.run("pkill -9 -f 'gz sim'", shell=True, timeout=5,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run("pkill -9 ruby", shell=True, timeout=5,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        subprocess.run("pkill -9 -f 'gz-sim-server'", shell=True, timeout=5,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        time.sleep(1)
+                    except:
+                        pass
+                    
+                    # ===== 启动第二个 Gazebo（相同 SDF，不录像） =====
+                    print("DEBUG: Starting second Gazebo for determinism test...")
+                    gz_sim2 = f"gz sim {self.directory}/{self.sdf_name}"
+                    try:
+                        process = subprocess.Popen(gz_sim2.split(" "),
+                                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                  start_new_session=True)
+                    except Exception as e:
+                        print(f"DEBUG: Failed to start second Gazebo: {e}")
+                        test_result = None
+                        # 创建一个虚拟的 process 以避免后续清理代码报错
+                        process = None
+                    
+                    if process is not None:
+                        process_status = psutil.Process(process.pid)
+                        
+                        # 等待第二个 Gazebo 启动
+                        world_found2 = False
+                        for retry_i in range(max_retries):
+                            self.log_sleep(wait_per_retry, f"Wait for second Gazebo to start (attempt {retry_i + 1}/{max_retries})")
+                            time.sleep(wait_per_retry)
+                            
+                            try:
+                                proc_status = psutil.Process(process.pid).status()
+                                if proc_status == psutil.STATUS_ZOMBIE:
+                                    print(f"DEBUG: Second gz process became zombie at attempt {retry_i + 1}")
+                                    break
+                            except psutil.NoSuchProcess:
+                                print(f"DEBUG: Second gz process died at attempt {retry_i + 1}")
+                                break
+                            
+                            try:
+                                result, response = self.get_world()
+                                self.world_name = response.data[0]
+                                world_found2 = True
+                                print(f"DEBUG: Second Gazebo ready, world_name={self.world_name}")
+                                break
+                            except Exception as e:
+                                print(f"DEBUG: get_world() failed for second Gazebo at attempt {retry_i + 1}: {e}")
+                        
+                        if not world_found2:
+                            print("DEBUG: Second Gazebo failed to start")
+                            test_result = None
+                        else:
+                            # ===== Run 2：在第二个 Gazebo 中用相同参数运行 =====
+                            print("DEBUG: Determinism test - Run 2 (fresh Gazebo)...")
+                            run2_result = self._determinism_single_run(
+                                model_name=d_model_name,
+                                force_x=d_force_x, force_y=d_force_y, force_z=d_force_z,
+                                test_duration=test_duration
+                            )
+                            
+                            if run2_result is None:
+                                print("DEBUG: Determinism test Run 2 failed")
+                                test_result = None
+                            else:
+                                _, _, _, _, pos_run2, _ = run2_result
+                                print(f"Run 2 complete - pos: {pos_run2}")
+                                
+                                # ===== 比较两次运行结果 =====
+                                import math as _math
+                                error_x = abs(pos_run1[0] - pos_run2[0])
+                                error_y = abs(pos_run1[1] - pos_run2[1])
+                                error_z = abs(pos_run1[2] - pos_run2[2])
+                                error_magnitude = _math.sqrt(error_x**2 + error_y**2 + error_z**2)
+                                
+                                # 确定性仿真的容差应该非常小
+                                # 使用 0.001m (1mm) 作为主要容差
+                                # 考虑到浮点精度和可能的微小差异
+                                tolerance = 0.001
+                                success = error_magnitude < tolerance
+                                
+                                error_info = f"Run 1 position: ({pos_run1[0]:.6f}, {pos_run1[1]:.6f}, {pos_run1[2]:.6f})\n"
+                                error_info += f"Run 2 position: ({pos_run2[0]:.6f}, {pos_run2[1]:.6f}, {pos_run2[2]:.6f})\n"
+                                error_info += f"Position difference: x={error_x:.6f}, y={error_y:.6f}, z={error_z:.6f} m\n"
+                                error_info += f"Error magnitude: {error_magnitude:.6f} m\n"
+                                error_info += f"Tolerance: {tolerance} m (1mm)\n"
+                                error_info += f"Force: ({d_force_x:.6f}, {d_force_y:.6f}, {d_force_z:.6f}) N\n"
+                                error_info += f"Steps: {d_num_steps}, Duration: {test_duration:.2f} s\n"
+                                error_info += f"Note: Two independent Gazebo instances with identical SDF and forces.\n"
+                                error_info += f"      Results should be bit-for-bit identical for deterministic simulation."
+                                
+                                print(f"Determinism error: {error_magnitude:.6f} m (tolerance: {tolerance} m)")
+                                print(f"Test {'PASSED' if success else 'FAILED'}")
+                                
+                                test_result = (d_model_name, pos_run1, pos_run2, success, error_info)
+                    else:
+                        test_result = None
+                        
+            except Exception as e:
+                print(f"DEBUG: Exception during determinism test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'symmetry':
+            # 第七种蜕变测试：对称性/方向不变性测试
+            test_duration = random.uniform(3.0, 6.0)
+            
+            try:
+                test_result = self.metamorphic_test_symmetry(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during symmetry test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'zero_input_stability':
+            # 范式 B：零输入稳定性测试 — 不施力，检查模型是否保持静止
+            test_duration = random.uniform(3.0, 6.0)
+            
+            try:
+                test_result = self.metamorphic_test_zero_input_stability(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during zero-input stability test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'force_isolation':
+            # 范式 C：多模型力隔离测试 — 施力到 A，检查 B 是否不受影响
+            test_duration = random.uniform(3.0, 6.0)
+            
+            try:
+                test_result = self.metamorphic_test_force_isolation(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during force isolation test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'force_removal':
+            # 范式 D：撤力响应测试 — 施力后撤除，检查是否停止加速
+            force_duration = random.uniform(1.5, 3.0)
+            coast_duration = random.uniform(1.5, 3.0)
+            
+            try:
+                test_result = self.metamorphic_test_force_removal(
+                    force_duration=force_duration, coast_duration=coast_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during force removal test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'temporal_monotonicity':
+            # 范式 B：时序单调性测试 — 恒定力下位移必须单调递增
+            test_duration = random.uniform(3.0, 6.0)
+            num_samples = random.choice([8, 10, 12])
+            
+            try:
+                test_result = self.metamorphic_test_temporal_monotonicity(
+                    test_duration=test_duration, num_samples=num_samples)
+            except Exception as e:
+                print(f"DEBUG: Exception during temporal monotonicity test: {e}")
                 print(f"DEBUG: Exception type: {type(e).__name__}")
                 import traceback
                 traceback.print_exc()
@@ -1243,6 +1460,111 @@ class SmithUnit:
                     f.write(f"Test Duration: {test_duration:.2f} s\n")
                     f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
                     f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'determinism':
+                # 确定性测试结果格式: (model_name, pos_run1, pos_run2, success, error_info)
+                model_name, pos_run1, pos_run2, success, error_info = test_result
+                test_passed = success
+                
+                # 保存测试结果到文件
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Determinism Test\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Position (Run 1 - first Gazebo): ({pos_run1[0]:.6f}, {pos_run1[1]:.6f}, {pos_run1[2]:.6f})\n")
+                    f.write(f"Position (Run 2 - fresh Gazebo): ({pos_run2[0]:.6f}, {pos_run2[1]:.6f}, {pos_run2[2]:.6f})\n")
+                    f.write(f"Test Duration: {test_duration:.2f} s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'symmetry':
+                # 对称性测试结果格式: (model_name, initial_pos, pos_after_x, pos_after_y, dx, dy, force_magnitude, success, error_info)
+                model_name, initial_pos, pos_after_x, pos_after_y, dx, dy, force_magnitude, success, error_info = test_result
+                test_passed = success
+                
+                # 保存测试结果到文件
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Symmetry Test\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.3f}, {initial_pos[1]:.3f}, {initial_pos[2]:.3f})\n")
+                    f.write(f"Position after x-force: ({pos_after_x[0]:.3f}, {pos_after_x[1]:.3f}, {pos_after_x[2]:.3f})\n")
+                    f.write(f"Position after y-force: ({pos_after_y[0]:.3f}, {pos_after_y[1]:.3f}, {pos_after_y[2]:.3f})\n")
+                    f.write(f"x-displacement (dx): {dx:.4f} m\n")
+                    f.write(f"y-displacement (dy): {dy:.4f} m\n")
+                    f.write(f"Force Magnitude: {force_magnitude:.2f} N\n")
+                    f.write(f"Test Duration: {test_duration:.2f} s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'zero_input_stability':
+                # 零输入稳定性测试结果格式: (model_name, initial_pos, final_pos, drift_x, drift_y, drift_z, success, error_info)
+                model_name, initial_pos, final_pos, drift_x, drift_y, drift_z, success, error_info = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Zero-Input Stability Test (Paradigm B)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.6f}, {initial_pos[1]:.6f}, {initial_pos[2]:.6f})\n")
+                    f.write(f"Final Position: ({final_pos[0]:.6f}, {final_pos[1]:.6f}, {final_pos[2]:.6f})\n")
+                    f.write(f"Drift: x={drift_x:.6f}m, y={drift_y:.6f}m, z={drift_z:.6f}m\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'force_isolation':
+                # 力隔离测试结果格式: (target_name, bystander_name, target_initial, bystander_initial,
+                #                      target_final, bystander_final, target_displacement, bystander_drift,
+                #                      force_magnitude, success, error_info)
+                (target_name, bystander_name, target_initial, bystander_initial,
+                 target_final, bystander_final, target_displacement, bystander_drift,
+                 force_magnitude, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Force Isolation Test (Paradigm C)\n")
+                    f.write(f"Target Model: {target_name}\n")
+                    f.write(f"Bystander Model: {bystander_name}\n")
+                    f.write(f"Target Initial: ({target_initial[0]:.6f}, {target_initial[1]:.6f}, {target_initial[2]:.6f})\n")
+                    f.write(f"Target Final: ({target_final[0]:.6f}, {target_final[1]:.6f}, {target_final[2]:.6f})\n")
+                    f.write(f"Bystander Initial: ({bystander_initial[0]:.6f}, {bystander_initial[1]:.6f}, {bystander_initial[2]:.6f})\n")
+                    f.write(f"Bystander Final: ({bystander_final[0]:.6f}, {bystander_final[1]:.6f}, {bystander_final[2]:.6f})\n")
+                    f.write(f"Target Displacement: {target_displacement:.6f}m\n")
+                    f.write(f"Bystander Drift: {bystander_drift:.6f}m\n")
+                    f.write(f"Force Magnitude: {force_magnitude:.2f} N\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'force_removal':
+                # 撤力响应测试结果格式: (model_name, initial_pos, pos_after_force, pos_coast_mid, pos_coast_end,
+                #                        v_force, v_coast1, v_coast2, force_magnitude, success, error_info)
+                (model_name, initial_pos, pos_after_force, pos_coast_mid, pos_coast_end,
+                 v_force, v_coast1, v_coast2, force_magnitude, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Force Removal Response Test (Paradigm D)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Force Magnitude: {force_magnitude:.2f} N\n")
+                    f.write(f"Velocity (force phase avg): {v_force:.6f} m/s\n")
+                    f.write(f"Velocity (coast 1st half):  {v_coast1:.6f} m/s\n")
+                    f.write(f"Velocity (coast 2nd half):  {v_coast2:.6f} m/s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'temporal_monotonicity':
+                # 时序单调性测试结果格式: (model_name, initial_pos, trajectory, force_magnitude,
+                #                         monotonic, smooth, violations, success, error_info)
+                (model_name, initial_pos, trajectory, force_magnitude,
+                 monotonic, smooth, violations, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Temporal Monotonicity Test (Paradigm B)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Force Magnitude: {force_magnitude:.2f} N\n")
+                    f.write(f"Monotonic: {'Yes' if monotonic else 'No'}\n")
+                    f.write(f"Smooth: {'Yes' if smooth else 'No'}\n")
+                    f.write(f"Violations: {len(violations)}\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
         else:
             print("DEBUG: metamorphic test returned None")
             with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
@@ -1273,34 +1595,43 @@ class SmithUnit:
             json.dump(self.experiment_log, f, indent=2)
         print(f"DEBUG: Experiment log saved to {experiment_log_file}")
         
-        # 检查进程状态
-        if process_status.status() == psutil.STATUS_ZOMBIE:
-            print("DEBUG: gz process not alive")
+        # 检查进程状态（determinism 测试中 process 可能为 None）
+        if process is None:
+            print("DEBUG: process is None (likely determinism test cleanup), skipping process cleanup")
+            out = ""
+            err = ""
+        else:
+            try:
+                if process_status.status() == psutil.STATUS_ZOMBIE:
+                    print("DEBUG: gz process not alive")
+            except:
+                pass
 
-        out = non_blocking_read(process.stdout.fileno())
-        err = non_blocking_read(process.stderr.fileno())
-        # 3. terminate gz sim
-        print("DEBUG: before psutil")
-        with open(f"./terminate", "w") as f:
-            f.write(f"{process.pid}")
+            out = non_blocking_read(process.stdout.fileno())
+            err = non_blocking_read(process.stderr.fileno())
+            # 3. terminate gz sim
+            print("DEBUG: before psutil")
+            with open(f"./terminate", "w") as f:
+                f.write(f"{process.pid}")
 
-        for child in psutil.Process(process.pid).children(recursive=True):
-            print(f"DEBUG: terminating child: {child.pid}")
-            child.terminate()
-            child.wait()
-            # child.kill()
-        print("DEBUG: before process.terminate")
-        process.terminate()
-        print("DEBUG: before process.wait")
-        process.wait()
-        print("DEBUG: after process.wait")
+            for child in psutil.Process(process.pid).children(recursive=True):
+                print(f"DEBUG: terminating child: {child.pid}")
+                child.terminate()
+                child.wait()
+                # child.kill()
+            print("DEBUG: before process.terminate")
+            process.terminate()
+            print("DEBUG: before process.wait")
+            process.wait()
+            print("DEBUG: after process.wait")
         
         # 等待录像文件完全写入
         print("DEBUG: Waiting for log files to be written...")
         time.sleep(2)
         
         # 4. 执行 playback 模式下的回溯测试（如果启用）
-        if self.enable_playback:
+        # 注意：determinism 测试使用两个 Gazebo 实例，第一个的录像可能不完整，跳过 playback
+        if self.enable_playback and test_type != 'determinism':
             print("DEBUG: Starting playback rewind test...")
             playback_result = None
             try:
@@ -1330,13 +1661,20 @@ class SmithUnit:
                     f.write(f"Test Type: Playback Rewind Test\n")
                     f.write("Test failed to execute (returned None)\n")
         else:
-            print("DEBUG: Playback test is disabled (enable_playback=False)")
+            if test_type == 'determinism':
+                print("DEBUG: Playback test skipped for determinism test (second Gazebo has no recording)")
+            else:
+                print("DEBUG: Playback test is disabled (enable_playback=False)")
 
         # 5. collect coverage
         try:
             os.remove(f"./terminate")
         except:
             print("DEBUG: exception removing terminate file")
+
+        if process is None:
+            # determinism 测试中第二个 Gazebo 启动失败，无需进一步清理
+            return 0
 
         try:
             process_status = psutil.Process(process.pid)
@@ -4386,6 +4724,1165 @@ class SmithUnit:
             
         except Exception as e:
             print(f"DEBUG: Exception in metamorphic_test_mass_scaling: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 辅助函数：从 SDF 文件中解析重力向量
+    # ===================================================================
+    def _get_gravity_from_sdf(self):
+        """
+        从当前实验的 SDF 文件中解析重力向量。
+        
+        Returns:
+            (gx, gy, gz) 元组，如果解析失败返回 (0.0, 0.0, -9.81) 作为默认值
+        """
+        try:
+            sdf_path = os.path.join(self.directory, self.sdf_name)
+            if not os.path.exists(sdf_path):
+                print(f"DEBUG: SDF file not found: {sdf_path}")
+                return (0.0, 0.0, -9.81)
+            
+            tree = etree.parse(sdf_path)
+            root = tree.getroot()
+            
+            # 查找 <world>/<gravity> 元素
+            gravity_elem = root.find('.//world/gravity')
+            if gravity_elem is None:
+                # 也尝试直接在 sdf 下查找
+                gravity_elem = root.find('.//gravity')
+            
+            if gravity_elem is None or gravity_elem.text is None:
+                print("DEBUG: No <gravity> element found in SDF, using default (0, 0, -9.81)")
+                return (0.0, 0.0, -9.81)
+            
+            parts = gravity_elem.text.strip().split()
+            if len(parts) >= 3:
+                gx = float(parts[0])
+                gy = float(parts[1])
+                gz = float(parts[2])
+                print(f"DEBUG: Parsed gravity from SDF: ({gx}, {gy}, {gz})")
+                return (gx, gy, gz)
+            else:
+                print(f"DEBUG: Invalid gravity format in SDF: '{gravity_elem.text}', using default")
+                return (0.0, 0.0, -9.81)
+                
+        except Exception as e:
+            print(f"DEBUG: Exception parsing gravity from SDF: {e}")
+            return (0.0, 0.0, -9.81)
+
+    # ===================================================================
+    # 确定性重复测试 - 辅助函数
+    # ===================================================================
+    def _determinism_single_run(self, model_name=None, force_x=None, force_y=None, force_z=None,
+                                 test_duration=5.0):
+        """
+        确定性测试的单次运行：选择模型、施力、推进仿真、获取最终位姿。
+        
+        如果 model_name/force 为 None，则随机选择/生成（用于第一次运行）。
+        如果提供了这些参数，则精确复用（用于第二次运行）。
+        
+        Args:
+            model_name: 模型名称（None=随机选择）
+            force_x, force_y, force_z: 力分量（None=随机生成）
+            test_duration: 测试持续时间（秒）
+        
+        Returns:
+            (model_name, force_x, force_y, force_z, final_pos, num_steps) 或 None
+        """
+        try:
+            import time as time_module
+            
+            # 1. 获取场景和模型
+            scene, reserved_models = self.get_scene()
+            if not reserved_models or scene is None:
+                print("DEBUG: _determinism_single_run: get_scene() returned None")
+                return None
+            
+            if model_name is None:
+                # 第一次运行：随机选择模型
+                available_models = self.get_testable_models(scene, reserved_models)
+                if not available_models:
+                    print("DEBUG: No available models for determinism test")
+                    return None
+                target_model = random.choice(available_models)
+                model_name = target_model.name
+            
+            print(f"Determinism run - model: {model_name}")
+            
+            # 获取初始位姿
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: {initial_pos}")
+            
+            # 2. 生成力（或使用提供的力）
+            if force_x is None:
+                model_mass = self.get_model_mass(model_name)
+                if model_mass is None or model_mass <= 0:
+                    model_mass = 1.0
+                force_x, force_y, force_z = self.generate_omnidirectional_force(model_mass)
+            
+            num_steps = int(test_duration / 0.001)
+            print(f"Force: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N, Steps: {num_steps}")
+            
+            # 3. 暂停 → 施力 → 推进仿真 → 获取最终位姿
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (determinism run)")
+            time_module.sleep(0.3)
+            
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if force_cmd:
+                force_cmd.execute(self.experiment_log)
+                self.log_sleep(0.1, "Wait for force to be applied (determinism run)")
+                time_module.sleep(0.1)
+            else:
+                print("DEBUG: Warning - force_cmd is None in determinism run")
+                return None
+            
+            print(f"Stepping simulation {num_steps} steps...")
+            self.step_simulation(num_steps)
+            
+            # 获取最终位姿（仿真已暂停）
+            final_pos = self.get_model_pose_from_scene(model_name)
+            if final_pos is None:
+                print(f"DEBUG: Failed to get final position for model {model_name}")
+                return None
+            print(f"Final position: {final_pos}")
+            
+            # 检查是否有位移（排除被约束的模型）
+            import math
+            displacement = math.sqrt(
+                (final_pos[0] - initial_pos[0])**2 +
+                (final_pos[1] - initial_pos[1])**2 +
+                (final_pos[2] - initial_pos[2])**2
+            )
+            if displacement < 0.01:
+                print(f"DEBUG: Model barely moved ({displacement:.6f} m). Skipping.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            self.clear_model_wrench(model_name)
+            
+            return (model_name, force_x, force_y, force_z, final_pos, num_steps)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in _determinism_single_run: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 对称性/方向不变性测试
+    # ===================================================================
+    def metamorphic_test_symmetry(self, test_duration=5.0):
+        """
+        蜕变测试：对称性/方向不变性测试
+        
+        测试原理：对任意模型，施加相同大小但方向分别为 +x 和 +y 的力，
+        对应方向的位移大小应相同（物理空间的各向同性 isotropy）。
+        
+        蜕变关系：
+          Force = (F, 0, 0) → x 方向位移 dx
+          Force = (0, F, 0) → y 方向位移 dy
+          验证：|dx| ≈ |dy|
+        
+        这可以检测：
+          - 插件中硬编码了特定轴方向的行为
+          - 碰撞检测在某些方向上有偏差
+          - 坐标系变换错误
+        
+        Args:
+            test_duration: 测试持续时间（秒）
+        
+        Returns:
+            (model_name, initial_pos, pos_after_x, pos_after_y,
+             dx, dy, force_magnitude, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            # 0. 检查重力方向：对称性测试要求测试的两个轴有相同的重力分量
+            # 默认比较 x 和 y 轴，因此需要 gx ≈ gy（通常都为 0）
+            gravity = self._get_gravity_from_sdf()
+            gx, gy, gz = gravity
+            
+            GRAVITY_THRESHOLD = 0.01  # 小于此值视为零
+            
+            # 确定可用的测试轴对：选择两个重力分量相等的轴
+            # axis_a 和 axis_b 分别表示 (力的方向索引, 位移读取索引)
+            # 0=x, 1=y, 2=z
+            test_axis_a = None
+            test_axis_b = None
+            axis_names = ['x', 'y', 'z']
+            gravity_components = [gx, gy, gz]
+            
+            # 优先选择两个重力分量都为零的轴（最常见情况：gx=0, gy=0）
+            zero_gravity_axes = [i for i in range(3) if abs(gravity_components[i]) < GRAVITY_THRESHOLD]
+            if len(zero_gravity_axes) >= 2:
+                test_axis_a = zero_gravity_axes[0]
+                test_axis_b = zero_gravity_axes[1]
+                print(f"DEBUG: Gravity ({gx}, {gy}, {gz}) - using axes "
+                      f"{axis_names[test_axis_a]} and {axis_names[test_axis_b]} "
+                      f"(both have ~zero gravity)")
+            else:
+                # 退而求其次：找两个重力分量近似相等的轴
+                for i in range(3):
+                    for j in range(i+1, 3):
+                        if abs(gravity_components[i] - gravity_components[j]) < GRAVITY_THRESHOLD:
+                            test_axis_a = i
+                            test_axis_b = j
+                            break
+                    if test_axis_a is not None:
+                        break
+            
+            if test_axis_a is None or test_axis_b is None:
+                print(f"DEBUG: Gravity ({gx}, {gy}, {gz}) has no two axes with equal gravity components. "
+                      f"Symmetry test not applicable for this world. Skipping.")
+                return None
+            
+            print(f"DEBUG: Symmetry test will compare axis {axis_names[test_axis_a]} "
+                  f"vs axis {axis_names[test_axis_b]}")
+            
+            # 1. 获取场景并选择模型
+            scene, reserved_models = self.get_scene()
+            if not reserved_models or scene is None:
+                print("DEBUG: get_scene() returned None, skipping symmetry test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("No available models for symmetry test")
+                return None
+            
+            target_model = random.choice(available_models)
+            model_name = target_model.name
+            print(f"Selected model for symmetry test: {model_name}")
+            
+            # 获取初始位姿
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: {initial_pos}")
+            
+            # 获取模型质量，计算力大小
+            model_mass = self.get_model_mass(model_name)
+            if model_mass is None or model_mass <= 0:
+                print(f"DEBUG: Invalid mass for model {model_name}, using default 1.0")
+                model_mass = 1.0
+            
+            # 生成力的大小（方向由测试决定）
+            min_acceleration = 5.0
+            max_acceleration = 50.0
+            min_force = max(model_mass * min_acceleration, 50.0)
+            max_force = model_mass * max_acceleration
+            force_magnitude = random.uniform(min_force, max_force)
+            
+            num_steps = int(test_duration / 0.001)
+            
+            print(f"Force magnitude: {force_magnitude:.2f} N (mass: {model_mass:.2f} kg)")
+            print(f"Test Duration: {test_duration:.2f} s ({num_steps} steps)")
+            
+            # 构建力向量：Test A 沿 axis_a 方向，Test B 沿 axis_b 方向
+            force_a = [0.0, 0.0, 0.0]
+            force_a[test_axis_a] = force_magnitude
+            force_b = [0.0, 0.0, 0.0]
+            force_b[test_axis_b] = force_magnitude
+            
+            # ===== Test A：沿 axis_a 方向施力 =====
+            axis_a_name = axis_names[test_axis_a]
+            axis_b_name = axis_names[test_axis_b]
+            print(f"DEBUG: Test A: Applying force in +{axis_a_name} direction...")
+            
+            # 暂停
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (symmetry test A)")
+            time_module.sleep(0.3)
+            
+            # 施加 axis_a 方向力
+            self.clear_model_wrench(model_name)
+            force_cmd_a = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_a[0],
+                force_y=force_a[1],
+                force_z=force_a[2],
+                persistent=True
+            )
+            if force_cmd_a:
+                force_cmd_a.execute(self.experiment_log)
+                self.log_sleep(0.1, f"Wait for {axis_a_name}-force to be applied")
+                time_module.sleep(0.1)
+            else:
+                print(f"DEBUG: Warning - force_cmd for axis {axis_a_name} is None")
+                return None
+            
+            # 推进仿真
+            print(f"Running test A ({axis_a_name}-force) for {test_duration:.2f}s ({num_steps} steps)...")
+            self.step_simulation(num_steps)
+            
+            # 获取 axis_a 方向力后的位姿
+            pos_after_a = self.get_model_pose_from_scene(model_name)
+            if pos_after_a is None:
+                print(f"DEBUG: Failed to get position after {axis_a_name}-force")
+                return None
+            print(f"Position after {axis_a_name}-force: {pos_after_a}")
+            
+            # 计算 axis_a 方向位移
+            da = pos_after_a[test_axis_a] - initial_pos[test_axis_a]
+            da_mag = abs(da)
+            print(f"{axis_a_name}-displacement: {da:.4f} m (|d{axis_a_name}|={da_mag:.4f})")
+            
+            # 检查最小位移
+            MIN_DISP = 0.01
+            if da_mag < MIN_DISP:
+                print(f"DEBUG: Model barely moved in {axis_a_name} ({da_mag:.6f} m). Skipping.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # ===== 重置到初始状态 =====
+            print("DEBUG: Resetting for symmetry Test B...")
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench (symmetry reset)")
+            time_module.sleep(0.2)
+            
+            self.reset_simulation()
+            self.log_sleep(1.0, "Wait for reset to complete (symmetry)")
+            time_module.sleep(1.0)
+            
+            self.set_model_pose(model_name, initial_pos[0], initial_pos[1], initial_pos[2],
+                                initial_pos[3], initial_pos[4], initial_pos[5], initial_pos[6])
+            self.log_sleep(0.5, "Wait after setting model pose (symmetry)")
+            time_module.sleep(0.5)
+            
+            # 验证重置
+            pos_after_reset = self.get_model_pose_from_scene(model_name)
+            if pos_after_reset is not None:
+                print(f"Position after reset: {pos_after_reset}")
+            
+            # ===== Test B：沿 axis_b 方向施力（相同大小） =====
+            print(f"DEBUG: Test B: Applying force in +{axis_b_name} direction...")
+            
+            # 暂停
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (symmetry test B)")
+            time_module.sleep(0.3)
+            
+            # 施加 axis_b 方向力（大小与 Test A 完全相同）
+            self.clear_model_wrench(model_name)
+            force_cmd_b = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_b[0],
+                force_y=force_b[1],
+                force_z=force_b[2],
+                persistent=True
+            )
+            if force_cmd_b:
+                force_cmd_b.execute(self.experiment_log)
+                self.log_sleep(0.1, f"Wait for {axis_b_name}-force to be applied")
+                time_module.sleep(0.1)
+            else:
+                print(f"DEBUG: Warning - force_cmd for axis {axis_b_name} is None")
+                return None
+            
+            # 推进仿真（相同步数）
+            print(f"Running test B ({axis_b_name}-force) for {test_duration:.2f}s ({num_steps} steps)...")
+            self.step_simulation(num_steps)
+            
+            # 获取 axis_b 方向力后的位姿
+            pos_after_b = self.get_model_pose_from_scene(model_name)
+            if pos_after_b is None:
+                print(f"DEBUG: Failed to get position after {axis_b_name}-force")
+                return None
+            print(f"Position after {axis_b_name}-force: {pos_after_b}")
+            
+            # 计算 axis_b 方向位移
+            db = pos_after_b[test_axis_b] - initial_pos[test_axis_b]
+            db_mag = abs(db)
+            print(f"{axis_b_name}-displacement: {db:.4f} m (|d{axis_b_name}|={db_mag:.4f})")
+            
+            # 检查最小位移
+            if db_mag < MIN_DISP:
+                print(f"DEBUG: Model barely moved in {axis_b_name} ({db_mag:.6f} m). Skipping.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # 清除力
+            self.clear_model_wrench(model_name)
+            
+            # ===== 比较结果 =====
+            # 蜕变关系：|da| ≈ |db|（物理空间各向同性）
+            max_disp = max(da_mag, db_mag)
+            disp_diff = abs(da_mag - db_mag)
+            relative_error = disp_diff / max_disp if max_disp > 0.001 else 0.0
+            
+            # 附加检查：第三轴位移应相同（重力等外部效果一致）
+            third_axis = [i for i in range(3) if i != test_axis_a and i != test_axis_b][0]
+            third_name = axis_names[third_axis]
+            dthird_a = pos_after_a[third_axis] - initial_pos[third_axis]
+            dthird_b = pos_after_b[third_axis] - initial_pos[third_axis]
+            dthird_diff = abs(dthird_a - dthird_b)
+            
+            # 附加检查：交叉轴位移（测试 A 在 axis_b 上的位移，测试 B 在 axis_a 上的位移）
+            cross_a = abs(pos_after_a[test_axis_b] - initial_pos[test_axis_b])  # A 测试中 axis_b 位移
+            cross_b = abs(pos_after_b[test_axis_a] - initial_pos[test_axis_a])  # B 测试中 axis_a 位移
+            
+            # 判定：相对误差 < 20% 或 绝对差 < 0.5m
+            abs_threshold = 0.5
+            rel_threshold = 0.20
+            abs_pass = disp_diff < abs_threshold
+            rel_pass = relative_error < rel_threshold
+            success = abs_pass or rel_pass
+            
+            # 为了保持返回值兼容性，使用 dx/dy 变量名（映射到实际测试轴）
+            dx = da
+            dy = db
+            pos_after_x = pos_after_a
+            pos_after_y = pos_after_b
+            
+            error_info = f"Gravity: ({gx}, {gy}, {gz})\n"
+            error_info += f"Test axes: {axis_a_name} vs {axis_b_name}\n"
+            error_info += f"Force magnitude: {force_magnitude:.2f} N\n"
+            error_info += f"{axis_a_name}-direction displacement (d{axis_a_name}): {da:.4f} m (|d{axis_a_name}|={da_mag:.4f})\n"
+            error_info += f"{axis_b_name}-direction displacement (d{axis_b_name}): {db:.4f} m (|d{axis_b_name}|={db_mag:.4f})\n"
+            error_info += f"Displacement difference: {disp_diff:.4f} m\n"
+            error_info += f"Relative error: {relative_error*100:.2f}%\n"
+            error_info += f"{third_name}-displacement (test A): {dthird_a:.4f} m\n"
+            error_info += f"{third_name}-displacement (test B): {dthird_b:.4f} m\n"
+            error_info += f"{third_name}-displacement difference: {dthird_diff:.4f} m\n"
+            error_info += f"Cross-axis {axis_b_name}-disp (test A): {cross_a:.4f} m\n"
+            error_info += f"Cross-axis {axis_a_name}-disp (test B): {cross_b:.4f} m\n"
+            error_info += f"Threshold: abs < {abs_threshold} m OR rel < {rel_threshold*100:.0f}%\n"
+            error_info += f"Test Duration: {test_duration:.2f} s, Steps: {num_steps}\n"
+            error_info += f"Model mass: {model_mass:.2f} kg\n"
+            error_info += f"Note: Physics should be isotropic - same force magnitude in {axis_a_name} and {axis_b_name} should produce same displacement magnitude."
+            
+            print(f"Symmetry comparison: |d{axis_a_name}|={da_mag:.4f}, |d{axis_b_name}|={db_mag:.4f}, "
+                  f"diff={disp_diff:.4f}, rel_error={relative_error*100:.2f}%")
+            print(f"Test {'PASSED' if success else 'FAILED'} (abs_pass={abs_pass}, rel_pass={rel_pass})")
+            
+            return (model_name, initial_pos, pos_after_x, pos_after_y,
+                    dx, dy, force_magnitude, success, error_info)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_symmetry: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 零输入稳定性测试 (Zero-Input Stability Test)
+    # 范式 B: Single-Run Invariant — 无力、无 reset、无对比运行
+    # ===================================================================
+    def metamorphic_test_zero_input_stability(self, test_duration=5.0):
+        """
+        蜕变测试：零输入稳定性测试
+        
+        测试原理：不施加任何外力，仅推进仿真，检查模型是否保持静止。
+        任何在水平方向（x, y）的显著位移都表明存在幽灵力、能量注入或
+        插件初始化 bug。
+        
+        蜕变关系：
+          No force → |Δx| ≈ 0 AND |Δy| ≈ 0
+          （允许 z 轴变化，因为重力可能导致模型下沉/稳定）
+        
+        范式：B — Single-Run Invariant（不需要 reset、不需要施力、不需要对比运行）
+        
+        Returns:
+            (model_name, initial_pos, final_pos, drift_x, drift_y, drift_z,
+             success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Zero-Input Stability (Paradigm B)")
+            print("=" * 60)
+            
+            # 1. 获取场景和可测试模型
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in zero-input stability test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("DEBUG: No available models for zero-input stability test")
+                return None
+            
+            model = random.choice(available_models)
+            model_name = model.name
+            print(f"Selected model: {model_name}")
+            
+            # 2. 获取初始位置
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: ({initial_pos[0]:.4f}, {initial_pos[1]:.4f}, {initial_pos[2]:.4f})")
+            
+            # 3. 暂停仿真（确保仿真是暂停的）
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (zero-input stability)")
+            time_module.sleep(0.3)
+            
+            # 4. 不施加任何力！直接推进仿真
+            num_steps = int(test_duration / 0.001)
+            print(f"Advancing simulation for {test_duration:.1f}s ({num_steps} steps) with NO force applied...")
+            self.step_simulation(num_steps)
+            
+            # 5. 获取最终位置
+            final_pos = self.get_model_pose_from_scene(model_name)
+            if final_pos is None:
+                print(f"DEBUG: Failed to get final position for model {model_name}")
+                return None
+            print(f"Final position: ({final_pos[0]:.4f}, {final_pos[1]:.4f}, {final_pos[2]:.4f})")
+            
+            # 6. 计算各轴漂移
+            drift_x = final_pos[0] - initial_pos[0]
+            drift_y = final_pos[1] - initial_pos[1]
+            drift_z = final_pos[2] - initial_pos[2]
+            drift_horizontal = math.sqrt(drift_x**2 + drift_y**2)
+            
+            print(f"Drift: x={drift_x:.6f}m, y={drift_y:.6f}m, z={drift_z:.6f}m")
+            print(f"Horizontal drift: {drift_horizontal:.6f}m")
+            
+            # 7. 判断通过/失败
+            # 水平方向容差：0.05m（考虑模型可能因重力而微小移动/稳定）
+            HORIZONTAL_TOLERANCE = 0.05
+            success = drift_horizontal < HORIZONTAL_TOLERANCE
+            
+            # 构建错误信息
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Test duration: {test_duration:.1f}s ({num_steps} steps)\n"
+            error_info += f"Initial position: ({initial_pos[0]:.6f}, {initial_pos[1]:.6f}, {initial_pos[2]:.6f})\n"
+            error_info += f"Final position: ({final_pos[0]:.6f}, {final_pos[1]:.6f}, {final_pos[2]:.6f})\n"
+            error_info += f"Drift: x={drift_x:.6f}m, y={drift_y:.6f}m, z={drift_z:.6f}m\n"
+            error_info += f"Horizontal drift: {drift_horizontal:.6f}m\n"
+            error_info += f"Horizontal tolerance: {HORIZONTAL_TOLERANCE}m\n"
+            error_info += f"Note: No force was applied. Any horizontal drift indicates phantom forces,\n"
+            error_info += f"      energy injection, or plugin initialization bugs."
+            
+            print(f"Test {'PASSED' if success else 'FAILED'} "
+                  f"(horizontal drift {drift_horizontal:.6f}m vs tolerance {HORIZONTAL_TOLERANCE}m)")
+            
+            return (model_name, initial_pos, final_pos, drift_x, drift_y, drift_z,
+                    success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_zero_input_stability: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 多模型力隔离测试 (Multi-Model Force Isolation Test)
+    # 范式 C: Same-Run Multi-Model — 无 reset，同一运行中比较不同模型
+    # ===================================================================
+    def metamorphic_test_force_isolation(self, test_duration=5.0):
+        """
+        蜕变测试：多模型力隔离测试
+        
+        测试原理：仅对一个模型施力，检查远处的另一个模型是否不受影响。
+        如果旁观者模型在水平方向产生显著位移，说明存在力泄漏、
+        实体路由错误或插件间干扰。
+        
+        蜕变关系：
+          Force on M_target only → M_bystander should not move horizontally
+        
+        范式：C — Same-Run Multi-Model（不需要 reset，同一运行中比较两个模型）
+        
+        Returns:
+            (target_name, bystander_name, target_initial, bystander_initial,
+             target_final, bystander_final, target_displacement, bystander_drift,
+             force_magnitude, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Force Isolation (Paradigm C)")
+            print("=" * 60)
+            
+            # 1. 获取场景和可测试模型
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in force isolation test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if len(available_models) < 2:
+                print(f"DEBUG: Need at least 2 testable models, found {len(available_models)}. Skipping.")
+                return None
+            
+            # 2. 选择两个模型并检查它们的距离
+            random.shuffle(available_models)
+            target_model = None
+            bystander_model = None
+            
+            for i in range(len(available_models)):
+                for j in range(i + 1, len(available_models)):
+                    m_a = available_models[i]
+                    m_b = available_models[j]
+                    # 检查距离
+                    pos_a = self.get_model_pose_from_scene(m_a.name)
+                    pos_b = self.get_model_pose_from_scene(m_b.name)
+                    if pos_a is None or pos_b is None:
+                        continue
+                    dist = math.sqrt((pos_a[0] - pos_b[0])**2 + (pos_a[1] - pos_b[1])**2)
+                    # 需要足够远（> 2m）以避免碰撞传播
+                    if dist > 2.0:
+                        target_model = m_a
+                        bystander_model = m_b
+                        break
+                if target_model is not None:
+                    break
+            
+            if target_model is None or bystander_model is None:
+                print("DEBUG: No suitable model pair found (need > 2m apart). Skipping.")
+                return None
+            
+            target_name = target_model.name
+            bystander_name = bystander_model.name
+            print(f"Target model: {target_name}")
+            print(f"Bystander model: {bystander_name}")
+            
+            # 3. 记录初始位置
+            target_initial = self.get_model_pose_from_scene(target_name)
+            bystander_initial = self.get_model_pose_from_scene(bystander_name)
+            if target_initial is None or bystander_initial is None:
+                print("DEBUG: Failed to get initial positions")
+                return None
+            
+            dist = math.sqrt((target_initial[0] - bystander_initial[0])**2 +
+                           (target_initial[1] - bystander_initial[1])**2)
+            print(f"Target initial: ({target_initial[0]:.4f}, {target_initial[1]:.4f}, {target_initial[2]:.4f})")
+            print(f"Bystander initial: ({bystander_initial[0]:.4f}, {bystander_initial[1]:.4f}, {bystander_initial[2]:.4f})")
+            print(f"Distance between models: {dist:.2f}m")
+            
+            # 4. 暂停仿真
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (force isolation)")
+            time_module.sleep(0.3)
+            
+            # 5. 仅对 target 施力
+            model_mass = self.get_model_mass(target_name)
+            if model_mass is None or model_mass <= 0:
+                model_mass = 1.0
+            
+            # 生成一个足够大的水平力
+            min_acceleration = 5.0
+            max_acceleration = 50.0
+            min_force = max(model_mass * min_acceleration, 50.0)
+            max_force = model_mass * max_acceleration
+            force_magnitude = random.uniform(min_force, max_force)
+            
+            # 随机选择 x 或 y 方向（远离 bystander 的方向更好）
+            force_x = force_magnitude
+            force_y = 0.0
+            force_z = 0.0
+            
+            print(f"Applying force ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N to {target_name} ONLY")
+            
+            self.clear_model_wrench(target_name)
+            self.clear_model_wrench(bystander_name)  # 确保 bystander 也没有残留力
+            
+            force_cmd = self.func_apply_model_force(
+                model_name=target_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if force_cmd:
+                force_cmd.execute(self.experiment_log)
+                self.log_sleep(0.1, "Wait for force to be applied (force isolation)")
+                time_module.sleep(0.1)
+            else:
+                print("DEBUG: Warning - force_cmd is None in force isolation test")
+                return None
+            
+            # 6. 推进仿真
+            num_steps = int(test_duration / 0.001)
+            print(f"Stepping simulation {num_steps} steps ({test_duration:.1f}s)...")
+            self.step_simulation(num_steps)
+            
+            # 7. 获取最终位置
+            target_final = self.get_model_pose_from_scene(target_name)
+            bystander_final = self.get_model_pose_from_scene(bystander_name)
+            if target_final is None or bystander_final is None:
+                print("DEBUG: Failed to get final positions")
+                self.clear_model_wrench(target_name)
+                return None
+            
+            self.clear_model_wrench(target_name)
+            
+            # 8. 计算位移
+            target_displacement = math.sqrt(
+                (target_final[0] - target_initial[0])**2 +
+                (target_final[1] - target_initial[1])**2
+            )
+            bystander_drift_x = bystander_final[0] - bystander_initial[0]
+            bystander_drift_y = bystander_final[1] - bystander_initial[1]
+            bystander_drift = math.sqrt(bystander_drift_x**2 + bystander_drift_y**2)
+            
+            print(f"Target displacement (horizontal): {target_displacement:.4f}m")
+            print(f"Bystander drift (horizontal): {bystander_drift:.6f}m "
+                  f"(x={bystander_drift_x:.6f}, y={bystander_drift_y:.6f})")
+            
+            # 9. Sanity check：target 必须有显著位移
+            if target_displacement < 0.01:
+                print("DEBUG: Target barely moved. Force may not have been applied. Skipping.")
+                return None
+            
+            # 10. 判断通过/失败
+            BYSTANDER_TOLERANCE = 0.05  # 旁观者水平漂移容差
+            success = bystander_drift < BYSTANDER_TOLERANCE
+            
+            error_info = f"Target model: {target_name}\n"
+            error_info += f"Bystander model: {bystander_name}\n"
+            error_info += f"Inter-model distance: {dist:.2f}m\n"
+            error_info += f"Force on target: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N\n"
+            error_info += f"Test duration: {test_duration:.1f}s ({num_steps} steps)\n"
+            error_info += f"Target displacement (horizontal): {target_displacement:.4f}m\n"
+            error_info += f"Bystander drift (horizontal): {bystander_drift:.6f}m\n"
+            error_info += f"  Bystander drift x: {bystander_drift_x:.6f}m\n"
+            error_info += f"  Bystander drift y: {bystander_drift_y:.6f}m\n"
+            error_info += f"Bystander tolerance: {BYSTANDER_TOLERANCE}m\n"
+            error_info += f"Note: Force was applied ONLY to {target_name}. "
+            error_info += f"Any significant bystander movement indicates force leakage or targeting bug."
+            
+            print(f"Test {'PASSED' if success else 'FAILED'} "
+                  f"(bystander drift {bystander_drift:.6f}m vs tolerance {BYSTANDER_TOLERANCE}m)")
+            
+            return (target_name, bystander_name, target_initial, bystander_initial,
+                    target_final, bystander_final, target_displacement, bystander_drift,
+                    force_magnitude, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_force_isolation: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 撤力响应测试 (Force Removal Response Test)
+    # 范式 D: Sequential No-Reset — 同一运行分阶段，无 reset
+    # ===================================================================
+    def metamorphic_test_force_removal(self, force_duration=2.0, coast_duration=2.0):
+        """
+        蜕变测试：撤力响应测试
+        
+        测试原理：先施加持续力，然后撤除力，检查撤力后模型是否停止加速。
+        如果撤力后速度仍在增加，说明 clear_model_wrench 未正确生效，
+        或存在力持续性泄漏 bug。
+        
+        蜕变关系：
+          Remove persistent force → acceleration in force direction must become <= 0
+        
+        范式：D — Sequential No-Reset（同一运行中两个连续阶段，不使用 reset）
+        
+        Returns:
+            (model_name, initial_pos, pos_after_force, pos_coast_mid, pos_coast_end,
+             v_force, v_coast1, v_coast2, force_magnitude, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Force Removal Response (Paradigm D)")
+            print("=" * 60)
+            
+            # 1. 获取场景和模型
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in force removal test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("DEBUG: No available models for force removal test")
+                return None
+            
+            model = random.choice(available_models)
+            model_name = model.name
+            print(f"Selected model: {model_name}")
+            
+            # 2. 获取初始位置
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: ({initial_pos[0]:.4f}, {initial_pos[1]:.4f}, {initial_pos[2]:.4f})")
+            
+            # 3. 计算力
+            model_mass = self.get_model_mass(model_name)
+            if model_mass is None or model_mass <= 0:
+                model_mass = 1.0
+            
+            min_acceleration = 5.0
+            max_acceleration = 30.0
+            min_force = max(model_mass * min_acceleration, 50.0)
+            max_force = model_mass * max_acceleration
+            force_magnitude = random.uniform(min_force, max_force)
+            
+            # 使用 +x 方向的力
+            force_x = force_magnitude
+            force_y = 0.0
+            force_z = 0.0
+            
+            # 4. 暂停仿真
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (force removal)")
+            time_module.sleep(0.3)
+            
+            # ===== Phase 1: 施力阶段 =====
+            print(f"\n--- Phase 1: Applying force ({force_x:.2f}, 0, 0) N for {force_duration:.1f}s ---")
+            
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if force_cmd:
+                force_cmd.execute(self.experiment_log)
+                self.log_sleep(0.1, "Wait for force to be applied (force removal)")
+                time_module.sleep(0.1)
+            else:
+                print("DEBUG: Warning - force_cmd is None in force removal test")
+                return None
+            
+            force_steps = int(force_duration / 0.001)
+            print(f"Stepping {force_steps} steps with force applied...")
+            self.step_simulation(force_steps)
+            
+            pos_after_force = self.get_model_pose_from_scene(model_name)
+            if pos_after_force is None:
+                print("DEBUG: Failed to get position after force phase")
+                self.clear_model_wrench(model_name)
+                return None
+            print(f"Position after force phase: ({pos_after_force[0]:.4f}, {pos_after_force[1]:.4f}, {pos_after_force[2]:.4f})")
+            
+            # 检查 target 是否有位移
+            force_disp = pos_after_force[0] - initial_pos[0]
+            if abs(force_disp) < 0.01:
+                print("DEBUG: Model barely moved during force phase. Skipping.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # ===== Phase 2: 撤力并滑行 =====
+            print(f"\n--- Phase 2: Removing force, coasting for {coast_duration:.1f}s ---")
+            
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait for wrench clear")
+            time_module.sleep(0.2)
+            
+            # 滑行阶段分两半，用于检测速度变化趋势
+            coast_half_steps = int((coast_duration / 2.0) / 0.001)
+            coast_half_time = coast_duration / 2.0
+            
+            print(f"Coast phase 1: {coast_half_steps} steps ({coast_half_time:.1f}s)...")
+            self.step_simulation(coast_half_steps)
+            
+            pos_coast_mid = self.get_model_pose_from_scene(model_name)
+            if pos_coast_mid is None:
+                print("DEBUG: Failed to get position at coast midpoint")
+                return None
+            print(f"Position at coast midpoint: ({pos_coast_mid[0]:.4f}, {pos_coast_mid[1]:.4f}, {pos_coast_mid[2]:.4f})")
+            
+            print(f"Coast phase 2: {coast_half_steps} steps ({coast_half_time:.1f}s)...")
+            self.step_simulation(coast_half_steps)
+            
+            pos_coast_end = self.get_model_pose_from_scene(model_name)
+            if pos_coast_end is None:
+                print("DEBUG: Failed to get position at coast end")
+                return None
+            print(f"Position at coast end: ({pos_coast_end[0]:.4f}, {pos_coast_end[1]:.4f}, {pos_coast_end[2]:.4f})")
+            
+            # ===== 速度估算和判断 =====
+            # 使用 x 方向（施力方向）估算速度
+            v_force = (pos_after_force[0] - initial_pos[0]) / force_duration
+            v_coast1 = (pos_coast_mid[0] - pos_after_force[0]) / coast_half_time
+            v_coast2 = (pos_coast_end[0] - pos_coast_mid[0]) / coast_half_time
+            
+            print(f"\nVelocity estimates (x-direction):")
+            print(f"  v_force (avg during force phase): {v_force:.4f} m/s")
+            print(f"  v_coast1 (1st half of coast):     {v_coast1:.4f} m/s")
+            print(f"  v_coast2 (2nd half of coast):     {v_coast2:.4f} m/s")
+            
+            # 判断逻辑：
+            # 1. 滑行速度不应显著超过施力阶段的平均速度
+            #    (施力阶段平均速度 < 最终瞬时速度，所以允许一些裕量)
+            #    v_coast1 <= v_force * 2.5 (施力结束时瞬时速度 ≈ 2*平均速度)
+            # 2. 滑行第二段速度不应超过第一段（不应加速）
+            #    v_coast2 <= v_coast1 * 1.1 (允许 10% 浮点误差)
+            
+            # 主要检查：撤力后不应持续加速
+            coast_acceleration = (v_coast2 - v_coast1) / coast_half_time
+            
+            # 失败条件：滑行阶段仍在明显加速（> 1 m/s²）
+            # 撤力后允许微小的数值波动，但不应有持续的正加速度
+            MAX_COAST_ACCELERATION = 1.0  # m/s²
+            success = coast_acceleration < MAX_COAST_ACCELERATION
+            
+            # 额外检查：如果滑行速度远超施力期望值，也标记失败
+            if v_force > 0 and v_coast1 > v_force * 3.0:
+                success = False
+            
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Force: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N\n"
+            error_info += f"Force duration: {force_duration:.1f}s, Coast duration: {coast_duration:.1f}s\n"
+            error_info += f"Positions:\n"
+            error_info += f"  Initial:     ({initial_pos[0]:.6f}, {initial_pos[1]:.6f}, {initial_pos[2]:.6f})\n"
+            error_info += f"  After force: ({pos_after_force[0]:.6f}, {pos_after_force[1]:.6f}, {pos_after_force[2]:.6f})\n"
+            error_info += f"  Coast mid:   ({pos_coast_mid[0]:.6f}, {pos_coast_mid[1]:.6f}, {pos_coast_mid[2]:.6f})\n"
+            error_info += f"  Coast end:   ({pos_coast_end[0]:.6f}, {pos_coast_end[1]:.6f}, {pos_coast_end[2]:.6f})\n"
+            error_info += f"Velocity estimates (x-direction):\n"
+            error_info += f"  v_force:  {v_force:.6f} m/s (avg during force phase)\n"
+            error_info += f"  v_coast1: {v_coast1:.6f} m/s (1st half of coast)\n"
+            error_info += f"  v_coast2: {v_coast2:.6f} m/s (2nd half of coast)\n"
+            error_info += f"Coast acceleration: {coast_acceleration:.6f} m/s²\n"
+            error_info += f"Max allowed coast acceleration: {MAX_COAST_ACCELERATION} m/s²\n"
+            error_info += f"Note: After clearing persistent force, the model should decelerate (with friction)\n"
+            error_info += f"      or maintain constant velocity (frictionless). It should NEVER accelerate."
+            
+            print(f"\nCoast acceleration: {coast_acceleration:.4f} m/s² (max allowed: {MAX_COAST_ACCELERATION})")
+            print(f"Test {'PASSED' if success else 'FAILED'}")
+            
+            return (model_name, initial_pos, pos_after_force, pos_coast_mid, pos_coast_end,
+                    v_force, v_coast1, v_coast2, force_magnitude, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_force_removal: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 时序单调性测试 (Temporal Monotonicity Test)
+    # 范式 B: Single-Run Invariant — 检查轨迹形状的物理不变量
+    # ===================================================================
+    def metamorphic_test_temporal_monotonicity(self, test_duration=5.0, num_samples=10):
+        """
+        蜕变测试：时序单调性测试
+        
+        测试原理：施加恒定力，在多个时间点采样位移。力方向上的位移
+        必须随时间单调递增。如果出现位移回退或突变，说明存在求解器不稳定、
+        力间歇性失效或碰撞传送 bug。
+        
+        蜕变关系：
+          Constant force in +x → x(t1) < x(t2) < ... < x(tK) for t1 < t2 < ... < tK
+        
+        范式：B — Single-Run Invariant（多时间点采样检查轨迹不变量）
+        
+        Returns:
+            (model_name, initial_pos, trajectory, force_magnitude,
+             monotonic, smooth, violations, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Temporal Monotonicity (Paradigm B)")
+            print("=" * 60)
+            
+            # 1. 获取场景和模型
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in temporal monotonicity test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("DEBUG: No available models for temporal monotonicity test")
+                return None
+            
+            model = random.choice(available_models)
+            model_name = model.name
+            print(f"Selected model: {model_name}")
+            
+            # 2. 获取初始位置
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: ({initial_pos[0]:.4f}, {initial_pos[1]:.4f}, {initial_pos[2]:.4f})")
+            
+            # 3. 计算力
+            model_mass = self.get_model_mass(model_name)
+            if model_mass is None or model_mass <= 0:
+                model_mass = 1.0
+            
+            min_acceleration = 5.0
+            max_acceleration = 30.0
+            min_force = max(model_mass * min_acceleration, 50.0)
+            max_force = model_mass * max_acceleration
+            force_magnitude = random.uniform(min_force, max_force)
+            
+            # 使用 +x 方向
+            force_x = force_magnitude
+            force_y = 0.0
+            force_z = 0.0
+            
+            # 4. 暂停仿真
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (monotonicity)")
+            time_module.sleep(0.3)
+            
+            # 5. 施加力
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if force_cmd:
+                force_cmd.execute(self.experiment_log)
+                self.log_sleep(0.1, "Wait for force to be applied (monotonicity)")
+                time_module.sleep(0.1)
+            else:
+                print("DEBUG: Warning - force_cmd is None in monotonicity test")
+                return None
+            
+            # 6. 分段推进并采样
+            steps_per_sample = int(test_duration / (num_samples * 0.001))
+            time_per_sample = test_duration / num_samples
+            
+            trajectory = []  # [(time, x, y, z), ...]
+            trajectory.append((0.0, initial_pos[0], initial_pos[1], initial_pos[2]))
+            
+            print(f"\nApplying force ({force_x:.2f}, 0, 0) N, sampling {num_samples} points over {test_duration:.1f}s")
+            print(f"Steps per sample: {steps_per_sample} ({time_per_sample:.2f}s)")
+            
+            for i in range(num_samples):
+                self.step_simulation(steps_per_sample)
+                pos = self.get_model_pose_from_scene(model_name)
+                if pos is None:
+                    print(f"DEBUG: Failed to get position at sample {i+1}")
+                    self.clear_model_wrench(model_name)
+                    return None
+                t = time_per_sample * (i + 1)
+                trajectory.append((t, pos[0], pos[1], pos[2]))
+                x_disp = pos[0] - initial_pos[0]
+                print(f"  t={t:.2f}s: x_disp={x_disp:.4f}m")
+            
+            self.clear_model_wrench(model_name)
+            
+            # 7. 检查单调性
+            x_displacements = [pt[1] - initial_pos[0] for pt in trajectory]
+            
+            # 第一个检查：最终位移需要足够大（排除被约束的模型）
+            final_disp = x_displacements[-1]
+            if abs(final_disp) < 0.01:
+                print("DEBUG: Model barely moved. May be constrained. Skipping.")
+                return None
+            
+            monotonic = True
+            violations = []
+            
+            for i in range(1, len(x_displacements)):
+                if x_displacements[i] <= x_displacements[i - 1]:
+                    monotonic = False
+                    violations.append({
+                        'index': i,
+                        'time': trajectory[i][0],
+                        'disp_prev': x_displacements[i - 1],
+                        'disp_curr': x_displacements[i],
+                        'type': 'non_monotonic'
+                    })
+            
+            # 8. 检查平滑性（无突变/传送）
+            smooth = True
+            deltas = []
+            for i in range(1, len(x_displacements)):
+                deltas.append(x_displacements[i] - x_displacements[i - 1])
+            
+            for i in range(1, len(deltas)):
+                if deltas[i - 1] > 0.001:  # 只在增量有意义时检查
+                    ratio = deltas[i] / deltas[i - 1]
+                    if ratio > 3.0:  # 增量突然变为前一个的 3 倍以上
+                        smooth = False
+                        violations.append({
+                            'index': i + 1,
+                            'time': trajectory[i + 1][0],
+                            'delta_prev': deltas[i - 1],
+                            'delta_curr': deltas[i],
+                            'ratio': ratio,
+                            'type': 'jump'
+                        })
+            
+            # 9. 判断通过/失败
+            success = monotonic and smooth
+            
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Force: ({force_x:.2f}, 0, 0) N\n"
+            error_info += f"Test duration: {test_duration:.1f}s, Samples: {num_samples}\n"
+            error_info += f"Final x-displacement: {final_disp:.6f}m\n"
+            error_info += f"Monotonic: {'Yes' if monotonic else 'No'}\n"
+            error_info += f"Smooth: {'Yes' if smooth else 'No'}\n"
+            
+            if violations:
+                error_info += f"Violations ({len(violations)}):\n"
+                for v in violations:
+                    if v['type'] == 'non_monotonic':
+                        error_info += (f"  t={v['time']:.2f}s: displacement DECREASED from "
+                                     f"{v['disp_prev']:.6f}m to {v['disp_curr']:.6f}m\n")
+                    elif v['type'] == 'jump':
+                        error_info += (f"  t={v['time']:.2f}s: displacement JUMPED by ratio "
+                                     f"{v['ratio']:.2f}x (delta: {v['delta_prev']:.6f} -> {v['delta_curr']:.6f})\n")
+            
+            error_info += f"\nTrajectory (x-displacement):\n"
+            for i, pt in enumerate(trajectory):
+                error_info += f"  t={pt[0]:.2f}s: x_disp={x_displacements[i]:.6f}m\n"
+            
+            error_info += f"\nNote: With constant force in +x, x-displacement should increase monotonically\n"
+            error_info += f"      and smoothly over time. Any reversal or sudden jump indicates a bug."
+            
+            print(f"\nMonotonic: {'Yes' if monotonic else 'No'}, Smooth: {'Yes' if smooth else 'No'}")
+            print(f"Violations: {len(violations)}")
+            print(f"Test {'PASSED' if success else 'FAILED'}")
+            
+            return (model_name, initial_pos, trajectory, force_magnitude,
+                    monotonic, smooth, violations, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_temporal_monotonicity: {e}")
             import traceback
             traceback.print_exc()
             return None
