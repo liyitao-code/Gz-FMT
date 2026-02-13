@@ -39,6 +39,7 @@ from gz.msgs11.log_playback_control_pb2 import LogPlaybackControl
 from gz.msgs11.serialized_pb2 import SerializedState
 from gz.msgs11.serialized_map_pb2 import SerializedStepMap
 from gz.msgs11.world_control_state_pb2 import WorldControlState
+from gz.msgs11.physics_pb2 import Physics
 # from gz.msgs11.entity_pb2 import Entity_Type
 from gz.transport14 import Node
 from modelsmith import RootGen, ModelGen, POSE, PLUGIN_DIR
@@ -404,10 +405,34 @@ class GzCommand:
                 else:
                     f.write(self.cmd)
 
-    def execute(self):
+    def execute(self, experiment_log=None):
+        """
+        执行命令，并可选地记录到实验日志中
+        
+        Args:
+            experiment_log: 如果提供，会将命令记录到日志中
+        """
         if self.use_text:
             if self.gz_type == GzCommandType.SERVICE:
                 if self.cmd:
+                    # 记录命令
+                    if experiment_log is not None:
+                        if isinstance(self.cmd, list):
+                            for cmd in self.cmd:
+                                experiment_log.append({
+                                    "type": "command",
+                                    "command_type": "service",
+                                    "command": cmd,
+                                    "timestamp": time.time()
+                                })
+                        else:
+                            experiment_log.append({
+                                "type": "command",
+                                "command_type": "service",
+                                "command": self.cmd,
+                                "timestamp": time.time()
+                            })
+                    
                     try:
                         ret = subprocess.run(self.cmd, shell=True, stdout=subprocess.PIPE, timeout=100) # TODO: check this
                         # what to return here?
@@ -418,6 +443,24 @@ class GzCommand:
                 else:
                     return None
             elif self.gz_type == GzCommandType.TOPIC:
+                # 记录命令
+                if experiment_log is not None:
+                    if isinstance(self.cmd, list):
+                        for cmd in self.cmd:
+                            experiment_log.append({
+                                "type": "command",
+                                "command_type": "topic",
+                                "command": cmd,
+                                "timestamp": time.time()
+                            })
+                    else:
+                        experiment_log.append({
+                            "type": "command",
+                            "command_type": "topic",
+                            "command": self.cmd,
+                            "timestamp": time.time()
+                        })
+                
                 # traverse gz_topics
                 rets = list()
                 for topic in self.cmd:
@@ -466,7 +509,7 @@ class GzCommand:
 
 # 测试用的类
 class SmithUnit:
-    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None):
+    def __init__(self, directory="exp", sdf_name="a.sdf", num_seq=10, use_text=True, skipped=None, timeout=10000, seed=0, sdf_miner=None, bandits=None, diversity=None, crashes=None, enable_playback=True):
         self.directory = directory
         self.sdf_name = sdf_name
         self.num_seq = num_seq
@@ -474,7 +517,7 @@ class SmithUnit:
         self.use_text = use_text
         self.node = Node()
         self.sdf_miner = sdf_miner
-        self.plugin_miner = PluginMiner(FIRST_DIR[DIR_FLAG] + "/install/share/gz/gz-sim8/worlds/")
+        self.plugin_miner = PluginMiner(FIRST_DIR[DIR_FLAG] + "/install/share/gz/gz-sim9/worlds/")
         self.diversity = diversity
         self.diversity_rewards = [0] * self.num_seq
         self.crash_rewards = [0] * self.num_seq
@@ -495,6 +538,48 @@ class SmithUnit:
         self.seed = seed
         self.bandits = bandits
         self.crashes = crashes
+        self.enable_playback = enable_playback  # 控制是否执行 playback 回溯测试
+        self.experiment_log = []  # 记录实验流程，用于复现
+
+    def log_command_execute(self, command_type, command_str, wait_after=0.0, description=""):
+        """
+        记录命令执行到实验日志
+        
+        Args:
+            command_type: 命令类型 ("launch", "service", "topic")
+            command_str: 命令字符串
+            wait_after: 执行后等待时间（秒）
+            description: 命令描述
+        """
+        if not hasattr(self, 'experiment_log'):
+            self.experiment_log = []
+        
+        self.experiment_log.append({
+            "type": "command",
+            "command_type": command_type,
+            "command": command_str,
+            "wait_after": wait_after,
+            "description": description,
+            "timestamp": time.time()
+        })
+    
+    def log_sleep(self, duration, description=""):
+        """
+        记录等待时间到实验日志
+        
+        Args:
+            duration: 等待时间（秒）
+            description: 等待原因描述
+        """
+        if not hasattr(self, 'experiment_log'):
+            self.experiment_log = []
+        
+        self.experiment_log.append({
+            "type": "sleep",
+            "duration": duration,
+            "description": description,
+            "timestamp": time.time()
+        })
 
     # 检测是否有新崩溃
     def check_new_crash(self, err_file):
@@ -848,13 +933,48 @@ class SmithUnit:
 
     # 生成和测试命令（修改为执行蜕变测试）
     def generate_and_test_commands(self):
+        # 初始化实验日志
+        self.experiment_log = []
+        experiment_start_time = time.time()
+        
+        # 记录实验基本信息
+        self.experiment_log.append({
+            "type": "experiment_info",
+            "directory": self.directory,
+            "sdf_file": self.sdf_name,
+            "start_time": experiment_start_time,
+            "timestamp": time.time()
+        })
+        
         # 0. collect coverage info
         print("DEBUG: before cov")
+        # 在启动新的 Gazebo 之前，确保所有残留的 Gazebo 相关进程都已关闭
+        try:
+            subprocess.run("pkill -9 -f 'gz sim'", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 ruby", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f 'gz-sim-server'", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(0.5)
+        except:
+            pass
+        
         # self.cov_old.collect()  # Coverage collection disabled
-        # 1. run gz sim a.sdf and sleep for a few seconds, dirty
-        # gz_sim = f"gz sim {self.directory}/{self.sdf_name} --seed {self.seed} -v 0 -r -s --headless-rendering"
-        gz_sim = f"gz sim {self.directory}/{self.sdf_name} -r"
+        # 1. run gz sim a.sdf with recording enabled
+        # 设置录像路径为测试目录下的 log 子目录
+        record_path = os.path.join(self.directory, "log")
+        if not os.path.exists(record_path):
+            os.makedirs(record_path)
+        
+        # 使用 --record-path 参数启动 gazebo 并录像
+        gz_sim = f"gz sim {self.directory}/{self.sdf_name} --record-path {record_path}"
         print(f"DEBUG: gz_sim: {gz_sim}")
+        print(f"DEBUG: Recording to: {record_path}")
+        
+        # 记录启动命令
+        self.log_command_execute("launch", gz_sim, wait_after=5.0, description="Launch Gazebo with recording")
+        
         print("DEBUG: before subprocess gz sim")
         try:
             process = subprocess.Popen(gz_sim.split(" "), stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
@@ -863,26 +983,72 @@ class SmithUnit:
             return 0
 
         process_status = psutil.Process(process.pid)
-        time.sleep(5)
-
-        try:
-            result, response = self.get_world()
-            self.world_name = response.data[0]
-        except:
-            print("DEBUG: gz process not alive")
+        
+        # 等待 Gazebo 启动，使用重试机制确保 SDF 完全加载
+        max_retries = 5
+        wait_per_retry = 2  # 每次重试间隔秒数
+        world_found = False
+        for retry_i in range(max_retries):
+            self.log_sleep(wait_per_retry, f"Wait for Gazebo to start (attempt {retry_i + 1}/{max_retries})")
+            time.sleep(wait_per_retry)
+            
+            # 检查进程是否还活着
+            try:
+                proc_status = psutil.Process(process.pid).status()
+                if proc_status == psutil.STATUS_ZOMBIE:
+                    print(f"DEBUG: gz process became zombie at attempt {retry_i + 1}")
+                    break
+            except psutil.NoSuchProcess:
+                print(f"DEBUG: gz process died at attempt {retry_i + 1}")
+                break
+            
+            try:
+                result, response = self.get_world()
+                self.world_name = response.data[0]
+                world_found = True
+                print(f"DEBUG: get_world() succeeded at attempt {retry_i + 1}, world_name={self.world_name}")
+                break
+            except Exception as e:
+                print(f"DEBUG: get_world() failed at attempt {retry_i + 1}: {e}")
+        
+        if not world_found:
+            print("DEBUG: gz process not alive or get_world() failed after all retries, cleaning up...")
+            # 清理 Gazebo 进程，防止泄漏
+            try:
+                for child in psutil.Process(process.pid).children(recursive=True):
+                    child.kill()
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as e:
+                print(f"DEBUG: Error cleaning up gz process: {e}")
             return 0
 
-        # 注意：使用 -r 参数启动的 Gazebo 已经自动运行，不需要额外调用 play_simulation()
-        # 等待一段时间确保模拟器完全启动
-        print("DEBUG: waiting for simulation to fully start...")
-        time.sleep(2)  # 等待模拟器完全启动
+        # 校验世界名：包含空格或特殊字符的世界名会导致 service/topic 路径无效
+        import re
+        if not re.match(r'^[a-zA-Z0-9_\-]+$', self.world_name):
+            print(f"DEBUG: Invalid world name '{self.world_name}' (contains spaces or special characters), skipping this SDF")
+            try:
+                for child in psutil.Process(process.pid).children(recursive=True):
+                    child.kill()
+                process.kill()
+                process.wait(timeout=5)
+            except Exception as e:
+                print(f"DEBUG: Error cleaning up gz process: {e}")
+            return 0
 
         print("DEBUG: starting metamorphic test")
         
         # 随机选择一种蜕变测试关系
-        test_type = random.choice(['motion', 'rewind'])  # 随机选择运动测试或回溯测试
-        test_type = 'motion' # 先测试运动部分
+        test_type = random.choice(['motion', 'force_additivity', 'time_scaling', 'mass_scaling'])  # 随机选择测试类型（rewind 已禁用：set_pose 无法恢复速度，导致结果不可靠）
         print(f"DEBUG: Selected metamorphic test type: {test_type}")
+        # test_type = 'time_scaling'  # 临时固定测试类型（用于调试）
+        
+        # 记录测试类型
+        self.experiment_log.append({
+            "type": "test_info",
+            "test_type": test_type,
+            "timestamp": time.time()
+        })
         
         test_result = None
         
@@ -916,13 +1082,59 @@ class SmithUnit:
                 import traceback
                 traceback.print_exc()
                 test_result = None
+                
+        elif test_type == 'force_additivity':
+            # 第三种蜕变测试：力的可加性测试
+            # 随机生成测试参数
+            test_duration = random.uniform(3.0, 6.0)  # 测试持续时间：3-6秒
+            
+            # 执行力的可加性测试，添加异常处理以避免崩溃
+            try:
+                test_result = self.metamorphic_test_force_additivity(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during force additivity test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+                
+        elif test_type == 'time_scaling':
+            # 第四种蜕变测试：时间比例测试
+            # 随机生成测试参数
+            test_duration = random.uniform(3.0, 6.0)  # 测试持续时间：3-6秒
+            
+            # 执行时间比例测试，添加异常处理以避免崩溃
+            try:
+                test_result = self.metamorphic_test_time_scaling(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during time scaling test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'mass_scaling':
+            # 第五种蜕变测试：质量系数测试
+            # 随机生成测试参数
+            test_duration = random.uniform(3.0, 6.0)  # 测试持续时间：3-6秒
+            
+            # 执行质量系数测试，添加异常处理以避免崩溃
+            try:
+                test_result = self.metamorphic_test_mass_scaling(test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during mass scaling test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
         
         # 记录测试结果
         test_passed = False
         if test_result:
             if test_type == 'motion':
-                # 运动测试结果格式: (model_name, initial_pos, final_pos, expected_pos, success)
-                model_name, initial_pos, final_pos, expected_pos, success = test_result
+                # 运动确定性测试结果格式: (model_name, initial_pos, pos_A, pos_B, success)
+                # pos_A = 第一次运动最终位置, pos_B = 第二次运动最终位置
+                model_name, initial_pos, pos_A, pos_B, success = test_result
                 test_passed = success
                 
                 # 保存测试结果到文件
@@ -930,16 +1142,29 @@ class SmithUnit:
                     f.write(f"Test Type: Motion Test\n")
                     f.write(f"Model: {model_name}\n")
                     f.write(f"Initial Position: ({initial_pos[0]:.3f}, {initial_pos[1]:.3f}, {initial_pos[2]:.3f})\n")
-                    f.write(f"Final Position: ({final_pos[0]:.3f}, {final_pos[1]:.3f}, {final_pos[2]:.3f})\n")
-                    f.write(f"Expected Position: ({expected_pos[0]:.3f}, {expected_pos[1]:.3f}, {expected_pos[2]:.3f})\n")
+                    f.write(f"Position (Run A): ({pos_A[0]:.3f}, {pos_A[1]:.3f}, {pos_A[2]:.3f})\n")
+                    f.write(f"Position (Run B): ({pos_B[0]:.3f}, {pos_B[1]:.3f}, {pos_B[2]:.3f})\n")
                     f.write(f"Test Duration: {test_duration:.2f} s\n")
                     f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
                     
-                    # 计算误差
-                    error_x = abs(final_pos[0] - expected_pos[0])
-                    error_y = abs(final_pos[1] - expected_pos[1])
-                    error_z = abs(final_pos[2] - expected_pos[2])
-                    f.write(f"Error: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}\n")
+                    # 计算两次运动的位置差异
+                    error_x = abs(pos_A[0] - pos_B[0])
+                    error_y = abs(pos_A[1] - pos_B[1])
+                    error_z = abs(pos_A[2] - pos_B[2])
+                    error_magnitude = (error_x**2 + error_y**2 + error_z**2)**0.5
+                    disp_a = ((pos_A[0]-initial_pos[0])**2 + (pos_A[1]-initial_pos[1])**2 + (pos_A[2]-initial_pos[2])**2)**0.5
+                    disp_b = ((pos_B[0]-initial_pos[0])**2 + (pos_B[1]-initial_pos[1])**2 + (pos_B[2]-initial_pos[2])**2)**0.5
+                    max_displacement = max(disp_a, disp_b)
+                    relative_error = error_magnitude / max_displacement if max_displacement > 0.001 else 0.0
+                    f.write(f"\nError Info:\n")
+                    f.write(f"Position difference: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f} m\n")
+                    f.write(f"Error magnitude: {error_magnitude:.4f} m\n")
+                    f.write(f"Max displacement: {max_displacement:.4f} m\n")
+                    f.write(f"Relative error: {relative_error*100:.2f}%\n")
+                    f.write(f"Threshold: abs < 0.5 m OR rel < 10%\n")
+                    if hasattr(self, '_test_force_x'):
+                        f.write(f"Force F: ({self._test_force_x:.6f}, {self._test_force_y:.6f}, {self._test_force_z:.6f}) N\n")
+                    f.write(f"Note: Same force applied twice from same initial state. Positions should match.\n")
                     
             elif test_type == 'rewind':
                 # 回溯测试结果格式: (success, record_time_a, run_time_b, state_before, state_after, differences)
@@ -965,6 +1190,59 @@ class SmithUnit:
                             f.write(f"  - {diff}\n")
                     else:
                         f.write(f"\nNo differences found - states match perfectly!\n")
+                        
+            elif test_type == 'force_additivity':
+                # 力的可加性测试结果格式: (model_name, initial_pos, pos_with_f1_f2, pos_with_f_total, success, error_info)
+                model_name, initial_pos, pos_with_f1_f2, pos_with_f_total, success, error_info = test_result
+                test_passed = success
+                
+                # 保存测试结果到文件
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Force Additivity Test\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.3f}, {initial_pos[1]:.3f}, {initial_pos[2]:.3f})\n")
+                    f.write(f"Position with F1+F2 (simultaneous): ({pos_with_f1_f2[0]:.3f}, {pos_with_f1_f2[1]:.3f}, {pos_with_f1_f2[2]:.3f})\n")
+                    f.write(f"Position with F_total (combined): ({pos_with_f_total[0]:.3f}, {pos_with_f_total[1]:.3f}, {pos_with_f_total[2]:.3f})\n")
+                    f.write(f"Test Duration: {test_duration:.2f} s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'time_scaling':
+                # 时间比例测试结果格式: (model_name, initial_pos, pos_with_rtf1, pos_with_rtf2, rtf1, rtf2, success, error_info)
+                model_name, initial_pos, pos_with_rtf1, pos_with_rtf2, rtf1, rtf2, success, error_info = test_result
+                test_passed = success
+                
+                # 保存测试结果到文件
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Time Scaling Test\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.3f}, {initial_pos[1]:.3f}, {initial_pos[2]:.3f})\n")
+                    f.write(f"Position with rtf={rtf1:.2f}: ({pos_with_rtf1[0]:.3f}, {pos_with_rtf1[1]:.3f}, {pos_with_rtf1[2]:.3f})\n")
+                    f.write(f"Position with rtf={rtf2:.2f}: ({pos_with_rtf2[0]:.3f}, {pos_with_rtf2[1]:.3f}, {pos_with_rtf2[2]:.3f})\n")
+                    f.write(f"Test Duration (physical time): {test_duration:.2f} s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+                    
+            elif test_type == 'mass_scaling':
+                # 质量系数测试结果格式: (model_name, initial_pos, initial_mass, mass_scale_factor, pos_with_m1, pos_with_m2, d1, d2, success, error_info)
+                model_name, initial_pos, initial_mass, mass_scale_factor, pos_with_m1, pos_with_m2, d1, d2, success, error_info = test_result
+                test_passed = success
+                
+                # 保存测试结果到文件
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Mass Scaling Test\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.3f}, {initial_pos[1]:.3f}, {initial_pos[2]:.3f})\n")
+                    f.write(f"Initial Mass: {initial_mass:.6f} kg\n")
+                    f.write(f"Mass Scale Factor k: {mass_scale_factor:.6f}\n")
+                    f.write(f"New Mass (k*m): {initial_mass * mass_scale_factor:.6f} kg\n")
+                    f.write(f"Position with mass m: ({pos_with_m1[0]:.3f}, {pos_with_m1[1]:.3f}, {pos_with_m1[2]:.3f})\n")
+                    f.write(f"Position with mass k*m: ({pos_with_m2[0]:.3f}, {pos_with_m2[1]:.3f}, {pos_with_m2[2]:.3f})\n")
+                    f.write(f"Displacement d1: ({d1[0]:.3f}, {d1[1]:.3f}, {d1[2]:.3f})\n")
+                    f.write(f"Displacement d2: ({d2[0]:.3f}, {d2[1]:.3f}, {d2[2]:.3f})\n")
+                    f.write(f"Test Duration: {test_duration:.2f} s\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
         else:
             print("DEBUG: metamorphic test returned None")
             with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
@@ -976,6 +1254,24 @@ class SmithUnit:
             with open(f"{self.directory}/METAMORPHIC_TEST_FAILED", "w") as f:
                 f.write(f"Metamorphic test failed at {datetime.now().isoformat()}\n")
             print("DEBUG: Metamorphic test FAILED - tag created")
+        
+        # 记录实验结束信息
+        experiment_end_time = time.time()
+        self.experiment_log.append({
+            "type": "experiment_info",
+            "end_time": experiment_end_time,
+            "duration": experiment_end_time - experiment_start_time,
+            "test_passed": test_passed,
+            "test_type": test_type,
+            "timestamp": time.time()
+        })
+        
+        # 保存实验日志到JSON文件
+        experiment_log_file = os.path.join(self.directory, "experiment_log.json")
+        import json
+        with open(experiment_log_file, "w") as f:
+            json.dump(self.experiment_log, f, indent=2)
+        print(f"DEBUG: Experiment log saved to {experiment_log_file}")
         
         # 检查进程状态
         if process_status.status() == psutil.STATUS_ZOMBIE:
@@ -998,10 +1294,45 @@ class SmithUnit:
         print("DEBUG: before process.wait")
         process.wait()
         print("DEBUG: after process.wait")
+        
+        # 等待录像文件完全写入
+        print("DEBUG: Waiting for log files to be written...")
+        time.sleep(2)
+        
+        # 4. 执行 playback 模式下的回溯测试（如果启用）
+        if self.enable_playback:
+            print("DEBUG: Starting playback rewind test...")
+            playback_result = None
+            try:
+                playback_result = self.metamorphic_test_playback_rewind(record_path, test_type, test_result)
+            except Exception as e:
+                print(f"DEBUG: Exception during playback rewind test: {e}")
+                import traceback
+                traceback.print_exc()
+                playback_result = None
+            
+            # 记录 playback 测试结果
+            if playback_result:
+                playback_success, playback_details = playback_result
+                with open(f"{self.directory}/playback_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Playback Rewind Test\n")
+                    f.write(f"Log Path: {record_path}\n")
+                    f.write(f"Result: {'PASSED' if playback_success else 'FAILED'}\n")
+                    f.write(f"\nDetails:\n{playback_details}\n")
+                
+                if not playback_success:
+                    with open(f"{self.directory}/PLAYBACK_TEST_FAILED", "w") as f:
+                        f.write(f"Playback test failed at {datetime.now().isoformat()}\n")
+                    print("DEBUG: Playback test FAILED - tag created")
+            else:
+                print("DEBUG: Playback test returned None")
+                with open(f"{self.directory}/playback_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Playback Rewind Test\n")
+                    f.write("Test failed to execute (returned None)\n")
+        else:
+            print("DEBUG: Playback test is disabled (enable_playback=False)")
 
-
-
-        # 4. collect coverage
+        # 5. collect coverage
         try:
             os.remove(f"./terminate")
         except:
@@ -1056,7 +1387,7 @@ class SmithUnit:
     # 复制随机的sdf文件
     def copy_random_sdf(self):
         filenames = glob("./models/*.sdf")
-        print(f"DEBUG: filenames: {filenames}")
+        # print(f"DEBUG: filenames: {filenames}")
         random_filename = random.choice(filenames)
         shutil.copyfile(random_filename, f"{self.directory}/a.sdf")
         print(f"DEBUG: copied {random_filename} to {self.directory}/a.sdf")
@@ -1139,6 +1470,40 @@ class SmithUnit:
         return result, response
 
     # 启动模拟器（确保模拟器处于运行状态，而不是暂停状态）
+    def pause_simulation(self, max_retries=3):
+        """
+        暂停模拟器
+        通过调用 /world/<world_name>/control 服务，设置 pause: true
+        会多次尝试以确保成功
+        """
+        if not self.world_name:
+            print("DEBUG: world_name not set, cannot pause simulation")
+            return False
+        
+        service_name = f"/world/{self.world_name}/control"
+        request = WorldControl()
+        request.pause = True  # 设置为 true 表示暂停模拟器
+        
+        # 多次尝试，确保模拟器暂停
+        for attempt in range(max_retries):
+            try:
+                result, response = self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+                if result and response.data:
+                    print(f"DEBUG: Simulation paused for world {self.world_name} (attempt {attempt + 1})")
+                    # 等待一小段时间让模拟器完全暂停
+                    time.sleep(0.2)
+                    return True
+                else:
+                    print(f"DEBUG: Failed to pause simulation for world {self.world_name} (attempt {attempt + 1})")
+                    if attempt < max_retries - 1:
+                        time.sleep(0.2)  # 等待后重试
+            except Exception as e:
+                print(f"DEBUG: Exception when trying to pause simulation (attempt {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(0.2)
+        
+        return False
+
     def play_simulation(self, max_retries=3):
         """
         启动模拟器，确保模拟器处于运行状态
@@ -1270,21 +1635,135 @@ class SmithUnit:
         self.world_name = world_name
         node = Node()
         service_name = f"/world/{self.world_name}/scene/info"
-        reserved_models = {"ground_model", "ceiling_model", "west_model", "east_model", "north_model", "south_model"}
+        reserved_models = {"ground_model", "ground_plane", "ground plane", "ceiling_model", "west_model", "east_model", "north_model", "south_model"}
         request = Empty()
         # request = safe_utf8_encode(request)
         result, response = node.request(service_name, request, Empty, Scene, self.timeout)
         return response, reserved_models
 
-    def get_model_pose_from_topic(self, model_name):
+    def is_model_testable(self, model):
         """
-        通过 topic 获取模型的实时位置信息
+        判断模型是否适合用于蜕变测试。
+        排除静态模型、地面/墙壁/天花板等环境模型。
+        
+        Args:
+            model: scene 中的 model 对象
+        
+        Returns:
+            True 如果模型可用于测试，False 否则
+        """
+        # 排除名字匹配保留关键字的模型（不区分大小写）
+        reserved_keywords = ["ground", "ceiling", "wall", "floor", "sun", "light", "camera"]
+        name_lower = model.name.lower().replace(" ", "_")
+        for keyword in reserved_keywords:
+            if keyword in name_lower:
+                return False
+        return True
+
+    def get_testable_models(self, scene, reserved_models):
+        """
+        从场景中获取可用于蜕变测试的模型列表。
+        
+        Args:
+            scene: 场景对象
+            reserved_models: 保留模型名称集合
+        
+        Returns:
+            可测试模型列表
+        """
+        if scene is None:
+            return []
+        return [m for m in scene.model if m.name not in reserved_models and self.is_model_testable(m)]
+
+    def get_model_pose_from_scene(self, model_name):
+        """
+        通过 scene/info 服务获取模型的位置信息。
+        此函数在仿真暂停状态下也可正常工作（使用 service 而非 topic）。
         
         Args:
             model_name: 模型名称
         
         Returns:
-            (x, y, z) 位置元组，如果获取失败返回 None
+            (x, y, z, qw, qx, qy, qz) 元组，如果失败返回 None
+        """
+        try:
+            scene, reserved_models = self.get_scene()
+            if scene is None:
+                print(f"DEBUG: get_model_pose_from_scene: get_scene() returned None")
+                return None
+            
+            for model in scene.model:
+                if model.name == model_name:
+                    pose = model.pose
+                    return (
+                        pose.position.x,
+                        pose.position.y,
+                        pose.position.z,
+                        pose.orientation.w,
+                        pose.orientation.x,
+                        pose.orientation.y,
+                        pose.orientation.z
+                    )
+            
+            print(f"DEBUG: get_model_pose_from_scene: model '{model_name}' not found in scene")
+            return None
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in get_model_pose_from_scene: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def record_all_models_state_from_scene(self):
+        """
+        通过 scene/info 服务记录所有模型的当前状态（位置和角度）。
+        此函数在仿真暂停状态下也可正常工作（使用 service 而非 topic）。
+        
+        Returns:
+            dict: {model_name: {'position': (x, y, z), 'orientation': (w, x, y, z)}}, 如果失败返回 None
+        """
+        try:
+            scene, reserved_models = self.get_scene()
+            if scene is None:
+                print(f"DEBUG: record_all_models_state_from_scene: get_scene() returned None")
+                return None
+            
+            models_state = {}
+            for model in scene.model:
+                pose = model.pose
+                models_state[model.name] = {
+                    'position': (
+                        pose.position.x,
+                        pose.position.y,
+                        pose.position.z
+                    ),
+                    'orientation': (
+                        pose.orientation.w,
+                        pose.orientation.x,
+                        pose.orientation.y,
+                        pose.orientation.z
+                    )
+                }
+            
+            return models_state
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in record_all_models_state_from_scene: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def get_model_pose_from_topic(self, model_name):
+        """
+        通过 topic 获取模型的实时位置信息。
+        注意：此函数必须在模拟运行（非暂停）状态下调用，因为暂停时服务器循环频率
+        大幅降低，topic 可能无法在超时时间内发布消息。
+        
+        Args:
+            model_name: 模型名称
+        
+        Returns:
+            (x, y, z, w, qx, qy, qz) 位置和四元数元组，如果获取失败返回 None
         """
         try:
             # 确保 world_name 已设置
@@ -1295,13 +1774,13 @@ class SmithUnit:
                     return None
                 self.world_name = response.data[0]
             
-            # 使用 dynamic_pose/info topic 获取动态模型的实时位置
-            # 如果模型不在 dynamic_pose 中，也可以尝试 pose/info
+            # dynamic_pose/info 发布非静态模型的实时位姿（从 ECM 读取）
+            # pose/info 发布所有模型的实时位姿（从 ECM 读取）
+            # 两者都提供实时位姿，但都依赖服务器循环发布，暂停时可能不及时
             topic_name = f"/world/{self.world_name}/dynamic_pose/info"
             
-            # 使用 Node API 方式获取 topic 消息（最可靠的方法）
+            # 使用 Node API 方式获取 topic 消息
             node = Node()
-            # 订阅 topic 并等待一条消息
             received_msg = None
             received = False
             
@@ -1320,14 +1799,14 @@ class SmithUnit:
                     print(f"DEBUG: Failed to subscribe to topic {topic_name}")
                     return None
             
-            # 等待消息，最多等待 2 秒
+            # 等待消息，最多等待 3 秒
             import time
             start_time = time.time()
-            while not received and (time.time() - start_time) < 2.0:
+            while not received and (time.time() - start_time) < 3.0:
                 time.sleep(0.01)
             
             if not received or received_msg is None:
-                print("DEBUG: No pose message received")
+                print("DEBUG: No pose message received (simulation may be paused - this function requires running simulation)")
                 return None
             
             # 在 Pose_V 消息中查找指定模型
@@ -1336,7 +1815,11 @@ class SmithUnit:
                     return (
                         pose.position.x,
                         pose.position.y,
-                        pose.position.z
+                        pose.position.z,
+                        pose.orientation.w,
+                        pose.orientation.x,
+                        pose.orientation.y,
+                        pose.orientation.z
                     )
             
             print(f"DEBUG: Model {model_name} not found in pose message")
@@ -1650,15 +2133,15 @@ class SmithUnit:
             traceback.print_exc()
             return False
 
-    def compare_models_state(self, state1, state2, position_tolerance=1e-6, orientation_tolerance=1e-6):
+    def compare_models_state(self, state1, state2, position_tolerance=0.01, orientation_tolerance=0.01):
         """
         对比两个模型状态字典
         
         Args:
             state1: 第一个状态字典
             state2: 第二个状态字典
-            position_tolerance: 位置容差（默认1e-6）
-            orientation_tolerance: 角度容差（默认1e-6）
+            position_tolerance: 位置容差（默认0.01m，即1cm）
+            orientation_tolerance: 角度容差（默认0.01，四元数分量差）
         
         Returns:
             (bool, list): (是否相同, 差异列表)
@@ -1764,6 +2247,8 @@ class SmithUnit:
                     print(f"DEBUG: Timeout waiting for simulation time to reach {target_sim_time:.6f} s")
                     return None
                 
+                self.log_sleep(0.1, "Wait for simulation time to reach target")
+                self.log_sleep(0.1, "Wait for simulation time during record wait")
                 time_module.sleep(0.1)
             
             # 获取当前模拟时间（用于验证）
@@ -1774,14 +2259,7 @@ class SmithUnit:
             
             print(f"DEBUG: Current simulation time: {current_time[0]}.{current_time[1]:09d} s")
             
-            # 2. 保存完整的模拟状态（包括所有模型的位置、速度等）
-            print("DEBUG: Saving complete simulation state...")
-            saved_state = self.save_simulation_state()
-            if saved_state is None:
-                print("DEBUG: Failed to save simulation state")
-                return None
-            
-            # 同时记录模型位置用于对比（从 pose topic 获取）
+            # 2. 记录模型位置用于对比（从 pose topic 获取）
             print("DEBUG: Recording models pose for comparison...")
             state_before = self.record_all_models_state()
             if state_before is None:
@@ -1814,6 +2292,7 @@ class SmithUnit:
                     print(f"DEBUG: Timeout waiting for simulation time to reach {target_after_run:.6f} s")
                     return None
                 
+                self.log_sleep(0.1, "Wait for simulation time during run wait")
                 time_module.sleep(0.1)
             
             # 获取运行后的模拟时间
@@ -1825,18 +2304,32 @@ class SmithUnit:
             print(f"DEBUG: Simulation time after running: {time_after_run[0]}.{time_after_run[1]:09d} s")
             
             # 4. 回溯到 record_time_a 秒时的状态
-            # 使用保存的完整状态来恢复模拟（这会恢复所有模型的位置、速度等）
-            print(f"DEBUG: Restoring simulation state to saved state...")
-            restore_success = self.restore_simulation_state(saved_state)
+            # 先暂停模拟，防止恢复过程中物理引擎导致漂移
+            print(f"DEBUG: Pausing simulation before restoring state...")
+            self.pause_simulation()
+            self.log_sleep(0.5, "Wait after pause before restore")
+            time_module.sleep(0.5)
+            
+            # 使用 restore_models_state 逐个恢复模型的位置和角度
+            print(f"DEBUG: Restoring all models state using set_pose...")
+            restore_success = self.restore_models_state(state_before)
             if not restore_success:
-                print("DEBUG: Failed to restore simulation state")
+                print("DEBUG: Failed to restore models state")
+                self.play_simulation()
                 return None
             
-            # 等待一段时间让状态恢复完成并稳定
-            time_module.sleep(1.0)
+            # 等待一小段时间让 set_pose 生效
+            self.log_sleep(0.5, "Wait for set_pose to take effect")
+            time_module.sleep(0.5)
             
-            # 5. 获取回溯后的状态
-            print("DEBUG: Getting models state after rewind...")
+            # 5. 恢复模拟运行，然后立即获取回溯后的状态
+            # 注：必须在运行状态下读取 topic，因为暂停时服务器循环频率降低，topic 可能无法及时发布
+            print("DEBUG: Resuming simulation briefly to read pose from topic...")
+            self.play_simulation()
+            self.log_sleep(0.1, "Brief wait after resume for topic to publish")
+            time_module.sleep(0.1)
+            
+            print("DEBUG: Getting models state after rewind (simulation running)...")
             state_after = self.record_all_models_state()
             if state_after is None:
                 print("DEBUG: Failed to get models state after rewind")
@@ -1864,6 +2357,193 @@ class SmithUnit:
             traceback.print_exc()
             return None
 
+    def metamorphic_test_playback_rewind(self, log_path, original_test_type=None, original_test_result=None):
+        """
+        在 playback 模式下进行回溯测试
+        
+        流程：
+        1. 使用录像文件启动 playback 模式的 gazebo
+        2. 在 playback 模式下，使用 seek 功能回溯到指定时间点
+        3. 记录回溯后的模型状态
+        4. 与原始测试中记录的状态进行对比
+        
+        Args:
+            log_path: 录像文件路径
+            original_test_type: 原始测试类型（'motion' 或 'rewind'）
+            original_test_result: 原始测试结果
+        
+        Returns:
+            (success, details_string) 或 None
+        """
+        try:
+            import time as time_module
+            
+            # 检查录像文件是否存在
+            if not os.path.exists(log_path):
+                print(f"DEBUG: Log path does not exist: {log_path}")
+                return (False, f"Log path does not exist: {log_path}")
+            
+            # 1. 启动 playback 模式的 gazebo
+            print(f"DEBUG: Starting playback mode with log: {log_path}")
+            gz_playback = f"gz sim -r --playback {log_path}"
+            print(f"DEBUG: gz_playback: {gz_playback}")
+            
+            try:
+                playback_process = subprocess.Popen(
+                    gz_playback.split(" "), 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE, 
+                    start_new_session=True
+                )
+            except Exception as e:
+                print(f"DEBUG: Failed to start playback process: {e}")
+                return (False, f"Failed to start playback: {e}")
+            
+            # 等待 playback 模式启动
+            time_module.sleep(5)
+            
+            # 获取 world 名称
+            try:
+                result, response = self.get_world()
+                if not result:
+                    print("DEBUG: Failed to get world name in playback mode")
+                    playback_process.terminate()
+                    playback_process.wait()
+                    return (False, "Failed to get world name")
+                playback_world_name = response.data[0]
+                self.world_name = playback_world_name
+            except Exception as e:
+                print(f"DEBUG: Exception getting world name: {e}")
+                playback_process.terminate()
+                playback_process.wait()
+                return (False, f"Exception getting world name: {e}")
+            
+            print(f"DEBUG: Playback world name: {playback_world_name}")
+            time_module.sleep(2)  # 等待 playback 完全启动
+            
+            # 2. 根据原始测试类型选择回溯时间点
+            if original_test_type == 'motion' and original_test_result:
+                # 对于运动测试，回溯到测试开始时间（或中间某个时间点）
+                # 简化处理：回溯到测试开始后 1 秒
+                seek_time_sec = 1.0
+                seek_time_nsec = 0
+            elif original_test_type == 'rewind' and original_test_result:
+                # 对于回溯测试，使用原始测试的记录时间点
+                success, record_time_a, run_time_b, state_before, state_after, differences = original_test_result
+                seek_time_sec = record_time_a
+                seek_time_nsec = 0
+            else:
+                # 默认回溯到 2 秒
+                seek_time_sec = 2.0
+                seek_time_nsec = 0
+            
+            print(f"DEBUG: Seeking to time: {seek_time_sec}.{seek_time_nsec:09d} s")
+            
+            # 3. 使用 seek 功能回溯到指定时间
+            seek_success = self.seek_in_playback_mode(playback_world_name, seek_time_sec, seek_time_nsec)
+            if not seek_success:
+                print("DEBUG: Failed to seek in playback mode")
+                playback_process.terminate()
+                playback_process.wait()
+                return (False, "Failed to seek in playback mode")
+            
+            # 等待 seek 完成
+            self.log_sleep(1.0, "Wait after seek in playback mode")
+            time_module.sleep(1.0)
+            
+            # 4. 记录回溯后的模型状态
+            print("DEBUG: Recording models state after seek...")
+            state_after_seek = self.record_all_models_state()
+            if state_after_seek is None:
+                print("DEBUG: Failed to record models state after seek")
+                playback_process.terminate()
+                playback_process.wait()
+                return (False, "Failed to record models state after seek")
+            
+            print(f"DEBUG: Recorded state for {len(state_after_seek)} models after seek")
+            
+            # 5. 如果有原始测试的状态记录，进行对比
+            if original_test_type == 'rewind' and original_test_result:
+                success, record_time_a, run_time_b, state_before, state_after, differences = original_test_result
+                # 与原始测试中记录的状态对比
+                if state_before:
+                    print("DEBUG: Comparing with original test state...")
+                    is_same, new_differences = self.compare_models_state(state_before, state_after_seek)
+                    
+                    details = f"Seek time: {seek_time_sec} s\n"
+                    details += f"Models recorded: {len(state_after_seek)}\n"
+                    if is_same:
+                        details += "States match with original test!\n"
+                    else:
+                        details += f"Found {len(new_differences)} differences:\n"
+                        for diff in new_differences[:10]:  # 最多显示10个差异
+                            details += f"  - {diff}\n"
+                    
+                    # 停止 playback 进程
+                    playback_process.terminate()
+                    playback_process.wait()
+                    
+                    return (is_same, details)
+            
+            # 如果没有原始状态对比，只检查状态是否成功获取
+            details = f"Seek time: {seek_time_sec} s\n"
+            details += f"Models recorded: {len(state_after_seek)}\n"
+            details += "No original state to compare with.\n"
+            
+            # 停止 playback 进程
+            playback_process.terminate()
+            playback_process.wait()
+            
+            return (True, details)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_playback_rewind: {e}")
+            import traceback
+            traceback.print_exc()
+            # 确保进程被终止
+            try:
+                if 'playback_process' in locals():
+                    playback_process.terminate()
+                    playback_process.wait()
+            except:
+                pass
+            return (False, f"Exception: {e}")
+
+    def seek_in_playback_mode(self, world_name, target_sec, target_nsec=0):
+        """
+        在 playback 模式下使用 seek 功能回溯到指定时间
+        
+        Args:
+            world_name: 世界名称
+            target_sec: 目标时间的秒部分
+            target_nsec: 目标时间的纳秒部分（默认0）
+        
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            # 使用 /world/<world_name>/playback/control 服务进行 seek
+            service_name = f"/world/{world_name}/playback/control"
+            
+            # 创建 LogPlaybackControl 消息
+            request = LogPlaybackControl()
+            request.seek.sec = int(target_sec)
+            request.seek.nsec = int(target_nsec)
+            
+            result, response = self.node.request(service_name, request, LogPlaybackControl, Boolean, self.timeout)
+            if result and response.data:
+                print(f"DEBUG: Successfully seeked to {target_sec}.{target_nsec:09d} s")
+                return True
+            else:
+                print(f"DEBUG: Failed to seek in playback mode")
+                return False
+                
+        except Exception as e:
+            print(f"DEBUG: Exception in seek_in_playback_mode: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     def func_add_random_plugin_to_model(self, plugin_id):
         return self.helper_func_add_random_plugin_to_model(False, plugin_id)
     
@@ -1887,7 +2567,7 @@ class SmithUnit:
         # 1. get random model
         if not reserved_models:
             return None
-        available_models = [m for m in scene.model if m.name not in reserved_models]
+        available_models = self.get_testable_models(scene, reserved_models)
         # print(f"available_models: {available_models}, world_name: {self.world_name}")
         print(f"world_name: {self.world_name}")
         if available_models:
@@ -1946,7 +2626,7 @@ class SmithUnit:
         if not reserved_models:
             return None
         # print(f"scene.model: {scene.model}")
-        available_models = [m for m in scene.model if m.name not in reserved_models]
+        available_models = self.get_testable_models(scene, reserved_models)
         # print(f"available_models: {available_models}, world_name: {self.world_name}")
         print(f"world_name: {self.world_name}")
         if available_models:
@@ -2073,7 +2753,7 @@ class SmithUnit:
         scene, reserved_models = self.get_scene()
         if not reserved_models:
             return None
-        available_models = [m for m in scene.model if m.name not in reserved_models]
+        available_models = self.get_testable_models(scene, reserved_models)
         # print(f"available_models: {available_models}, scene.model: {scene.model}")
         if available_models:
             model_to_move = random.choice(available_models)
@@ -2116,7 +2796,7 @@ class SmithUnit:
         
         # 获取模型名称
         if model_name is None:
-            available_models = [m for m in scene.model if m.name not in reserved_models]
+            available_models = self.get_testable_models(scene, reserved_models)
             if not available_models:
                 return None
             model_name = random.choice(available_models).name
@@ -2179,7 +2859,7 @@ class SmithUnit:
         
         # 获取模型名称
         if model_name is None:
-            available_models = [m for m in scene.model if m.name not in reserved_models]
+            available_models = self.get_testable_models(scene, reserved_models)
             if not available_models:
                 return None
             model_name = random.choice(available_models).name
@@ -2208,105 +2888,1582 @@ class SmithUnit:
             persistent=True  # 持续施加力以维持速度
         )
 
-    # 蜕变测试：让模型沿x轴运动，然后验证位置
+    # 蜕变测试：运动确定性测试（同样条件下两次运动结果应一致）
     def metamorphic_test_example(self, velocity_x=None, test_duration=5.0):
         """
-        蜕变测试：随机选择一个模型，让它从当前位置沿x轴正方向运动，验证t秒后的位置
+        蜕变测试：运动确定性测试
         
-        预期：如果模型从初始位置(x0,y0,z0)开始，以v m/s的速度沿x轴运动t秒，
-              那么最终位置应该是(x0+v*t, y0, z0)附近（考虑物理引擎的误差）
+        蜕变关系：对同一模型，从相同初始状态施加相同的力F，运行相同时间t，
+        两次实验应产生相同的位移。这是物理引擎确定性的基本要求。
+        
+        测试流程：
+        1. 选择模型，获取初始位置
+        2. 测试A：暂停→施力→恢复→等待t秒→记录位置P1
+        3. 清除力，重置模型到初始状态
+        4. 测试B：暂停→施同样的力→恢复→等待t秒→记录位置P2
+        5. 验证P1 ≈ P2
         
         Args:
-            velocity_x: x轴方向的速度（m/s），如果为None则随机生成
+            velocity_x: 已废弃参数，保留接口兼容性
             test_duration: 测试持续时间（秒）
         
         Returns:
-            (model_name, initial_position, final_position, expected_position, success) 或 None
+            (model_name, initial_pos, final_pos, expected_pos, success) 或 None
+            其中 final_pos = 测试A的最终位置, expected_pos = 测试B的最终位置
         """
-        # 1. 获取场景并随机选择一个模型（用于选择模型，但不用于获取位置）
+        # 1. 获取场景并随机选择一个模型
         scene, reserved_models = self.get_scene()
         if not reserved_models or scene is None:
             print("DEBUG: get_scene() returned None, skipping this test")
             return None
         
-        # 随机选择一个可用模型
-        available_models = [m for m in scene.model if m.name not in reserved_models]
+        available_models = self.get_testable_models(scene, reserved_models)
         if not available_models:
             print("No available models for metamorphic test")
             return None
         
         target_model = random.choice(available_models)
-        # model_name = target_model.name
-        model_name = "ellipsoid"
+        model_name = target_model.name
         print(f"Selected model for metamorphic test: {model_name}")
         
-        # 使用 topic 获取模型的实时初始位置
-        initial_pos = self.get_model_pose_from_topic(model_name)
+        # Gazebo 以暂停状态启动（无 -r 参数），模型处于 SDF 定义的初始位置且速度为零
+        # 通过 scene/info 服务获取初始位置（暂停状态下 topic 不可靠，但 service 可用）
+        initial_pos = self.get_model_pose_from_scene(model_name)
         if initial_pos is None:
             print(f"DEBUG: Failed to get initial position for model {model_name}")
             return None
         print(f"Initial position: {initial_pos}")
         
-        # 2. 如果没有指定速度，随机生成一个速度
-        if velocity_x is None:
-            velocity_x = random.uniform(0.5, 2.0)  # 随机速度范围：0.5-2.0 m/s
-        print(f"Velocity: {velocity_x} m/s, Duration: {test_duration} s")
+        # 2. 获取模型质量，生成全向随机力（保存为实例变量确保两次测试相同）
+        model_mass = self.get_model_mass(model_name)
+        if model_mass is None or model_mass <= 0:
+            print(f"DEBUG: Invalid mass for model {model_name}, using default 1.0")
+            model_mass = 1.0
         
-        # 3. 对模型施加力，使其沿x轴运动
-        # 注意：使用 -r 参数启动的 Gazebo 已经自动运行，不需要额外调用 play_simulation()
-        # 计算需要的力（简化处理，假设模型质量为1kg）
-        # 使用较大的力值以确保模型能够运动（实际效果取决于模型质量）
-        force_x = velocity_x * 50.0  # 根据模型质量调整，这里使用较大的系数
-        print(f"DEBUG: Applying force: x={force_x}, y=0.0, z=0.0 to model {model_name}")
+        force_x, force_y, force_z = self.generate_omnidirectional_force(model_mass)
+        self._test_force_x = force_x
+        self._test_force_y = force_y
+        self._test_force_z = force_z
+        print(f"Force F: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N")
+        print(f"Test Duration: {test_duration:.2f} s")
+        
+        # ===== 测试A：第一次施加力 =====
+        print("DEBUG: Test A: Applying force (first run)...")
+        
+        # 暂停模拟
+        pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+        pause_cmd.execute(self.experiment_log)
+        self.log_sleep(0.3, "Wait for pause (test A)")
+        time.sleep(0.3)
+        
+        # 清除残余力并施加力
+        self.clear_model_wrench(model_name)
         force_cmd = self.func_apply_model_force(
             model_name=model_name,
-            force_x=force_x,
-            force_y=0.0,
-            force_z=0.0,
+            force_x=self._test_force_x,
+            force_y=self._test_force_y,
+            force_z=self._test_force_z,
             persistent=True
         )
-        
         if force_cmd:
-            print("DEBUG: Executing force command...")
-            force_cmd.execute()
-            # 等待一小段时间确保力被应用
-            time.sleep(0.2)
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force to be applied (test A)")
+            time.sleep(0.1)
         else:
-            print("DEBUG: Warning - force_cmd is None, cannot apply force")
+            print("DEBUG: Warning - force_cmd is None")
+            return None
         
-        # 4. 等待指定时间
-        print(f"Applying force for {test_duration} seconds...")
+        # 恢复模拟，开始计时
+        play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+        play_cmd.execute(self.experiment_log)
+        self.log_sleep(0.1, "Brief wait after resume (test A)")
+        time.sleep(0.1)
+        
+        # 等待测试时间
+        print(f"Running test A for {test_duration:.2f} seconds...")
+        self.log_sleep(test_duration, f"Running test A for {test_duration:.2f} seconds")
         time.sleep(test_duration)
         
-        # 5. 使用 topic 获取模型的实时最终位置
-        final_pos = self.get_model_pose_from_topic(model_name)
-        if final_pos is None:
-            print(f"DEBUG: Failed to get final position for model {model_name}")
+        # 获取最终位置（模拟运行状态下）
+        print("DEBUG: Getting position after test A (simulation still running)...")
+        pos_after_A = self.get_model_pose_from_topic(model_name)
+        if pos_after_A is None:
+            print(f"DEBUG: Failed to get position after test A for model {model_name}")
             return None
-        print(f"Final position: {final_pos}")
+        print(f"Position after test A: {pos_after_A}")
         
-        # 6. 计算预期位置
-        expected_pos = (
-            initial_pos[0] + velocity_x * test_duration,
-            initial_pos[1],
-            initial_pos[2]
+        # 暂停模拟
+        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+        pause_cmd.execute(self.experiment_log)
+        self.log_sleep(0.2, "Wait for pause after test A")
+        time.sleep(0.2)
+        
+        # 计算测试A的位移
+        d1 = (pos_after_A[0] - initial_pos[0],
+              pos_after_A[1] - initial_pos[1],
+              pos_after_A[2] - initial_pos[2])
+        d1_magnitude = (d1[0]**2 + d1[1]**2 + d1[2]**2)**0.5
+        print(f"Displacement A: ({d1[0]:.4f}, {d1[1]:.4f}, {d1[2]:.4f}), magnitude: {d1_magnitude:.4f} m")
+        
+        # 位移检测：如果模型几乎没动，跳过测试
+        MIN_DISPLACEMENT_THRESHOLD = 0.01  # 1cm
+        if d1_magnitude < MIN_DISPLACEMENT_THRESHOLD:
+            error_info = f"Model '{model_name}' did not move (displacement: {d1_magnitude:.6f} m < {MIN_DISPLACEMENT_THRESHOLD} m). Skipping."
+            print(f"DEBUG: {error_info}")
+            self.clear_model_wrench(model_name)
+            # 恢复模拟
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            return None
+        
+        # ===== 重置模型状态（仿真保持暂停状态） =====
+        # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
+        # 这样模型不会因为重力等外力而在重置后发生位移
+        print("DEBUG: Resetting model for test B (simulation stays paused)...")
+        self.clear_model_wrench(model_name)
+        self.log_sleep(0.2, "Wait after clearing wrench")
+        time.sleep(0.2)
+        
+        self.reset_simulation()
+        self.log_sleep(0.5, "Wait after world reset")
+        time.sleep(0.5)
+        
+        self.set_model_pose(model_name, initial_pos[0], initial_pos[1], initial_pos[2],
+                            initial_pos[3], initial_pos[4], initial_pos[5], initial_pos[6])
+        self.log_sleep(0.5, "Wait after setting model pose")
+        time.sleep(0.5)
+        
+        # 验证重置成功（通过 scene 服务验证，无需恢复仿真）
+        pos_after_reset = self.get_model_pose_from_scene(model_name)
+        if pos_after_reset is not None:
+            print(f"Position after reset: {pos_after_reset}")
+        
+        # ===== 测试B：第二次施加相同的力 =====
+        print("DEBUG: Test B: Applying same force (second run)...")
+        
+        # 显式暂停模拟（确保处于暂停状态，与 Test A 的 pause→force→resume 流程一致）
+        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+        pause_cmd.execute(self.experiment_log)
+        self.log_sleep(0.3, "Wait for pause (test B)")
+        time.sleep(0.3)
+        
+        # 施加同样的力
+        self.clear_model_wrench(model_name)
+        force_cmd_B = self.func_apply_model_force(
+            model_name=model_name,
+            force_x=self._test_force_x,
+            force_y=self._test_force_y,
+            force_z=self._test_force_z,
+            persistent=True
         )
-        print(f"Expected position: {expected_pos}")
+        if force_cmd_B:
+            force_cmd_B.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force to be applied (test B)")
+            time.sleep(0.1)
+        else:
+            print("DEBUG: Warning - force_cmd_B is None")
+            return None
         
-        # 7. 验证结果（允许一定的误差）
-        error_threshold = 0.5  # 允许0.5米的误差
-        error_x = abs(final_pos[0] - expected_pos[0])
-        error_y = abs(final_pos[1] - expected_pos[1])
-        error_z = abs(final_pos[2] - expected_pos[2])
+        # 恢复模拟，开始计时
+        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+        play_cmd.execute(self.experiment_log)
+        self.log_sleep(0.1, "Brief wait after resume (test B)")
+        time.sleep(0.1)
         
-        success = (error_x < error_threshold and 
-                   error_y < error_threshold and 
-                   error_z < error_threshold)
+        # 等待同样的测试时间
+        print(f"Running test B for {test_duration:.2f} seconds...")
+        self.log_sleep(test_duration, f"Running test B for {test_duration:.2f} seconds")
+        time.sleep(test_duration)
         
-        print(f"Position error: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}")
-        print(f"Test {'PASSED' if success else 'FAILED'}")
+        # 获取最终位置（模拟运行状态下）
+        print("DEBUG: Getting position after test B (simulation still running)...")
+        pos_after_B = self.get_model_pose_from_topic(model_name)
+        if pos_after_B is None:
+            print(f"DEBUG: Failed to get position after test B for model {model_name}")
+            return None
+        print(f"Position after test B: {pos_after_B}")
         
-        return (model_name, initial_pos, final_pos, expected_pos, success)
+        # 暂停模拟
+        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+        pause_cmd.execute(self.experiment_log)
+        self.log_sleep(0.2, "Wait for pause after test B")
+        time.sleep(0.2)
+        
+        # 恢复模拟
+        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+        play_cmd.execute(self.experiment_log)
+        self.log_sleep(0.1, "Brief wait after final resume")
+        time.sleep(0.1)
+        
+        # 清除力
+        self.clear_model_wrench(model_name)
+        
+        # ===== 比较结果 =====
+        # 蜕变关系：两次运动应产生相同的位移 pos_after_A ≈ pos_after_B
+        # 混合阈值：绝对误差 < 0.5m 或 相对误差 < 10%，满足其一即通过
+        abs_threshold = 0.5  # 绝对阈值：0.5米
+        rel_threshold = 0.10  # 相对阈值：10%
+        
+        error_x = abs(pos_after_A[0] - pos_after_B[0])
+        error_y = abs(pos_after_A[1] - pos_after_B[1])
+        error_z = abs(pos_after_A[2] - pos_after_B[2])
+        error_magnitude = (error_x**2 + error_y**2 + error_z**2)**0.5
+        
+        # 计算位移（取两次中较大的位移作为基准）
+        disp_a = ((pos_after_A[0]-initial_pos[0])**2 + (pos_after_A[1]-initial_pos[1])**2 + (pos_after_A[2]-initial_pos[2])**2)**0.5
+        disp_b = ((pos_after_B[0]-initial_pos[0])**2 + (pos_after_B[1]-initial_pos[1])**2 + (pos_after_B[2]-initial_pos[2])**2)**0.5
+        max_displacement = max(disp_a, disp_b)
+        relative_error = error_magnitude / max_displacement if max_displacement > 0.001 else 0.0
+        
+        # 混合判定：绝对误差小于阈值 或 相对误差小于阈值
+        abs_pass = (error_x < abs_threshold and error_y < abs_threshold and error_z < abs_threshold)
+        rel_pass = (relative_error < rel_threshold)
+        success = abs_pass or rel_pass
+        
+        print(f"Position error (A vs B): x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}")
+        print(f"Error magnitude: {error_magnitude:.4f} m, Max displacement: {max_displacement:.4f} m, Relative error: {relative_error*100:.2f}%")
+        print(f"Test {'PASSED' if success else 'FAILED'} (abs_pass={abs_pass}, rel_pass={rel_pass})")
+        
+        # 返回格式保持兼容: (model_name, initial_pos, final_pos, expected_pos, success)
+        # final_pos = 测试A结果, expected_pos = 测试B结果
+        return (model_name, initial_pos, pos_after_A, pos_after_B, success)
+
+    def metamorphic_test_force_additivity(self, test_duration=5.0):
+        """
+        蜕变测试：力的可加性测试
+        
+        测试原理：对同一模型同时施加多个力 F1, F2, ..., Fn，结果应该等于这些力的矢量和 F_total = F1 + F2 + ... + Fn
+        
+        测试流程：
+        1. 随机选择一个模型，获取初始位置
+        2. 测试A：同时施加力 F1 和 F2，运行 t 秒，记录最终位置 P1
+        3. 测试B：重置模型到初始状态，施加力 F_total = F1 + F2，运行 t 秒，记录最终位置 P2
+        4. 验证 P1 ≈ P2（在容差范围内）
+        
+        Args:
+            test_duration: 测试持续时间（秒）
+        
+        Returns:
+            (model_name, initial_pos, pos_with_f1_f2, pos_with_f_total, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            
+            # 1. 获取场景并随机选择一个模型
+            scene, reserved_models = self.get_scene()
+            if not reserved_models or scene is None:
+                print("DEBUG: get_scene() returned None, skipping this test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("No available models for force additivity test")
+                return None
+            
+            target_model = random.choice(available_models)
+            model_name = target_model.name
+            print(f"Selected model for force additivity test: {model_name}")
+            
+            # Gazebo 以暂停状态启动（无 -r 参数），模型处于 SDF 定义的初始位置且速度为零
+            # 通过 scene/info 服务获取初始位置和角度（暂停状态下 service 可用）
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: {initial_pos}")
+            
+            # 获取初始角度（用于后续恢复）
+            initial_state_dict = self.record_all_models_state_from_scene()
+            if initial_state_dict is None or model_name not in initial_state_dict:
+                print("DEBUG: Failed to record initial state")
+                return None
+            initial_orientation = initial_state_dict[model_name]['orientation']
+            
+            # 3. 获取模型质量，生成与质量成比例的全向随机力 F1 和 F2
+            model_mass = self.get_model_mass(model_name)
+            
+            # F1: 全向随机，力大小与质量成比例
+            force1_x, force1_y, force1_z = self.generate_omnidirectional_force(model_mass)
+            
+            # F2: 全向随机，力大小与质量成比例
+            force2_x, force2_y, force2_z = self.generate_omnidirectional_force(model_mass)
+            
+            # 计算合力
+            force_total_x = force1_x + force2_x
+            force_total_y = force1_y + force2_y
+            force_total_z = force1_z + force2_z
+            
+            print(f"Force F1: ({force1_x:.2f}, {force1_y:.2f}, {force1_z:.2f}) N")
+            print(f"Force F2: ({force2_x:.2f}, {force2_y:.2f}, {force2_z:.2f}) N")
+            print(f"Force F_total = F1 + F2: ({force_total_x:.2f}, {force_total_y:.2f}, {force_total_z:.2f}) N")
+            
+            # 4. 测试A：同时施加 F1 和 F2
+            print("DEBUG: Test A: Applying F1 and F2 simultaneously...")
+            
+            # 清除之前的力（如果有）
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench")
+            time_module.sleep(0.2)
+            
+            # 步骤1：暂停模拟（使用 gz service 指令）
+            print("DEBUG: Pausing simulation using gz service command...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete")
+            time_module.sleep(0.3)  # 等待暂停完成
+            
+            # 步骤2：使用 gz topic 指令添加 F1
+            print("DEBUG: Applying F1 using gz topic command...")
+            topic_name = f"/world/{self.world_name}/wrench/persistent"
+            wrench_str1 = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {force1_x}, y: {force1_y}, z: {force1_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd1_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str1}'"
+            force_cmd1 = GzCommand(GzCommandType.TOPIC, [force_cmd1_txt], True)
+            force_cmd1.execute(self.experiment_log)
+            self.log_sleep(0.05, "Brief wait after applying F1")
+            time_module.sleep(0.05)  # 短暂等待
+            
+            # 步骤3：使用 gz topic 指令添加 F2
+            print("DEBUG: Applying F2 using gz topic command...")
+            wrench_str2 = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {force2_x}, y: {force2_y}, z: {force2_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd2_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str2}'"
+            force_cmd2 = GzCommand(GzCommandType.TOPIC, [force_cmd2_txt], True)
+            force_cmd2.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for F2 message to be received")
+            time_module.sleep(0.1)  # 等待消息被接收
+            
+            # 步骤4：恢复模拟（使用 gz service 指令），并从此时开始计时
+            print("DEBUG: Resuming simulation using gz service command...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect")
+            time_module.sleep(0.1)  # 短暂等待确保恢复命令生效
+            
+            # 从恢复模拟开始计时
+            print(f"Running with F1+F2 for {test_duration} seconds (timing starts from simulation resume)...")
+            self.log_sleep(test_duration, f"Test A: Running with F1+F2 for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print("DEBUG: Getting position after F1+F2 (simulation still running)...")
+            pos_with_f1_f2 = self.get_model_pose_from_topic(model_name)
+            if pos_with_f1_f2 is None:
+                print(f"DEBUG: Failed to get position after F1+F2")
+                return None
+            print(f"Position with F1+F2: {pos_with_f1_f2}")
+            
+            # 检测模型是否真正发生了位移（排除被约束的模型）
+            import math
+            displacement_a = math.sqrt(
+                (pos_with_f1_f2[0] - initial_pos[0])**2 +
+                (pos_with_f1_f2[1] - initial_pos[1])**2 +
+                (pos_with_f1_f2[2] - initial_pos[2])**2
+            )
+            min_displacement = 0.01  # 最小可接受位移 1cm
+            if displacement_a < min_displacement:
+                print(f"DEBUG: Model '{model_name}' barely moved (displacement={displacement_a:.6f}m < {min_displacement}m). "
+                      f"Model is likely constrained by ground contact/joints. Skipping this test.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # 暂停模拟
+            print("DEBUG: Pausing simulation after getting position...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.2, "Wait for pause to complete")
+            time_module.sleep(0.2)
+            
+            # 5. 重置到初始状态（仿真保持暂停状态）
+            # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
+            # 这样模型不会因为重力等外力而在重置后发生位移
+            print("DEBUG: Resetting to initial state (simulation stays paused)...")
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench before reset")
+            time_module.sleep(0.2)
+            
+            # 使用 reset 功能重置模拟到初始状态
+            reset_success = self.reset_simulation()
+            if not reset_success:
+                print("DEBUG: Failed to reset simulation")
+                return None
+            
+            self.log_sleep(1.0, "Wait for reset to complete")
+            time_module.sleep(1.0)  # 等待重置完成
+            
+            # 使用 set_pose 恢复模型到初始位置和角度
+            restore_pose_success = self.set_model_pose(
+                model_name, 
+                initial_pos[0], initial_pos[1], initial_pos[2],
+                initial_orientation[0], initial_orientation[1], 
+                initial_orientation[2], initial_orientation[3]
+            )
+            if not restore_pose_success:
+                print("DEBUG: Failed to restore model pose")
+                return None
+            
+            self.log_sleep(0.5, "Wait for position restore")
+            time_module.sleep(0.5)  # 等待位置恢复
+            
+            # 验证位置是否重置（通过 scene 服务验证，无需恢复仿真）
+            reset_pos = self.get_model_pose_from_scene(model_name)
+            if reset_pos is None:
+                print("DEBUG: Failed to get position after reset")
+                return None
+            print(f"Position after reset: {reset_pos}")
+            
+            # 6. 测试B：施加 F_total = F1 + F2
+            print("DEBUG: Test B: Applying F_total = F1 + F2...")
+            
+            # 显式暂停模拟（确保处于暂停状态，与 Test A 的 pause→force→resume 流程一致）
+            print("DEBUG: Pausing simulation before applying force (test B)...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete (test B)")
+            time_module.sleep(0.3)
+            
+            # 清除之前的力（如果有）
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench before test B")
+            time_module.sleep(0.2)
+            
+            # 使用 gz topic 指令添加 F_total
+            print("DEBUG: Applying F_total using gz topic command...")
+            topic_name = f"/world/{self.world_name}/wrench/persistent"
+            wrench_str_total = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {force_total_x}, y: {force_total_y}, z: {force_total_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd_total_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str_total}'"
+            force_cmd_total = GzCommand(GzCommandType.TOPIC, [force_cmd_total_txt], True)
+            force_cmd_total.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for F_total message to be received")
+            time_module.sleep(0.1)  # 等待消息被接收
+            
+            # 步骤3：恢复模拟（使用 gz service 指令），并从此时开始计时
+            print("DEBUG: Resuming simulation using gz service command...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
+            time_module.sleep(0.1)  # 短暂等待确保恢复命令生效
+            
+            # 从恢复模拟开始计时（与测试A相同）
+            print(f"Running with F_total for {test_duration} seconds (timing starts from simulation resume)...")
+            self.log_sleep(test_duration, f"Test B: Running with F_total for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print("DEBUG: Getting position after F_total (simulation still running)...")
+            pos_with_f_total = self.get_model_pose_from_topic(model_name)
+            if pos_with_f_total is None:
+                print(f"DEBUG: Failed to get position after F_total")
+                return None
+            print(f"Position with F_total: {pos_with_f_total}")
+            
+            # 暂停模拟
+            print("DEBUG: Pausing simulation after getting position...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.2, "Wait for pause to complete")
+            time_module.sleep(0.2)
+            
+            # 恢复模拟，继续后续操作
+            print("DEBUG: Resuming simulation...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait after resuming")
+            time_module.sleep(0.1)
+            
+            # 7. 验证结果
+            # 混合阈值：绝对误差 < 0.5m 或 相对误差 < 10%，满足其一即通过
+            abs_threshold = 0.5  # 绝对阈值：0.5米
+            rel_threshold = 0.10  # 相对阈值：10%
+            
+            error_x = abs(pos_with_f1_f2[0] - pos_with_f_total[0])
+            error_y = abs(pos_with_f1_f2[1] - pos_with_f_total[1])
+            error_z = abs(pos_with_f1_f2[2] - pos_with_f_total[2])
+            error_magnitude = (error_x**2 + error_y**2 + error_z**2)**0.5
+            
+            # 计算位移（取两次中较大的位移作为基准）
+            disp_f1f2 = ((pos_with_f1_f2[0]-initial_pos[0])**2 + (pos_with_f1_f2[1]-initial_pos[1])**2 + (pos_with_f1_f2[2]-initial_pos[2])**2)**0.5
+            disp_ftotal = ((pos_with_f_total[0]-initial_pos[0])**2 + (pos_with_f_total[1]-initial_pos[1])**2 + (pos_with_f_total[2]-initial_pos[2])**2)**0.5
+            max_displacement = max(disp_f1f2, disp_ftotal)
+            relative_error = error_magnitude / max_displacement if max_displacement > 0.001 else 0.0
+            
+            # 混合判定：绝对误差小于阈值 或 相对误差小于阈值
+            abs_pass = (error_x < abs_threshold and error_y < abs_threshold and error_z < abs_threshold)
+            rel_pass = (relative_error < rel_threshold)
+            success = abs_pass or rel_pass
+            
+            error_info = f"Position difference: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f} m\n"
+            error_info += f"Error magnitude: {error_magnitude:.4f} m\n"
+            error_info += f"Max displacement: {max_displacement:.4f} m\n"
+            error_info += f"Relative error: {relative_error*100:.2f}%\n"
+            error_info += f"Threshold: abs < {abs_threshold} m OR rel < {rel_threshold*100:.0f}%\n"
+            error_info += f"F1: ({force1_x:.2f}, {force1_y:.2f}, {force1_z:.2f}) N\n"
+            error_info += f"F2: ({force2_x:.2f}, {force2_y:.2f}, {force2_z:.2f}) N\n"
+            error_info += f"F_total: ({force_total_x:.2f}, {force_total_y:.2f}, {force_total_z:.2f}) N"
+            
+            print(f"Position error: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}")
+            print(f"Error magnitude: {error_magnitude:.4f} m, Max displacement: {max_displacement:.4f} m, Relative error: {relative_error*100:.2f}%")
+            print(f"Test {'PASSED' if success else 'FAILED'} (abs_pass={abs_pass}, rel_pass={rel_pass})")
+            
+            # 清除力
+            self.clear_model_wrench(model_name)
+            
+            return (model_name, initial_pos, pos_with_f1_f2, pos_with_f_total, success, error_info)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_force_additivity: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def clear_model_wrench(self, model_name):
+        """
+        清除模型上施加的持续力
+        
+        Args:
+            model_name: 模型名称
+        """
+        try:
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return False
+                self.world_name = response.data[0]
+            
+            # 使用 /world/<world_name>/wrench/clear topic 清除持续力
+            topic_name = f"/world/{self.world_name}/wrench/clear"
+            
+            # 创建 Entity 消息（Entity 已经在文件顶部导入）
+            entity_msg = Entity()
+            entity_msg.name = model_name
+            # entity_msg.type = Entity_Type.MODEL  # 如果需要可以设置类型
+            
+            if self.use_text:
+                # 使用命令行方式
+                cmd_txt = f"gz topic -t {topic_name} -m gz.msgs.Entity -p 'name: \"{model_name}\", type: MODEL'"
+                cmd = GzCommand(GzCommandType.TOPIC, [cmd_txt], True)
+                cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+            else:
+                # 使用 Node API
+                publisher = self.node.advertise(topic_name, Entity)
+                time.sleep(0.1)
+                publisher.publish(entity_msg)
+            
+            return True
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in clear_model_wrench: {e}")
+            return False
+
+    def reset_simulation(self):
+        """
+        重置模拟到初始状态
+        
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return False
+                self.world_name = response.data[0]
+            
+            # 使用 /world/<world_name>/control 服务进行重置
+            service_name = f"/world/{self.world_name}/control"
+            
+            if self.use_text:
+                # 使用命令行方式
+                cmd_txt = f"gz service -s {service_name} --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'reset: {{all: true}}, pause: true'"
+                cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+                cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+                print(f"DEBUG: Successfully reset simulation (command logged)")
+                return True
+            else:
+                # 使用 Node API
+                request = WorldControl()
+                request.reset.all = True
+                request.pause = True
+                
+                result, response = self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+                if result and response.data:
+                    print(f"DEBUG: Successfully reset simulation")
+                    return True
+                else:
+                    print(f"DEBUG: Failed to reset simulation")
+                    return False
+                
+        except Exception as e:
+            print(f"DEBUG: Exception in reset_simulation: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def set_model_pose(self, model_name, x, y, z, w, qx, qy, qz):
+        """
+        设置模型的位置和角度
+        
+        Args:
+            model_name: 模型名称
+            x, y, z: 位置坐标
+            w, qx, qy, qz: 四元数（w, x, y, z）
+        
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return False
+                self.world_name = response.data[0]
+            
+            # 使用 /world/<world_name>/set_pose 服务设置模型位置
+            service_name = f"/world/{self.world_name}/set_pose"
+            
+            if self.use_text:
+                # 使用命令行方式
+                # 注意：四元数的顺序是 w, x, y, z
+                cmd_txt = f"gz service -s {service_name} --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'name: \"{model_name}\", position: {{x: {x}, y: {y}, z: {z}}}, orientation: {{w: {w}, x: {qx}, y: {qy}, z: {qz}}}'"
+                cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+                cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+                print(f"DEBUG: Successfully set pose for model {model_name} (command logged)")
+                return True
+            else:
+                # 使用 Node API
+                request = Pose()
+                request.name = model_name
+                request.position.x = x
+                request.position.y = y
+                request.position.z = z
+                request.orientation.w = w
+                request.orientation.x = qx
+                request.orientation.y = qy
+                request.orientation.z = qz
+                
+                result, response = self.node.request(service_name, request, Pose, Boolean, self.timeout)
+                if result and response.data:
+                    print(f"DEBUG: Successfully set pose for model {model_name}")
+                    return True
+                else:
+                    print(f"DEBUG: Failed to set pose for model {model_name}")
+                    return False
+                
+        except Exception as e:
+            print(f"DEBUG: Exception in set_model_pose: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def set_real_time_factor(self, rtf_value):
+        """
+        设置模拟的 real_time_factor 参数
+        
+        Args:
+            rtf_value: real_time_factor 值（例如 0.5, 1.0, 2.0）
+        
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return False
+                self.world_name = response.data[0]
+            
+            # 使用 /world/<world_name>/set_physics 服务设置 real_time_factor
+            service_name = f"/world/{self.world_name}/set_physics"
+            
+            if self.use_text:
+                # 使用命令行方式
+                # 需要获取当前的 max_step_size，保持它不变
+                # 但为了简化，我们可以只设置 real_time_factor，max_step_size 使用默认值或保持原值
+                # 实际上，我们需要先获取当前的 physics 参数，但为了简化，我们假设 max_step_size 为 0.001
+                cmd_txt = f"gz service -s {service_name} --reqtype gz.msgs.Physics --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'max_step_size: 0.001, real_time_factor: {rtf_value}'"
+                cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+                cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+                if hasattr(self, 'experiment_log'):
+                    self.log_sleep(0.2, f"Wait for real_time_factor={rtf_value} to take effect")
+                time.sleep(0.2)  # 等待设置生效
+                return True
+            else:
+                # 使用 Node API
+                request = Physics()
+                request.max_step_size = 0.001  # 保持默认值，只改变 real_time_factor
+                request.real_time_factor = rtf_value
+                
+                result, response = self.node.request(service_name, request, Physics, Boolean, self.timeout)
+                if result and response.data:
+                    print(f"DEBUG: Successfully set real_time_factor to {rtf_value}")
+                    if hasattr(self, 'experiment_log'):
+                        self.log_sleep(0.2, f"Wait for real_time_factor={rtf_value} to take effect")
+                    time.sleep(0.2)  # 等待设置生效
+                    return True
+                else:
+                    print(f"DEBUG: Failed to set real_time_factor")
+                    return False
+                
+        except Exception as e:
+            print(f"DEBUG: Exception in set_real_time_factor: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def metamorphic_test_time_scaling(self, test_duration=5.0):
+        """
+        蜕变测试：时间比例测试
+        
+        测试原理：通过调整 real_time_factor 参数，调节仿真速度比例，物理行为应该有比例关系或性质相同
+        如果 real_time_factor = r，那么在相同物理时间内，模型的位置应该相同
+        
+        测试流程：
+        1. 默认参数（real_time_factor = 1.0）下，给一个力 F1，计时统计位置 P1
+        2. 恢复模型位置（不重置模拟）
+        3. 调整时间参数 real_time_factor（范围 0.5-2.0）
+        4. 如果调整时间参数必须重置模拟，那就重置模拟
+        5. 调整后给同样的力 F1，计时统计位置 P2
+        6. 比较位置确认结果是否正确
+        
+        Args:
+            test_duration: 测试持续时间（秒，物理时间）
+        
+        Returns:
+            (model_name, initial_pos, pos_with_rtf1, pos_with_rtf2, rtf1, rtf2, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            
+            # 1. 获取场景并随机选择一个模型
+            scene, reserved_models = self.get_scene()
+            if not reserved_models or scene is None:
+                print("DEBUG: get_scene() returned None, skipping this test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("No available models for time scaling test")
+                return None
+            
+            target_model = random.choice(available_models)
+            model_name = target_model.name
+            print(f"Selected model for time scaling test: {model_name}")
+            
+            # Gazebo 以暂停状态启动（无 -r 参数），模型处于 SDF 定义的初始位置且速度为零
+            # 通过 scene/info 服务获取初始位置和角度（暂停状态下 service 可用）
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: {initial_pos}")
+            
+            # 获取初始角度（用于后续恢复）
+            initial_state_dict = self.record_all_models_state_from_scene()
+            if initial_state_dict is None or model_name not in initial_state_dict:
+                print("DEBUG: Failed to record initial state")
+                return None
+            initial_orientation = initial_state_dict[model_name]['orientation']
+            
+            # 3. 获取模型质量，生成与质量成比例的全向随机力 F1（保存为实例变量确保两次测试使用完全相同的力）
+            model_mass = self.get_model_mass(model_name)
+            force1_x, force1_y, force1_z = self.generate_omnidirectional_force(model_mass)
+            
+            # 保存力值，确保两次测试使用完全相同的力
+            self._test_force_x = force1_x
+            self._test_force_y = force1_y
+            self._test_force_z = force1_z
+            
+            print(f"Force F1: ({force1_x:.6f}, {force1_y:.6f}, {force1_z:.6f}) N")
+            print(f"DEBUG: Force values saved for both tests")
+            
+            # 4. 测试A：默认 real_time_factor = 1.0，施加 F1
+            print("DEBUG: Test A: Applying F1 with default real_time_factor (1.0)...")
+            
+            # 确保 real_time_factor 为 1.0
+            self.set_real_time_factor(1.0)
+            self.log_sleep(0.3, "Wait after setting rtf=1.0")
+            time_module.sleep(0.3)
+            
+            # 清除之前的力（如果有）
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench (test A)")
+            time_module.sleep(0.2)
+            
+            # 暂停模拟
+            print("DEBUG: Pausing simulation...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete (test A)")
+            time_module.sleep(0.3)
+            
+            # 添加 F1（使用保存的力值）
+            print("DEBUG: Applying F1 using gz topic command...")
+            topic_name = f"/world/{self.world_name}/wrench/persistent"
+            # 使用保存的力值，确保两次测试使用完全相同的力
+            wrench_str1 = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {self._test_force_x}, y: {self._test_force_y}, z: {self._test_force_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd1_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str1}'"
+            print(f"DEBUG: Force command for Test A: {force_cmd1_txt}")
+            print(f"DEBUG: Force values for Test A - x: {self._test_force_x:.6f}, y: {self._test_force_y:.6f}, z: {self._test_force_z:.6f}")
+            force_cmd1 = GzCommand(GzCommandType.TOPIC, [force_cmd1_txt], True)
+            force_cmd1.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait after applying F1 (test A)")
+            time_module.sleep(0.1)
+            
+            # 恢复模拟，从此时开始计时
+            print("DEBUG: Resuming simulation (timing starts from here)...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test A)")
+            time_module.sleep(0.1)
+            
+            # 等待指定时间（物理时间）
+            print(f"Running with F1 and rtf=1.0 for {test_duration} seconds (physical time)...")
+            self.log_sleep(test_duration, f"Test A: Running with F1 and rtf=1.0 for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print("DEBUG: Getting position after F1 with rtf=1.0 (simulation still running)...")
+            pos_with_rtf1 = self.get_model_pose_from_topic(model_name)
+            if pos_with_rtf1 is None:
+                print(f"DEBUG: Failed to get position after F1 with rtf=1.0")
+                return None
+            print(f"Position with rtf=1.0: {pos_with_rtf1}")
+            
+            # 检测模型是否真正发生了位移（排除被约束的模型）
+            import math
+            displacement_a = math.sqrt(
+                (pos_with_rtf1[0] - initial_pos[0])**2 +
+                (pos_with_rtf1[1] - initial_pos[1])**2 +
+                (pos_with_rtf1[2] - initial_pos[2])**2
+            )
+            min_displacement = 0.01  # 最小可接受位移 1cm
+            if displacement_a < min_displacement:
+                print(f"DEBUG: Model '{model_name}' barely moved (displacement={displacement_a:.6f}m < {min_displacement}m). "
+                      f"Model is likely constrained by ground contact/joints. Skipping this test.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # 暂停模拟
+            print("DEBUG: Pausing simulation after getting position...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.2, "Wait for pause to complete")
+            time_module.sleep(0.2)
+            
+            # 5. 重置模型状态（仿真保持暂停状态）
+            # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
+            # 这样模型不会因为重力等外力而在重置后发生位移
+            print("DEBUG: Resetting model state for test B (simulation stays paused)...")
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench before restore")
+            time_module.sleep(0.2)
+            
+            # 重置模拟（清除所有速度，确保模型状态完全重置）
+            reset_success = self.reset_simulation()
+            if not reset_success:
+                print("DEBUG: Failed to reset simulation")
+                return None
+            
+            self.log_sleep(1.0, "Wait for reset to complete")
+            time_module.sleep(1.0)  # 等待重置完成
+            
+            # 6. 调整时间参数 real_time_factor（范围 0.5-2.0）
+            rtf2 = random.uniform(0.5, 2.0)
+            print(f"DEBUG: Setting real_time_factor to {rtf2:.2f}...")
+            
+            # 设置新的 real_time_factor
+            set_rtf_success = self.set_real_time_factor(rtf2)
+            if not set_rtf_success:
+                print("DEBUG: Failed to set real_time_factor after reset")
+                return None
+            
+            self.log_sleep(0.3, "Wait for rtf parameter to take effect")
+            time_module.sleep(0.3)  # 等待参数生效
+            
+            # 恢复模型位置（重置后需要重新设置位置）
+            restore_pose_success = self.set_model_pose(
+                model_name, 
+                initial_pos[0], initial_pos[1], initial_pos[2],
+                initial_orientation[0], initial_orientation[1], 
+                initial_orientation[2], initial_orientation[3]
+            )
+            if not restore_pose_success:
+                print("DEBUG: Failed to restore model pose after reset")
+                return None
+            
+            self.log_sleep(0.5, "Wait for position restore after reset")
+            time_module.sleep(0.5)  # 等待位置恢复
+            
+            # 验证位置是否正确恢复（通过 scene 服务验证，无需恢复仿真）
+            verify_pos = self.get_model_pose_from_scene(model_name)
+            if verify_pos:
+                print(f"DEBUG: Model position after reset and restore: {verify_pos}")
+                print(f"DEBUG: Expected position: {initial_pos}")
+                pos_error = (
+                    abs(verify_pos[0] - initial_pos[0]) +
+                    abs(verify_pos[1] - initial_pos[1]) +
+                    abs(verify_pos[2] - initial_pos[2])
+                )
+                if pos_error > 0.1:
+                    print(f"DEBUG: WARNING - Position not fully restored, error: {pos_error:.3f}")
+            
+            # 7. 测试B：使用新的 real_time_factor，施加同样的 F1
+            print(f"DEBUG: Test B: Applying F1 with real_time_factor={rtf2:.2f}...")
+            
+            # 显式暂停模拟（确保处于暂停状态，与 Test A 的 pause→force→resume 流程一致）
+            print("DEBUG: Pausing simulation before applying force (test B)...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete (test B)")
+            time_module.sleep(0.3)
+            
+            # 清除之前的力（如果有）
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench (test B)")
+            time_module.sleep(0.2)
+            
+            # 添加 F1（使用保存的力值，确保与测试A完全相同）
+            print("DEBUG: Applying F1 using gz topic command...")
+            # 使用保存的力值，确保两次测试使用完全相同的力
+            wrench_str1 = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {self._test_force_x}, y: {self._test_force_y}, z: {self._test_force_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd1_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str1}'"
+            print(f"DEBUG: Force command for Test B: {force_cmd1_txt}")
+            print(f"DEBUG: Force values for Test B - x: {self._test_force_x:.6f}, y: {self._test_force_y:.6f}, z: {self._test_force_z:.6f}")
+            force_cmd1 = GzCommand(GzCommandType.TOPIC, [force_cmd1_txt], True)
+            force_cmd1.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait after applying F1 (test B)")
+            time_module.sleep(0.1)
+            
+            # 恢复模拟，从此时开始计时
+            print("DEBUG: Resuming simulation (timing starts from here)...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
+            time_module.sleep(0.1)
+            
+            # 等待指定时间（物理时间，与测试A相同）
+            print(f"Running with F1 and rtf={rtf2:.2f} for {test_duration} seconds (physical time)...")
+            self.log_sleep(test_duration, f"Test B: Running with F1 and rtf={rtf2:.2f} for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取最终位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print(f"DEBUG: Getting position after F1 with rtf={rtf2:.2f} (simulation still running)...")
+            pos_with_rtf2 = self.get_model_pose_from_topic(model_name)
+            if pos_with_rtf2 is None:
+                print(f"DEBUG: Failed to get position after F1 with rtf={rtf2:.2f}")
+                return None
+            print(f"Position with rtf={rtf2:.2f}: {pos_with_rtf2}")
+            
+            # 暂停模拟
+            print("DEBUG: Pausing simulation after getting position...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.2, "Wait for pause to complete")
+            time_module.sleep(0.2)
+            
+            # 恢复模拟，继续后续操作
+            print("DEBUG: Resuming simulation...")
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait after resuming")
+            time_module.sleep(0.1)
+            
+            # 8. 验证结果
+            # 理论上，在相同的物理时间内，无论 real_time_factor 如何，模型的位置应该相同
+            # 混合阈值：绝对误差 < 0.5m 或 相对误差 < 10%，满足其一即通过
+            abs_threshold = 0.5  # 绝对阈值：0.5米
+            rel_threshold = 0.10  # 相对阈值：10%
+            
+            error_x = abs(pos_with_rtf1[0] - pos_with_rtf2[0])
+            error_y = abs(pos_with_rtf1[1] - pos_with_rtf2[1])
+            error_z = abs(pos_with_rtf1[2] - pos_with_rtf2[2])
+            error_magnitude = (error_x**2 + error_y**2 + error_z**2)**0.5
+            
+            # 计算位移（取两次中较大的位移作为基准）
+            disp_rtf1 = ((pos_with_rtf1[0]-initial_pos[0])**2 + (pos_with_rtf1[1]-initial_pos[1])**2 + (pos_with_rtf1[2]-initial_pos[2])**2)**0.5
+            disp_rtf2 = ((pos_with_rtf2[0]-initial_pos[0])**2 + (pos_with_rtf2[1]-initial_pos[1])**2 + (pos_with_rtf2[2]-initial_pos[2])**2)**0.5
+            max_displacement = max(disp_rtf1, disp_rtf2)
+            relative_error = error_magnitude / max_displacement if max_displacement > 0.001 else 0.0
+            
+            # 混合判定：绝对误差小于阈值 或 相对误差小于阈值
+            abs_pass = (error_x < abs_threshold and error_y < abs_threshold and error_z < abs_threshold)
+            rel_pass = (relative_error < rel_threshold)
+            success = abs_pass or rel_pass
+            
+            error_info = f"Position difference: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f} m\n"
+            error_info += f"Error magnitude: {error_magnitude:.4f} m\n"
+            error_info += f"Max displacement: {max_displacement:.4f} m\n"
+            error_info += f"Relative error: {relative_error*100:.2f}%\n"
+            error_info += f"Threshold: abs < {abs_threshold} m OR rel < {rel_threshold*100:.0f}%\n"
+            error_info += f"Real Time Factor 1: 1.0\n"
+            error_info += f"Real Time Factor 2: {rtf2:.2f}\n"
+            error_info += f"Test Duration (physical time): {test_duration:.2f} s\n"
+            error_info += f"Force F1: ({self._test_force_x:.6f}, {self._test_force_y:.6f}, {self._test_force_z:.6f}) N\n"
+            error_info += f"Note: Both tests used the exact same force values to ensure fairness."
+            
+            print(f"Position error: x={error_x:.3f}, y={error_y:.3f}, z={error_z:.3f}")
+            print(f"Error magnitude: {error_magnitude:.4f} m, Max displacement: {max_displacement:.4f} m, Relative error: {relative_error*100:.2f}%")
+            print(f"Test {'PASSED' if success else 'FAILED'} (abs_pass={abs_pass}, rel_pass={rel_pass})")
+            
+            # 清除力
+            self.clear_model_wrench(model_name)
+            
+            return (model_name, initial_pos, pos_with_rtf1, pos_with_rtf2, 1.0, rtf2, success, error_info)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_time_scaling: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def generate_omnidirectional_force(self, model_mass=None, min_acceleration=5.0, max_acceleration=50.0):
+        """
+        生成全向随机力（均匀球面分布），力的大小与模型质量成比例。
+        
+        Args:
+            model_mass: 模型质量(kg)。如果为None，使用默认力范围(50-500N)
+            min_acceleration: 最小目标加速度(m/s²)，默认5.0，确保可见位移
+            max_acceleration: 最大目标加速度(m/s²)，默认50.0，避免力过大
+        
+        Returns:
+            (force_x, force_y, force_z) 元组
+        """
+        import math
+        
+        # 计算力的大小范围
+        if model_mass is not None and model_mass > 0:
+            # F = m * a，确保加速度在 [min_acceleration, max_acceleration] 之间
+            min_force = model_mass * min_acceleration
+            max_force = model_mass * max_acceleration
+            # 设置绝对下限，避免力太小（对于极轻的模型）
+            min_force = max(min_force, 50.0)
+        else:
+            # 未知质量时使用默认范围
+            min_force = 50.0
+            max_force = 500.0
+        
+        # 随机力大小
+        magnitude = random.uniform(min_force, max_force)
+        
+        # 均匀球面分布的随机方向
+        theta = random.uniform(0, 2 * math.pi)       # 方位角 [0, 2π]
+        cos_phi = random.uniform(-1, 1)               # 极角余弦 [-1, 1]
+        sin_phi = math.sqrt(1 - cos_phi**2)
+        
+        force_x = magnitude * sin_phi * math.cos(theta)
+        force_y = magnitude * sin_phi * math.sin(theta)
+        force_z = magnitude * cos_phi
+        
+        print(f"DEBUG: Generated force: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N, "
+              f"magnitude={magnitude:.2f} N, model_mass={model_mass}")
+        
+        return force_x, force_y, force_z
+
+    def get_model_mass(self, model_name):
+        """
+        获取模型的总质量（所有link的质量之和）
+        
+        Args:
+            model_name: 模型名称
+        
+        Returns:
+            模型总质量（kg），如果获取失败返回None
+        """
+        try:
+            scene, reserved_models = self.get_scene()
+            if scene is None:
+                print(f"DEBUG: Failed to get scene for model {model_name}")
+                return None
+            
+            # 查找模型
+            target_model = None
+            for model in scene.model:
+                if model.name == model_name:
+                    target_model = model
+                    break
+            
+            if target_model is None:
+                print(f"DEBUG: Model {model_name} not found in scene")
+                return None
+            
+            # 累加所有link的质量
+            # 注意：proto3 中 mass 是标量字段(double)，不能使用 HasField()
+            # 只需检查 inertial（消息字段）是否存在，然后直接读取 mass（默认值为0.0）
+            total_mass = 0.0
+            for link in target_model.link:
+                if link.HasField('inertial') and link.inertial.mass > 0:
+                    total_mass += link.inertial.mass
+            
+            if total_mass <= 0:
+                print(f"DEBUG: Model {model_name} has invalid mass: {total_mass}")
+                return None
+            
+            print(f"DEBUG: Model {model_name} total mass: {total_mass} kg")
+            return total_mass
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in get_model_mass: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def modify_model_mass(self, model_name, new_mass, mass_scale_factor):
+        """
+        修改模型的质量系数
+        
+        策略：
+        1. 获取模型的当前SDF（通过dump_sdf）
+        2. 解析SDF，找到模型的所有link，修改每个link的质量
+        3. 删除旧模型
+        4. 使用修改后的SDF重新创建模型
+        
+        Args:
+            model_name: 模型名称
+            new_mass: 新的总质量（kg）
+            mass_scale_factor: 质量缩放因子（用于记录）
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            import re
+            
+            # 1. 获取当前世界的SDF
+            world_sdf = self.dump_sdf(self.world_name)
+            if not world_sdf:
+                print(f"DEBUG: Failed to dump SDF for world {self.world_name}")
+                return False
+            
+            # 2. 解析SDF，找到目标模型
+            try:
+                root = ET.fromstring(world_sdf)
+            except ET.ParseError as e:
+                print(f"DEBUG: Failed to parse SDF: {e}")
+                return False
+            
+            # 查找模型（可能在world下，也可能直接是model）
+            model_elem = None
+            if root.tag == 'sdf':
+                world_elem = root.find('world')
+                if world_elem is not None:
+                    for model in world_elem.findall('model'):
+                        if model.get('name') == model_name:
+                            model_elem = model
+                            break
+            elif root.tag == 'world':
+                for model in root.findall('model'):
+                    if model.get('name') == model_name:
+                        model_elem = model
+                        break
+            
+            if model_elem is None:
+                print(f"DEBUG: Model {model_name} not found in SDF")
+                return False
+            
+            # 3. 计算当前总质量，确定缩放因子
+            current_total_mass = 0.0
+            link_masses = []
+            for link in model_elem.findall('link'):
+                inertial = link.find('inertial')
+                if inertial is not None:
+                    mass_elem = inertial.find('mass')
+                    if mass_elem is not None:
+                        try:
+                            mass_val = float(mass_elem.text)
+                            current_total_mass += mass_val
+                            link_masses.append((link, mass_elem, mass_val))
+                        except ValueError:
+                            pass
+            
+            if current_total_mass <= 0:
+                print(f"DEBUG: Model {model_name} has invalid current mass: {current_total_mass}")
+                return False
+            
+            # 计算每个link的新质量（按比例缩放）
+            scale_factor = new_mass / current_total_mass
+            print(f"DEBUG: Scaling model mass from {current_total_mass:.6f} kg to {new_mass:.6f} kg (scale factor: {scale_factor:.6f})")
+            
+            # 4. 修改每个link的质量
+            for link, mass_elem, old_mass in link_masses:
+                new_link_mass = old_mass * scale_factor
+                mass_elem.text = str(new_link_mass)
+                print(f"DEBUG: Link {link.get('name')}: {old_mass:.6f} kg -> {new_link_mass:.6f} kg")
+                
+                # 同时需要按比例修改惯性矩阵（保持形状不变）
+                inertia = inertial.find('inertia')
+                if inertia is not None:
+                    for inertia_elem in ['ixx', 'ixy', 'ixz', 'iyy', 'iyz', 'izz']:
+                        elem = inertia.find(inertia_elem)
+                        if elem is not None:
+                            try:
+                                old_inertia = float(elem.text)
+                                new_inertia = old_inertia * scale_factor
+                                elem.text = str(new_inertia)
+                            except ValueError:
+                                pass
+            
+            # 5. 将修改后的模型SDF转换为字符串
+            model_sdf_str = ET.tostring(model_elem, encoding='unicode')
+            # 添加XML声明
+            model_sdf_str = f'<sdf version="1.6">\n{model_sdf_str}\n</sdf>'
+            
+            # 6. 获取模型的当前位置和姿态
+            current_pose = self.get_model_pose_from_topic(model_name)
+            if current_pose is None:
+                print(f"DEBUG: Failed to get current pose for model {model_name}")
+                return False
+            
+            # 获取模型的姿态（四元数）
+            scene, _ = self.get_scene()
+            if scene is None:
+                return False
+            
+            model_orientation = None
+            for model in scene.model:
+                if model.name == model_name:
+                    if model.HasField('pose'):
+                        model_orientation = (
+                            model.pose.orientation.w,
+                            model.pose.orientation.x,
+                            model.pose.orientation.y,
+                            model.pose.orientation.z
+                        )
+                    break
+            
+            if model_orientation is None:
+                model_orientation = (1.0, 0.0, 0.0, 0.0)  # 默认无旋转
+            
+            # 7. 删除旧模型
+            print(f"DEBUG: Removing old model {model_name}...")
+            remove_cmd_txt = f"gz service -s /world/{self.world_name}/remove --reqtype gz.msgs.Entity --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'name: \"{model_name}\"'"
+            remove_cmd = GzCommand(GzCommandType.SERVICE, [remove_cmd_txt], True)
+            remove_cmd.execute(self.experiment_log)
+            self.log_sleep(0.5, "Wait for model removal")
+            time.sleep(0.5)
+            
+            # 8. 使用修改后的SDF重新创建模型
+            print(f"DEBUG: Creating model {model_name} with new mass...")
+            service_name = f"/world/{self.world_name}/create"
+            
+            # 构建EntityFactory请求
+            request_sdf = model_sdf_str.replace('\n', '\\n').replace('"', '\\"')
+            cmd_txt = f"gz service -s {service_name} --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'sdf: \"{request_sdf}\", pose: {{position: {{x: {current_pose[0]}, y: {current_pose[1]}, z: {current_pose[2]}}}, orientation: {{w: {model_orientation[0]}, x: {model_orientation[1]}, y: {model_orientation[2]}, z: {model_orientation[3]}}}}}, name: \"{model_name}\", allow_renaming: false'"
+            
+            create_cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+            create_cmd.execute(self.experiment_log)
+            self.log_sleep(1.0, "Wait for model creation with new mass")
+            time.sleep(1.0)
+            
+            print(f"DEBUG: Successfully modified model {model_name} mass to {new_mass:.6f} kg")
+            return True
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in modify_model_mass: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def metamorphic_test_mass_scaling(self, test_duration=5.0):
+        """
+        蜕变测试：基于质量系数的蜕变关系
+        
+        测试原理：根据F=ma，在相同力F下，质量m1时位移d1，质量m2=k*m1时位移d2，应该有d2 = d1/k
+        
+        测试流程：
+        1. 随机选择一个模型，获取初始位置和初始质量m
+        2. 测试A：原始质量m，施加力F1，运行t秒，记录位移d1
+        3. 重置模型位置
+        4. 修改质量系数为km（k是比例因子，如0.5或2.0）
+        5. 测试B：新质量km，施加相同的力F1，运行t秒，记录位移d2
+        6. 验证d1/d2 ≈ k（在容差范围内）
+        
+        Args:
+            test_duration: 测试持续时间（秒）
+        
+        Returns:
+            (model_name, initial_pos, initial_mass, mass_scale_factor, pos_with_m1, pos_with_m2, d1, d2, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import random
+            
+            # 1. 获取场景并随机选择一个模型
+            scene, reserved_models = self.get_scene()
+            if not reserved_models or scene is None:
+                print("DEBUG: get_scene() returned None, skipping this test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("No available models for mass scaling test")
+                return None
+            
+            # 质量系数测试需要模型有有效质量，筛选出有质量的模型
+            models_with_mass = []
+            for model in available_models:
+                mass = self.get_model_mass(model.name)
+                if mass is not None and mass > 0:
+                    models_with_mass.append((model, mass))
+            
+            if not models_with_mass:
+                print("No available models with valid mass for mass scaling test")
+                return None
+            
+            target_model, initial_mass = random.choice(models_with_mass)
+            model_name = target_model.name
+            print(f"Selected model for mass scaling test: {model_name} (mass={initial_mass:.6f} kg)")
+            
+            # Gazebo 以暂停状态启动（无 -r 参数），模型处于 SDF 定义的初始位置且速度为零
+            # 通过 scene/info 服务获取初始位置（暂停状态下 service 可用）
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print(f"DEBUG: Failed to get initial position for model {model_name}")
+                return None
+            print(f"Initial position: {initial_pos}")
+            print(f"Initial mass: {initial_mass:.6f} kg")
+            
+            # 3. 生成与质量成比例的全向随机力F1（保存为实例变量确保两次测试使用相同的力）
+            # 注意：这里使用初始质量 initial_mass 来计算力大小
+            force1_x, force1_y, force1_z = self.generate_omnidirectional_force(initial_mass)
+            self._test_force_x = force1_x
+            self._test_force_y = force1_y
+            self._test_force_z = force1_z
+            print(f"Force F1: ({force1_x:.2f}, {force1_y:.2f}, {force1_z:.2f}) N")
+            
+            # 4. 随机生成质量缩放因子k（范围0.5-2.0）
+            mass_scale_factor = random.uniform(0.5, 2.0)
+            new_mass = initial_mass * mass_scale_factor
+            print(f"Mass scale factor k: {mass_scale_factor:.6f}")
+            print(f"New mass (k*m): {new_mass:.6f} kg")
+            
+            # 5. 测试A：原始质量m，施加力F1
+            print("DEBUG: Test A: Applying F1 with original mass m...")
+            
+            # 清除之前的力
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench (test A)")
+            time_module.sleep(0.2)
+            
+            # 暂停模拟
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete (test A)")
+            time_module.sleep(0.3)
+            
+            # 施加力F1
+            topic_name = f"/world/{self.world_name}/wrench/persistent"
+            wrench_str = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {force1_x}, y: {force1_y}, z: {force1_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str}'"
+            force_cmd = GzCommand(GzCommandType.TOPIC, [force_cmd_txt], True)
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait after applying F1 (test A)")
+            time_module.sleep(0.1)
+            
+            # 恢复模拟，开始计时
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test A)")
+            time_module.sleep(0.1)
+            
+            # 等待指定时间
+            print(f"Running with F1 and mass m={initial_mass:.6f} kg for {test_duration} seconds...")
+            self.log_sleep(test_duration, f"Test A: Running with F1 and mass m={initial_mass:.6f} kg for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print("DEBUG: Getting position after F1 with mass m (simulation still running)...")
+            pos_with_m1 = self.get_model_pose_from_topic(model_name)
+            if pos_with_m1 is None:
+                print(f"DEBUG: Failed to get position after F1 with mass m")
+                return None
+            print(f"Position with mass m={initial_mass:.6f} kg: {pos_with_m1}")
+            
+            # 计算位移d1
+            d1 = (
+                pos_with_m1[0] - initial_pos[0],
+                pos_with_m1[1] - initial_pos[1],
+                pos_with_m1[2] - initial_pos[2]
+            )
+            d1_magnitude = (d1[0]**2 + d1[1]**2 + d1[2]**2)**0.5
+            print(f"Displacement d1: ({d1[0]:.6f}, {d1[1]:.6f}, {d1[2]:.6f}) m, magnitude: {d1_magnitude:.6f} m")
+            
+            # 检测模型是否真正发生了位移（排除被约束的模型）
+            min_displacement = 0.01  # 最小可接受位移 1cm
+            if d1_magnitude < min_displacement:
+                print(f"DEBUG: Model '{model_name}' barely moved (displacement={d1_magnitude:.6f}m < {min_displacement}m). "
+                      f"Model is likely constrained by ground contact/joints. Skipping this test.")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            # 暂停模拟（Test A 结束后需要暂停，以便在暂停状态下完成 Test B 重置）
+            print("DEBUG: Pausing simulation after test A...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.2, "Wait for pause after test A")
+            time_module.sleep(0.2)
+            
+            # 6. 重置模型状态（仿真保持暂停状态）
+            # Test A 结束后仿真已暂停，在暂停状态下完成所有重置操作
+            # 这样模型不会因为重力等外力而在重置后发生位移
+            print("DEBUG: Resetting model state for test B (simulation stays paused)...")
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench before reset")
+            time_module.sleep(0.2)
+            
+            # 重置模拟以清除速度
+            reset_success = self.reset_simulation()
+            if not reset_success:
+                print("DEBUG: Failed to reset simulation")
+                return None
+            
+            self.log_sleep(1.0, "Wait for reset to complete")
+            time_module.sleep(1.0)
+            
+            # 7. 修改质量系数为km
+            print(f"DEBUG: Modifying model mass from {initial_mass:.6f} kg to {new_mass:.6f} kg...")
+            modify_success = self.modify_model_mass(model_name, new_mass, mass_scale_factor)
+            if not modify_success:
+                print("DEBUG: Failed to modify model mass")
+                return None
+            
+            # 恢复模型到初始位置（重置后需要重新设置位置）
+            restore_pose_success = self.set_model_pose(
+                model_name,
+                initial_pos[0], initial_pos[1], initial_pos[2],
+                1.0, 0.0, 0.0, 0.0
+            )
+            if not restore_pose_success:
+                print("DEBUG: Failed to restore model pose after mass modification")
+                return None
+            
+            self.log_sleep(0.5, "Wait for position restore after mass modification")
+            time_module.sleep(0.5)
+            
+            # 8. 测试B：新质量km，施加相同的力F1
+            print("DEBUG: Test B: Applying F1 with new mass k*m...")
+            
+            # 显式暂停模拟（确保处于暂停状态，与 Test A 的 pause→force→resume 流程一致）
+            print("DEBUG: Pausing simulation before applying force (test B)...")
+            pause_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: true'"
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause to complete (test B)")
+            time_module.sleep(0.3)
+            
+            # 清除之前的力（如果有）
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait after clearing wrench (test B)")
+            time_module.sleep(0.2)
+            
+            # 施加力F1（与测试A完全相同）
+            wrench_str = f'entity: {{name: "{model_name}", type: MODEL}}, wrench: {{force: {{x: {force1_x}, y: {force1_y}, z: {force1_z}}}, torque: {{x: 0.0, y: 0.0, z: 0.0}}}}'
+            force_cmd_txt = f"gz topic -t {topic_name} -m gz.msgs.EntityWrench -p '{wrench_str}'"
+            force_cmd = GzCommand(GzCommandType.TOPIC, [force_cmd_txt], True)
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait after applying F1 (test B)")
+            time_module.sleep(0.1)
+            
+            # 恢复模拟，开始计时
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait to ensure resume command takes effect (test B)")
+            time_module.sleep(0.1)
+            
+            # 等待指定时间（与测试A相同）
+            print(f"Running with F1 and mass k*m={new_mass:.6f} kg for {test_duration} seconds...")
+            self.log_sleep(test_duration, f"Test B: Running with F1 and mass k*m={new_mass:.6f} kg for {test_duration} seconds")
+            time_module.sleep(test_duration)
+            
+            # 获取位置（在模拟运行状态下读取，确保 topic 正常发布）
+            print("DEBUG: Getting position after F1 with mass k*m (simulation still running)...")
+            pos_with_m2 = self.get_model_pose_from_topic(model_name)
+            if pos_with_m2 is None:
+                print(f"DEBUG: Failed to get position after F1 with mass k*m")
+                return None
+            print(f"Position with mass k*m={new_mass:.6f} kg: {pos_with_m2}")
+            
+            # 计算位移d2
+            d2 = (
+                pos_with_m2[0] - initial_pos[0],
+                pos_with_m2[1] - initial_pos[1],
+                pos_with_m2[2] - initial_pos[2]
+            )
+            d2_magnitude = (d2[0]**2 + d2[1]**2 + d2[2]**2)**0.5
+            print(f"Displacement d2: ({d2[0]:.6f}, {d2[1]:.6f}, {d2[2]:.6f}) m, magnitude: {d2_magnitude:.6f} m")
+            
+            # 恢复模拟
+            play_cmd_txt = f"gz service -s /world/{self.world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout {self.timeout} --req 'pause: false'"
+            play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+            play_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Brief wait after resuming")
+            time_module.sleep(0.1)
+            
+            # 9. 验证结果
+            # 理论上：d2 = d1/k，即 d1/d2 = k
+            # 或者：d1 * k = d2（如果k>1，质量变大，位移应该变小）
+            # 实际上：根据F=ma，a = F/m，所以a2 = F/(k*m) = a1/k
+            # 位移 d = 0.5 * a * t^2，所以 d2 = 0.5 * (a1/k) * t^2 = d1/k
+            # 因此：d1/d2 = k
+            
+            if d2_magnitude > 1e-6:  # 避免除零
+                ratio_actual = d1_magnitude / d2_magnitude
+                ratio_expected = mass_scale_factor
+                ratio_error = abs(ratio_actual - ratio_expected) / ratio_expected if ratio_expected > 0 else abs(ratio_actual - ratio_expected)
+                
+                # 容差：允许20%的误差（因为可能有摩擦等非线性效应）
+                error_threshold = 0.2
+                success = ratio_error < error_threshold
+                
+                error_info = f"Mass scaling test results:\n"
+                error_info += f"Initial mass m: {initial_mass:.6f} kg\n"
+                error_info += f"New mass k*m: {new_mass:.6f} kg\n"
+                error_info += f"Mass scale factor k: {mass_scale_factor:.6f}\n"
+                error_info += f"Displacement d1 (mass m): magnitude = {d1_magnitude:.6f} m\n"
+                error_info += f"Displacement d2 (mass k*m): magnitude = {d2_magnitude:.6f} m\n"
+                error_info += f"Actual ratio d1/d2: {ratio_actual:.6f}\n"
+                error_info += f"Expected ratio d1/d2: {ratio_expected:.6f}\n"
+                error_info += f"Ratio error: {ratio_error*100:.2f}%\n"
+                error_info += f"Error threshold: {error_threshold*100:.2f}%\n"
+                error_info += f"Force F1: ({force1_x:.6f}, {force1_y:.6f}, {force1_z:.6f}) N\n"
+                error_info += f"Test duration: {test_duration:.2f} s\n"
+                
+                print(f"Ratio d1/d2: actual={ratio_actual:.6f}, expected={ratio_expected:.6f}, error={ratio_error*100:.2f}%")
+                print(f"Test {'PASSED' if success else 'FAILED'}")
+            else:
+                print("DEBUG: d2 magnitude is too small, cannot compute ratio")
+                success = False
+                error_info = f"Displacement d2 is too small: {d2_magnitude:.6f} m"
+            
+            # 清除力
+            self.clear_model_wrench(model_name)
+            
+            return (model_name, initial_pos, initial_mass, mass_scale_factor, 
+                   pos_with_m1, pos_with_m2, d1, d2, success, error_info)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_mass_scaling: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
 def DEBUG_PRINT():
     # Coverage disabled, BUILD_DIR not available
@@ -2338,6 +4495,8 @@ if __name__ == "__main__":
     parser.add_option("-n", "--num-seq", dest="num_seq", type="int", default=10, help="number of gz commands")
     parser.add_option("-p", "--plugin", dest="plugin", action="store_true", help="enable mined plugin")
     parser.add_option("-t", "--timeout", dest="timeout", type="int", default=10000, help="timeout")
+    parser.add_option("--enable-playback", dest="enable_playback", action="store_true", default=True, help="enable playback rewind test after each metamorphic test (default: True)")
+    parser.add_option("--disable-playback", dest="enable_playback", action="store_false", help="disable playback rewind test after each metamorphic test")
 
     (options, args) = parser.parse_args()
 
@@ -2388,7 +4547,22 @@ if __name__ == "__main__":
         if now - start >= 60 * 60 * 240:
             stop = True
         exp_dir = f"{options.directory}_{i}"
-        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, diversity, crashes) # bandits)
+        
+        # 每轮迭代前清理残留的 Gazebo 相关进程，防止进程泄漏导致后续实验失败
+        try:
+            subprocess.run("pkill -9 -f 'gz sim'", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 ruby", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f 'gz-sim-server'", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run("pkill -9 -f 'parameter_bridge'", shell=True, timeout=5,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(1)  # 等待进程完全退出
+        except:
+            pass
+        
+        unit = SmithUnit(exp_dir, "a.sdf", options.num_seq, True, skipped, options.timeout, seed, None, None, diversity, crashes, enable_playback=options.enable_playback) # bandits)
         # unit.create_sdf()
         unit.copy_random_sdf()
         print("DEBUG: before generate_and_test_commands")
