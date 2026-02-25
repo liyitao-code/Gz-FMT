@@ -1,0 +1,264 @@
+[
+  {
+    "type": "experiment_info",
+    "directory": "/home/liyitao/workspace/meta/test_7/_1",
+    "sdf_file": "a.sdf",
+    "start_time": 1769184867.1355035,
+    "timestamp": 1769184867.1355045
+  },
+  {
+    "type": "command",
+    "command_type": "launch",
+    "command": "gz sim /home/liyitao/workspace/meta/test_7/_1/a.sdf -r --record-path /home/liyitao/workspace/meta/test_7/_1/log",
+    "wait_after": 5.0,
+    "description": "Launch Gazebo with recording",
+    "timestamp": 1769184867.13553
+  },
+  {
+    "type": "sleep",
+    "duration": 5.0,
+    "description": "Wait for Gazebo to start",
+    "timestamp": 1769184867.1358354
+  },
+  {
+    "type": "sleep",
+    "duration": 2.0,
+    "description": "Wait for simulation to fully start",
+    "timestamp": 1769184872.2366989
+  },
+  {
+    "type": "test_info",
+    "test_type": "time_scaling",
+    "timestamp": 1769184874.2369695
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/set_physics --reqtype gz.msgs.Physics --reptype gz.msgs.Boolean --timeout 10000 --req 'max_step_size: 0.001, real_time_factor: 1.0'",
+    "timestamp": 1769184874.2616658
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait for real_time_factor=1.0 to take effect",
+    "timestamp": 1769184874.6452496
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait after setting rtf=1.0",
+    "timestamp": 1769184874.8453264
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/clear -m gz.msgs.Entity -p 'name: \"capsule\", type: MODEL'",
+    "timestamp": 1769184875.1454935
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait after clearing wrench (test A)",
+    "timestamp": 1769184876.1162777
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: true'",
+    "timestamp": 1769184876.3164034
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait for pause to complete (test A)",
+    "timestamp": 1769184876.6878707
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/persistent -m gz.msgs.EntityWrench -p 'entity: {name: \"capsule\", type: MODEL}, wrench: {force: {x: 39.032527216256824, y: 9.557174877177602, z: -0.8877596394468696}, torque: {x: 0.0, y: 0.0, z: 0.0}}'",
+    "timestamp": 1769184876.9881415
+  },
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Wait after applying F1 (test A)",
+    "timestamp": 1769184877.9705603
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: false'",
+    "timestamp": 1769184878.070944
+  },
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Brief wait to ensure resume command takes effect (test A)",
+    "timestamp": 1769184878.4895442
+  },
+  {
+    "type": "sleep",
+    "duration": 3.665904596110572,
+    "description": "Test A: Running with F1 and rtf=1.0 for 3.665904596110572 seconds",
+    "timestamp": 1769184878.5898528
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/clear -m gz.msgs.Entity -p 'name: \"capsule\", type: MODEL'",
+    "timestamp": 1769184882.2674344
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait after clearing wrench before restore",
+    "timestamp": 1769184883.248834
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: true'",
+    "timestamp": 1769184883.449076
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait for pause before restoring state",
+    "timestamp": 1769184883.8231971
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 10000 --req 'name: \"capsule\", position: {x: 0.0, y: -3.0, z: 0.5}, orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}'",
+    "timestamp": 1769184884.0231971
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait for position restore",
+    "timestamp": 1769184884.1240082
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: false'",
+    "timestamp": 1769184884.3241532
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait before reset",
+    "timestamp": 1769184884.716293
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'reset: {all: true}'",
+    "timestamp": 1769184884.816293
+  },
+  {
+    "type": "sleep",
+    "duration": 1.0,
+    "description": "Wait for reset to complete",
+    "timestamp": 1769184884.9175963
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/set_physics --reqtype gz.msgs.Physics --reptype gz.msgs.Boolean --timeout 10000 --req 'max_step_size: 0.001, real_time_factor: 0.8736906604064338'",
+    "timestamp": 1769184885.9177527
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait for real_time_factor=0.8736906604064338 to take effect",
+    "timestamp": 1769184886.3651226
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait for rtf parameter to take effect",
+    "timestamp": 1769184886.5652945
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 10000 --req 'name: \"capsule\", position: {x: 0.0, y: -3.0, z: 0.5}, orientation: {w: 1.0, x: 0.0, y: 0.0, z: 0.0}'",
+    "timestamp": 1769184886.7652945
+  },
+  {
+    "type": "sleep",
+    "duration": 0.5,
+    "description": "Wait for position restore after reset",
+    "timestamp": 1769184886.866856
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/clear -m gz.msgs.Entity -p 'name: \"capsule\", type: MODEL'",
+    "timestamp": 1769184887.3784063
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait after clearing wrench (test B)",
+    "timestamp": 1769184888.3668973
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: true'",
+    "timestamp": 1769184888.5671818
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait for pause to complete (test B)",
+    "timestamp": 1769184888.9635847
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/persistent -m gz.msgs.EntityWrench -p 'entity: {name: \"capsule\", type: MODEL}, wrench: {force: {x: 39.032527216256824, y: 9.557174877177602, z: -0.8877596394468696}, torque: {x: 0.0, y: 0.0, z: 0.0}}'",
+    "timestamp": 1769184889.263727
+  },
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Wait after applying F1 (test B)",
+    "timestamp": 1769184890.234751
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/shapes/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: false'",
+    "timestamp": 1769184890.3348882
+  },
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Brief wait to ensure resume command takes effect (test B)",
+    "timestamp": 1769184890.7080014
+  },
+  {
+    "type": "sleep",
+    "duration": 3.665904596110572,
+    "description": "Test B: Running with F1 and rtf=0.87 for 3.665904596110572 seconds",
+    "timestamp": 1769184890.8082666
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/shapes/wrench/clear -m gz.msgs.Entity -p 'name: \"capsule\", type: MODEL'",
+    "timestamp": 1769184894.4853
+  },
+  {
+    "type": "experiment_info",
+    "end_time": 1769184895.4762275,
+    "duration": 28.340723991394043,
+    "test_passed": false,
+    "test_type": "time_scaling",
+    "timestamp": 1769184895.4762297
+  }
+]

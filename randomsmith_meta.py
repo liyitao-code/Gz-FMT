@@ -1036,6 +1036,30 @@ class SmithUnit:
                 print(f"DEBUG: Error cleaning up gz process: {e}")
             return 0
 
+        # ===== 激活仿真引擎 =====
+        # Gazebo 以暂停状态启动（无 -r），此时仿真从未运行过。
+        # 在这种"从未 play 过"的状态下，multi_step 和 wrench/persistent topic
+        # 无法正常工作（力施加无效，模型纹丝不动）。
+        # 解决方案：先发送 play 命令激活仿真引擎，再立即暂停。
+        # play→pause 之间约 20-50ms，模型因重力下落不到 0.012m，
+        # 后续测试记录的初始位置是 pause 后的实际位置，不影响测试逻辑。
+        print("DEBUG: Activating simulation engine (play -> immediate pause)...")
+        play_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                       f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                       f"--timeout {self.timeout} --req 'pause: false'")
+        play_cmd = GzCommand(GzCommandType.SERVICE, [play_cmd_txt], True)
+        play_cmd.execute(None)  # 不记录到实验日志（仅为激活）
+        
+        # 立即暂停
+        pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                        f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                        f"--timeout {self.timeout} --req 'pause: true'")
+        pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+        pause_cmd.execute(None)  # 不记录到实验日志（仅为激活）
+        
+        time.sleep(0.3)  # 等待暂停状态稳定
+        print("DEBUG: Simulation engine activated and paused")
+
         print("DEBUG: starting metamorphic test")
         
         # 随机选择一种蜕变测试关系
@@ -1224,6 +1248,23 @@ class SmithUnit:
                             print("DEBUG: Second Gazebo failed to start")
                             test_result = None
                         else:
+                            # ===== 激活第二个 Gazebo 的仿真引擎 =====
+                            print("DEBUG: Activating second Gazebo simulation engine...")
+                            play_cmd_txt2 = (f"gz service -s /world/{self.world_name}/control "
+                                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                                           f"--timeout {self.timeout} --req 'pause: false'")
+                            play_cmd2 = GzCommand(GzCommandType.SERVICE, [play_cmd_txt2], True)
+                            play_cmd2.execute(None)
+                            
+                            pause_cmd_txt2 = (f"gz service -s /world/{self.world_name}/control "
+                                            f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                                            f"--timeout {self.timeout} --req 'pause: true'")
+                            pause_cmd2 = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt2], True)
+                            pause_cmd2.execute(None)
+                            
+                            time.sleep(0.3)
+                            print("DEBUG: Second Gazebo simulation engine activated and paused")
+                            
                             # ===== Run 2：在第二个 Gazebo 中用相同参数运行 =====
                             print("DEBUG: Determinism test - Run 2 (fresh Gazebo)...")
                             run2_result = self._determinism_single_run(
@@ -2087,8 +2128,16 @@ class SmithUnit:
 
     def get_model_pose_from_scene(self, model_name):
         """
-        通过 scene/info 服务获取模型的位置信息。
-        此函数在仿真暂停状态下也可正常工作（使用 service 而非 topic）。
+        获取模型的实时位置信息。
+        
+        注意：scene/info 服务返回的是 SDF 中的初始位姿，不反映仿真运行后的实时位置。
+        因此本函数采用 "订阅 topic + multi_step: 1" 的方式获取真实位置：
+        1. 先订阅 dynamic_pose/info topic
+        2. 发送 multi_step: 1 触发仿真走一步（0.001s），让 Gazebo 发布一次 pose 消息
+        3. 从 topic 回调中读取实时位置
+        4. 仿真自动暂停（multi_step 完成后）
+        
+        额外的一步仿真时间（0.001s）对测试结果的影响可忽略不计。
         
         Args:
             model_name: 模型名称
@@ -2097,14 +2146,61 @@ class SmithUnit:
             (x, y, z, qw, qx, qy, qz) 元组，如果失败返回 None
         """
         try:
-            scene, reserved_models = self.get_scene()
-            if scene is None:
-                print(f"DEBUG: get_model_pose_from_scene: get_scene() returned None")
+            import time as time_module
+            
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    print("DEBUG: Cannot get world name for pose query")
+                    return None
+                self.world_name = response.data[0]
+            
+            # 1. 订阅 dynamic_pose/info topic（发布非静态模型的实时位姿）
+            topic_name = f"/world/{self.world_name}/dynamic_pose/info"
+            node = Node()
+            received_msg = None
+            received = False
+            
+            def pose_callback(msg):
+                nonlocal received_msg, received
+                received_msg = msg
+                received = True
+            
+            subscriber = node.subscribe(Pose_V, topic_name, pose_callback)
+            if not subscriber:
+                # 回退到 pose/info（包含所有模型）
+                topic_name = f"/world/{self.world_name}/pose/info"
+                subscriber = node.subscribe(Pose_V, topic_name, pose_callback)
+                if not subscriber:
+                    print(f"DEBUG: Failed to subscribe to pose topic")
+                    return None
+            
+            # 2. 发送 multi_step: 1 触发一步仿真，使 Gazebo 发布 pose 消息
+            #    （不记录到实验日志，因为这只是读取位置的辅助步骤）
+            if self.use_text:
+                step_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'multi_step: 1'")
+                step_cmd = GzCommand(GzCommandType.SERVICE, [step_txt], True)
+                step_cmd.execute(None)  # 不记录
+            else:
+                service_name = f"/world/{self.world_name}/control"
+                request = WorldControl()
+                request.multi_step = 1
+                self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+            
+            # 3. 等待 topic 回调收到消息
+            start_time = time_module.time()
+            while not received and (time_module.time() - start_time) < 5.0:
+                time_module.sleep(0.01)
+            
+            if not received or received_msg is None:
+                print(f"DEBUG: get_model_pose_from_scene: No pose message received for model '{model_name}' (timeout)")
                 return None
             
-            for model in scene.model:
-                if model.name == model_name:
-                    pose = model.pose
+            # 4. 在 Pose_V 消息中查找指定模型
+            for pose in received_msg.pose:
+                if pose.name == model_name:
                     return (
                         pose.position.x,
                         pose.position.y,
@@ -2115,7 +2211,7 @@ class SmithUnit:
                         pose.orientation.z
                     )
             
-            print(f"DEBUG: get_model_pose_from_scene: model '{model_name}' not found in scene")
+            print(f"DEBUG: get_model_pose_from_scene: model '{model_name}' not found in pose message")
             return None
             
         except Exception as e:
@@ -2126,22 +2222,66 @@ class SmithUnit:
 
     def record_all_models_state_from_scene(self):
         """
-        通过 scene/info 服务记录所有模型的当前状态（位置和角度）。
-        此函数在仿真暂停状态下也可正常工作（使用 service 而非 topic）。
+        通过 "订阅 topic + multi_step: 1" 记录所有模型的当前实时状态。
+        
+        scene/info 服务返回初始位姿，不能反映仿真后的位置变化。
+        因此使用 pose/info topic 配合 multi_step: 1 获取真实状态。
         
         Returns:
             dict: {model_name: {'position': (x, y, z), 'orientation': (w, x, y, z)}}, 如果失败返回 None
         """
         try:
-            scene, reserved_models = self.get_scene()
-            if scene is None:
-                print(f"DEBUG: record_all_models_state_from_scene: get_scene() returned None")
+            import time as time_module
+            
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return None
+                self.world_name = response.data[0]
+            
+            # 1. 订阅 pose/info topic（包含所有模型，含静态模型）
+            topic_name = f"/world/{self.world_name}/pose/info"
+            node = Node()
+            received_msg = None
+            received = False
+            
+            def pose_callback(msg):
+                nonlocal received_msg, received
+                received_msg = msg
+                received = True
+            
+            subscriber = node.subscribe(Pose_V, topic_name, pose_callback)
+            if not subscriber:
+                print(f"DEBUG: record_all_models_state_from_scene: Failed to subscribe to {topic_name}")
                 return None
             
+            # 2. 发送 multi_step: 1 触发 pose 发布
+            if self.use_text:
+                step_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'multi_step: 1'")
+                step_cmd = GzCommand(GzCommandType.SERVICE, [step_txt], True)
+                step_cmd.execute(None)
+            else:
+                service_name = f"/world/{self.world_name}/control"
+                request = WorldControl()
+                request.multi_step = 1
+                self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+            
+            # 3. 等待消息
+            start_time = time_module.time()
+            while not received and (time_module.time() - start_time) < 5.0:
+                time_module.sleep(0.01)
+            
+            if not received or received_msg is None:
+                print("DEBUG: record_all_models_state_from_scene: No pose message received")
+                return None
+            
+            # 4. 记录所有模型的状态
             models_state = {}
-            for model in scene.model:
-                pose = model.pose
-                models_state[model.name] = {
+            for pose in received_msg.pose:
+                model_name = pose.name
+                models_state[model_name] = {
                     'position': (
                         pose.position.x,
                         pose.position.y,

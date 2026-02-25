@@ -1,0 +1,98 @@
+[
+  {
+    "type": "experiment_info",
+    "directory": "/home/liyitao/workspace/meta/test_21/_52",
+    "sdf_file": "a.sdf",
+    "start_time": 1770842097.4088345,
+    "timestamp": 1770842097.4088352
+  },
+  {
+    "type": "command",
+    "command_type": "launch",
+    "command": "gz sim /home/liyitao/workspace/meta/test_21/_52/a.sdf --record-path /home/liyitao/workspace/meta/test_21/_52/log",
+    "wait_after": 5.0,
+    "description": "Launch Gazebo with recording",
+    "timestamp": 1770842097.9563496
+  },
+  {
+    "type": "sleep",
+    "duration": 2,
+    "description": "Wait for Gazebo to start (attempt 1/5)",
+    "timestamp": 1770842097.9569945
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/buoyant_cylinder/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'reset: {all: true}, pause: true'",
+    "timestamp": 1770842111.578332
+  },
+  {
+    "type": "sleep",
+    "duration": 0.3,
+    "description": "Wait for pause to complete (test B)",
+    "timestamp": 1770842114.4876072
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait after clearing wrench before test B",
+    "timestamp": 1770842115.779834
+  },
+  
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Wait for F_total message to be received",
+    "timestamp": 1770842116.9856706
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/buoyant_cylinder/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: false'",
+    "timestamp": 1770842117.0857964
+  },
+  {
+    "type": "sleep",
+    "duration": 5.194857954810476,
+    "description": "Test B: Running with F_total for 5.194857954810476 seconds",
+    "timestamp": 1770842117.5963833
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/buoyant_cylinder/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: true'",
+    "timestamp": 1770842122.8035686
+  },
+  {
+    "type": "sleep",
+    "duration": 0.2,
+    "description": "Wait for pause to complete",
+    "timestamp": 1770842123.2832162
+  },
+  {
+    "type": "command",
+    "command_type": "service",
+    "command": "gz service -s /world/buoyant_cylinder/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req 'pause: false'",
+    "timestamp": 1770842123.483337
+  },
+  {
+    "type": "sleep",
+    "duration": 0.1,
+    "description": "Brief wait after resuming",
+    "timestamp": 1770842123.8814495
+  },
+  {
+    "type": "command",
+    "command_type": "topic",
+    "command": "gz topic -t /world/buoyant_cylinder/wrench/clear -m gz.msgs.Entity -p 'name: \"my_turtle\", type: MODEL'",
+    "timestamp": 1770842123.981913
+  },
+  {
+    "type": "experiment_info",
+    "end_time": 1770842124.9871094,
+    "duration": 27.578274965286255,
+    "test_passed": false,
+    "test_type": "force_additivity",
+    "timestamp": 1770842124.9871109
+  }
+]

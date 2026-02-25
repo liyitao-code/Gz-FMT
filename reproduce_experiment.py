@@ -58,6 +58,22 @@ def exec_command(cmd, timeout=100):
         return False, str(e)
 
 
+def trigger_step_then_get_pose(world_name, model_name):
+    """
+    发送 multi_step: 1 触发仿真发布位姿，再从 topic 读取。
+    用于 Determinism 复现时在暂停状态下获取终点位置（与 randomsmith_meta 中 get_model_pose_from_scene 一致）。
+    返回 (x,y,z) 或 None。
+    """
+    step_cmd = (f"gz service -s /world/{world_name}/control "
+                f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                f"--timeout 10000 --req 'multi_step: 1'")
+    ok, _ = exec_command(step_cmd)
+    if not ok:
+        return None
+    time.sleep(0.15)
+    return get_model_pose_from_topic(world_name, model_name, timeout_sec=4.0)
+
+
 def get_model_pose_from_topic(world_name, model_name, timeout_sec=3.0):
     """
     通过 topic 获取模型实时位置（需要模拟在运行状态）。
@@ -132,6 +148,171 @@ def get_model_pose_from_topic(world_name, model_name, timeout_sec=3.0):
 # 核心：按日志回放实验
 # ============================================================
 
+def _is_determinism_log(log_data):
+    """判断是否为 Determinism 测试的日志（需双进程复现）。"""
+    for entry in log_data:
+        if entry.get("type") == "test_info":
+            t = (entry.get("test_type") or "").strip().lower()
+            if "determinism" in t:
+                return True
+    return False
+
+
+def _is_temporal_monotonicity_log(log_data):
+    """判断是否为 Temporal Monotonicity 测试的日志。"""
+    for entry in log_data:
+        if entry.get("type") == "test_info":
+            t = (entry.get("test_type") or "").strip().lower()
+            if "temporal_monotonicity" in t or "temporal monotonicity" in t:
+                return True
+    return False
+
+
+def _determinism_second_gazebo_sleep_index(log_data):
+    """返回 'Wait for second Gazebo to start' 那条 sleep 的索引。"""
+    for i, entry in enumerate(log_data):
+        if entry.get("type") == "sleep":
+            if "second Gazebo" in (entry.get("description") or ""):
+                return i
+    return -1
+
+
+def _run_entries(log_data, start_idx, end_idx_excl, world_name, model_name, result, output_dir):
+    """
+    执行 log_data[start_idx:end_idx_excl] 中的条目（command/sleep），不启动/不杀进程。
+    """
+    for i in range(start_idx, end_idx_excl):
+        entry = log_data[i]
+        entry_type = entry.get("type", "")
+
+        if entry_type in ("experiment_info", "test_info"):
+            continue
+        if entry_type == "command":
+            cmd_type = entry.get("command_type", "")
+            cmd = entry.get("command", "")
+            if cmd_type == "launch":
+                wait = entry.get("wait_after", 2) or 2
+                print(f"  [{i:2d}] launch → 等待 {wait}s")
+                time.sleep(wait)
+            else:
+                print(f"  [{i:2d}] {cmd_type:7s}: {cmd[:100]}{'...' if len(cmd) > 100 else ''}")
+                ok, _ = exec_command(cmd)
+                if not ok:
+                    result["errors"].append(f"Step {i}: failed")
+            result["steps_executed"] += 1
+        elif entry_type == "sleep":
+            duration = entry.get("duration", 0) or 0
+            desc = entry.get("description", "") or ""
+            if duration > 0:
+                print(f"  [{i:2d}] sleep {duration:.2f}s  {desc[:70]}")
+                time.sleep(duration)
+            result["steps_executed"] += 1
+
+
+def _replay_determinism(sdf_path, log_data, i_second, world_name, model_name, result, output_dir):
+    """
+    Determinism 测试复现：Run 1 → 关进程 → 等 2s → Run 2（新进程 + 激活）→ 比较 P1/P2。
+    """
+    gz_out = subprocess.DEVNULL
+    gz_err = subprocess.DEVNULL
+    if output_dir:
+        gz_out = open(os.path.join(output_dir, "gz_run1.out"), "w")
+        gz_err = open(os.path.join(output_dir, "gz_run1.err"), "w")
+
+    print("  [Determinism] Run 1: 启动第一个 Gazebo...")
+    gz1 = subprocess.Popen(f"gz sim {sdf_path} --seed 12345".split(), stdout=gz_out, stderr=gz_err, start_new_session=True)
+    time.sleep(2)
+    print("  [Determinism] Run 1: 激活仿真引擎 (play → pause)...")
+    for req in ["pause: false", "pause: true"]:
+        exec_command(f"gz service -s /world/{world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req '{req}'")
+    time.sleep(0.3)
+    try:
+        # 施力前读取初态 Q1（用于检查两轮起始是否一致）
+        q1 = trigger_step_then_get_pose(world_name, model_name)
+        if q1 is not None:
+            result["determinism_initial_run1"] = q1
+            print(f"  [Determinism] Run 1 施力前初态 Q1 = ({q1[0]:.6f}, {q1[1]:.6f}, {q1[2]:.6f})")
+        # 从索引 3 开始（跳过 launch、sleep 2、test_info），执行到 Run 1 结束
+        _run_entries(log_data, 3, i_second, world_name, model_name, result, output_dir)
+        print("  [Determinism] Run 1 结束，读取终点位置 P1...")
+        p1 = trigger_step_then_get_pose(world_name, model_name)
+        if p1:
+            result["positions_captured"]["Run 1 (determinism)"] = p1
+            print(f"         P1 = ({p1[0]:.6f}, {p1[1]:.6f}, {p1[2]:.6f})")
+        else:
+            result["errors"].append("Run 1: 未捕获到位置")
+    finally:
+        try:
+            for c in psutil.Process(gz1.pid).children(recursive=True):
+                c.kill()
+            gz1.kill()
+            gz1.wait(timeout=5)
+        except Exception:
+            pass
+        if output_dir:
+            try:
+                gz_out.close()
+                gz_err.close()
+            except Exception:
+                pass
+
+    # "Wait for second Gazebo to start"
+    sleep_entry = log_data[i_second]
+    duration = sleep_entry.get("duration", 2) or 2
+    print(f"  [{i_second:2d}] sleep {duration:.2f}s  (Wait for second Gazebo to start)")
+    time.sleep(duration)
+    result["steps_executed"] += 1
+
+    kill_all_gz()
+    time.sleep(1)
+
+    print("  [Determinism] Run 2: 启动第二个 Gazebo...")
+    if output_dir:
+        gz_out = open(os.path.join(output_dir, "gz_run2.out"), "w")
+        gz_err = open(os.path.join(output_dir, "gz_run2.err"), "w")
+    else:
+        gz_out, gz_err = subprocess.DEVNULL, subprocess.DEVNULL
+    gz2 = subprocess.Popen(f"gz sim {sdf_path} --seed 12345".split(), stdout=gz_out, stderr=gz_err, start_new_session=True)
+    time.sleep(2)
+
+    # 激活第二个 Gazebo（play → pause），与 randomsmith_meta 一致
+    print("  [Determinism] Run 2: 激活仿真引擎 (play → pause)...")
+    for req in ["pause: false", "pause: true"]:
+        exec_command(f"gz service -s /world/{world_name}/control --reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean --timeout 10000 --req '{req}'")
+    time.sleep(0.3)
+
+    try:
+        # 施力前读取初态 Q2（用于检查两轮起始是否一致）
+        q2 = trigger_step_then_get_pose(world_name, model_name)
+        if q2 is not None:
+            result["determinism_initial_run2"] = q2
+            print(f"  [Determinism] Run 2 施力前初态 Q2 = ({q2[0]:.6f}, {q2[1]:.6f}, {q2[2]:.6f})")
+        _run_entries(log_data, i_second + 1, len(log_data), world_name, model_name, result, output_dir)
+        print("  [Determinism] Run 2 结束，读取终点位置 P2...")
+        p2 = trigger_step_then_get_pose(world_name, model_name)
+        if p2:
+            result["positions_captured"]["Run 2 (determinism)"] = p2
+            print(f"         P2 = ({p2[0]:.6f}, {p2[1]:.6f}, {p2[2]:.6f})")
+        else:
+            result["errors"].append("Run 2: 未捕获到位置")
+    finally:
+        try:
+            for c in psutil.Process(gz2.pid).children(recursive=True):
+                c.kill()
+            gz2.kill()
+            gz2.wait(timeout=5)
+        except Exception:
+            pass
+        if output_dir:
+            try:
+                gz_out.close()
+                gz_err.close()
+            except Exception:
+                pass
+
+    return result
+
+
 def replay_from_log(sdf_path, log_data, output_dir=None):
     """
     严格按照 experiment_log.json 的记录回放实验。
@@ -178,8 +359,41 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
     result['world_name'] = world_name
     result['model_name'] = model_name
 
-    # 启动 Gazebo（不使用日志中的 launch 命令，因为路径可能不同）
-    gz_cmd = f"gz sim {sdf_path}"
+    # ---------- 特殊测试类型检测 ----------
+    is_determinism = _is_determinism_log(log_data)
+    is_monotonicity = _is_temporal_monotonicity_log(log_data)
+    is_force_isolation = any(
+        e.get('type') == 'test_info' and e.get('test_type') == 'force_isolation'
+        for e in log_data
+    )
+
+    # Force Isolation：尝试识别 target / bystander 模型名
+    force_iso_target = None
+    force_iso_bystander = None
+    if is_force_isolation:
+        names = []
+        for entry in log_data:
+            if entry.get('type') == 'command':
+                cmd = entry.get('command', '')
+                m = re.search(r'name:\s*\"([^\"]+)\"\\s*,\\s*type:\\s*MODEL', cmd)
+                if m:
+                    n = m.group(1)
+                    if n not in names:
+                        names.append(n)
+        if names:
+            force_iso_target = names[0]
+            if len(names) > 1:
+                force_iso_bystander = names[1]
+    result['force_iso_target'] = force_iso_target
+    result['force_iso_bystander'] = force_iso_bystander
+
+    # Determinism 测试：双进程复现
+    i_second = _determinism_second_gazebo_sleep_index(log_data)
+    if is_determinism and i_second >= 0 and world_name and model_name:
+        return _replay_determinism(sdf_path, log_data, i_second, world_name, model_name, result, output_dir)
+
+    # ---------- 单进程复现（非 Determinism）----------
+    gz_cmd = f"gz sim {sdf_path} --seed 12345"
     print(f"  启动 Gazebo: {gz_cmd}")
     gz_out = subprocess.DEVNULL
     gz_err = subprocess.DEVNULL
@@ -191,6 +405,7 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
 
     try:
         # 逐条执行日志
+        monotonicity_sample_idx = 0
         for i, entry in enumerate(log_data):
             entry_type = entry.get('type', '')
 
@@ -235,13 +450,56 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
                     print(f"  [{i:2d}] sleep {duration:.2f}s  {desc[:80]}")
                     time.sleep(duration)
 
-                # 在测试运行结束后（下一步是 pause）捕获位置
+                # 在测试运行结束后（下一步是 pause）捕获位置（通用逻辑）
                 if is_test_run and world_name and model_name:
                     pos = get_model_pose_from_topic(world_name, model_name)
                     if pos:
                         label = desc[:60]
                         result['positions_captured'][label] = pos
                         print(f"         → 捕获位置: ({pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f})")
+
+                # Temporal Monotonicity：施力后、首次 Stepping 前的初始位置
+                if is_monotonicity and world_name and model_name and 'force' in desc.lower() and 'monotonicity' in desc.lower() and 'Wait for force' in desc:
+                    pos = get_model_pose_from_topic(world_name, model_name)
+                    if pos:
+                        result['positions_captured']['monotonicity initial'] = pos
+                        print(f"         → 单调性初态: ({pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f})")
+
+                # Temporal Monotonicity：每段 Stepping 后采样一次位置
+                if is_monotonicity and world_name and model_name and 'Stepping' in desc:
+                    pos = get_model_pose_from_topic(world_name, model_name)
+                    if pos:
+                        monotonicity_sample_idx += 1
+                        label = f"monotonicity sample {monotonicity_sample_idx}: {desc[:40]}"
+                        result['positions_captured'][label] = pos
+                        print(f"         → 单调性采样 {monotonicity_sample_idx}: ({pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f})")
+
+                # Force Isolation：记录 target / bystander 初始与最终位置
+                if is_force_isolation and world_name and result.get('force_iso_target'):
+                    tgt = result.get('force_iso_target')
+                    bys = result.get('force_iso_bystander')
+                    # 初始位置：施力后、步进前
+                    if 'Wait for force to be applied (force isolation)' in desc and tgt:
+                        pt = get_model_pose_from_topic(world_name, tgt)
+                        if pt:
+                            result['positions_captured']['force_iso_target_initial'] = pt
+                            print(f"         → ForceIsolation target 初始: ({pt[0]:.4f}, {pt[1]:.4f}, {pt[2]:.4f})")
+                        if bys:
+                            pb = get_model_pose_from_topic(world_name, bys)
+                            if pb:
+                                result['positions_captured']['force_iso_bystander_initial'] = pb
+                                print(f"         → ForceIsolation bystander 初始: ({pb[0]:.4f}, {pb[1]:.4f}, {pb[2]:.4f})")
+                    # 终点位置：Stepping 结束后
+                    if 'Stepping' in desc and tgt:
+                        pt = get_model_pose_from_topic(world_name, tgt)
+                        if pt:
+                            result['positions_captured']['force_iso_target_final'] = pt
+                            print(f"         → ForceIsolation target 终点: ({pt[0]:.4f}, {pt[1]:.4f}, {pt[2]:.4f})")
+                        if bys:
+                            pb = get_model_pose_from_topic(world_name, bys)
+                            if pb:
+                                result['positions_captured']['force_iso_bystander_final'] = pb
+                                print(f"         → ForceIsolation bystander 终点: ({pb[0]:.4f}, {pb[1]:.4f}, {pb[2]:.4f})")
 
                 result['steps_executed'] += 1
 
@@ -306,6 +564,8 @@ def parse_original_result(result_path):
 
     # 提取所有位置
     for pattern, label in [
+        (r'Position \(Run 1\s*-\s*first Gazebo\):\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)', 'pos_run1'),
+        (r'Position \(Run 2\s*-\s*fresh Gazebo\):\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)', 'pos_run2'),
         (r'Position \(Run A\):\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)', 'pos_run_a'),
         (r'Position \(Run B\):\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)', 'pos_run_b'),
         (r'Position with F1\+F2.*:\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)', 'pos_f1f2'),
@@ -331,6 +591,70 @@ def parse_original_result(result_path):
             info['original_error'] = (float(m.group(1)), float(m.group(2)), float(m.group(3)))
         except (ValueError, OverflowError):
             pass
+
+    # Temporal Monotonicity：提取 trajectory (x-displacement)
+    if ('Temporal Monotonicity' in info.get('test_type', '') or
+            ('monotonicity' in text.lower() and 'Trajectory (x-displacement)' in text)):
+        trajectory = []
+        for m in re.finditer(r't=([\d.]+)s:\s*x_disp=([-\d.e+]+)m', text):
+            try:
+                trajectory.append((float(m.group(1)), float(m.group(2))))
+            except (ValueError, OverflowError):
+                pass
+        if trajectory:
+            info['monotonicity_trajectory'] = trajectory
+        m = re.search(r'Monotonic:\s*(\w+)', text)
+        if m:
+            info['monotonicity_monotonic'] = m.group(1).strip().lower() == 'yes'
+        m = re.search(r'Smooth:\s*(\w+)', text)
+        if m:
+            info['monotonicity_smooth'] = m.group(1).strip().lower() == 'yes'
+
+    # Force Isolation：提取 target / bystander 位置与漂移
+    if 'Force Isolation' in info.get('test_type', ''):
+        m = re.search(r'^Target Model:\s*(.+)$', text, re.MULTILINE)
+        if m:
+            info['fi_target_model'] = m.group(1).strip()
+        m = re.search(r'^Bystander Model:\s*(.+)$', text, re.MULTILINE)
+        if m:
+            info['fi_bystander_model'] = m.group(1).strip()
+
+        def _parse_vec(line_prefix):
+            mm = re.search(
+                rf'^{line_prefix}:\s*\(([-\d.e+]+),\s*([-\d.e+]+),\s*([-\d.e+]+)\)',
+                text, re.MULTILINE)
+            if mm:
+                try:
+                    return (float(mm.group(1)), float(mm.group(2)), float(mm.group(3)))
+                except (ValueError, OverflowError):
+                    return None
+            return None
+
+        ti = _parse_vec(r'Target Initial')
+        tf = _parse_vec(r'Target Final')
+        bi = _parse_vec(r'Bystander Initial')
+        bf = _parse_vec(r'Bystander Final')
+        if ti:
+            info['fi_target_initial'] = ti
+        if tf:
+            info['fi_target_final'] = tf
+        if bi:
+            info['fi_bystander_initial'] = bi
+        if bf:
+            info['fi_bystander_final'] = bf
+
+        m = re.search(r'Target Displacement:\s*([-\d.e+]+)m', text)
+        if m:
+            try:
+                info['fi_target_displacement'] = float(m.group(1))
+            except (ValueError, OverflowError):
+                pass
+        m = re.search(r'Bystander Drift:\s*([-\d.e+]+)m', text)
+        if m:
+            try:
+                info['fi_bystander_drift'] = float(m.group(1))
+            except (ValueError, OverflowError):
+                pass
 
     return info
 
@@ -368,17 +692,111 @@ def compare_and_report(original_info, replay_result, output_dir=None):
     else:
         lines.append("  复现中未捕获到位置（可能 Gazebo 未正常启动或模型名不匹配）")
 
+    # Determinism：施力前初态 Q1/Q2 及初态差（用于判断实验误差）
+    q1 = replay_result.get("determinism_initial_run1")
+    q2 = replay_result.get("determinism_initial_run2")
+    if q1 is not None and q2 is not None:
+        lines.append("")
+        lines.append("  施力前初态（激活后、施力前）:")
+        lines.append(f"    Run 1 初态 Q1: ({q1[0]:.6f}, {q1[1]:.6f}, {q1[2]:.6f})")
+        lines.append(f"    Run 2 初态 Q2: ({q2[0]:.6f}, {q2[1]:.6f}, {q2[2]:.6f})")
+        dq = math.sqrt((q1[0]-q2[0])**2 + (q1[1]-q2[1])**2 + (q1[2]-q2[2])**2)
+        lines.append(f"    初态差 |Q1−Q2|: {dq:.6f} m")
+        if dq >= 0.01:
+            lines.append("    → 初态不一致，部分 P1−P2 差可能来自实验误差（激活阶段未控制）")
+
     lines.append("")
 
-    # ===== 比较逻辑 =====
-    # 获取原始测试中的两组关键位置
+    # ===== Temporal Monotonicity 专用比较 =====
+    orig_traj = original_info.get('monotonicity_trajectory')
+    init_pos = captured.get('monotonicity initial')
+    def _mono_sample_idx(k):
+        m = re.search(r'sample (\d+)', k)
+        return int(m.group(1)) if m else 0
+    sample_keys = sorted(
+        [k for k in (captured or {}) if k.startswith('monotonicity sample')],
+        key=_mono_sample_idx
+    )
+    if orig_traj is not None and init_pos is not None and sample_keys:
+        sample_positions = [captured[k] for k in sample_keys]
+
+        # 构造复现的 x-displacement 序列：初态为 0，之后为 相对初态的 x 位移
+        rep_x_disp = [0.0] + [p[0] - init_pos[0] for p in sample_positions]
+
+        # 1. 序列对比
+        lines.append("  [Temporal Monotonicity] 轨迹序列对比:")
+        orig_x_disp = [pt[1] for pt in orig_traj]
+        n_compare = min(len(orig_x_disp), len(rep_x_disp))
+        max_traj_dev = 0
+        for i in range(n_compare):
+            t_val = orig_traj[i][0] if i < len(orig_traj) else 0
+            od = orig_x_disp[i]
+            rd = rep_x_disp[i]
+            dev = abs(od - rd)
+            max_traj_dev = max(max_traj_dev, dev)
+            lines.append(f"    t={t_val:.2f}s: 原始 x_disp={od:.6f}m, 复现 x_disp={rd:.6f}m, 偏差={dev:.6f}m")
+        lines.append(f"  轨迹最大偏差: {max_traj_dev:.6f} m")
+        lines.append("")
+
+        # 2. 判断复现结果是否符合预期（单调且平滑）
+        rep_monotonic = True
+        rep_smooth = True
+        rep_violations = []
+        MONOTONICITY_JUMP_RATIO = 3.0
+
+        for i in range(1, len(rep_x_disp)):
+            if rep_x_disp[i] <= rep_x_disp[i - 1]:
+                rep_monotonic = False
+                rep_violations.append({'type': 'non_monotonic', 'index': i, 'prev': rep_x_disp[i-1], 'curr': rep_x_disp[i]})
+        deltas = [rep_x_disp[i] - rep_x_disp[i-1] for i in range(1, len(rep_x_disp))]
+        for i in range(1, len(deltas)):
+            if deltas[i-1] > 0.001:
+                ratio = deltas[i] / deltas[i-1]
+                if ratio > MONOTONICITY_JUMP_RATIO:
+                    rep_smooth = False
+                    rep_violations.append({'type': 'jump', 'index': i+1, 'ratio': ratio, 'delta_prev': deltas[i-1], 'delta_curr': deltas[i]})
+
+        lines.append("  复现结果是否符合预期:")
+        lines.append(f"    单调性 (Monotonic): {'是' if rep_monotonic else '否'}")
+        lines.append(f"    平滑性 (Smooth):    {'是' if rep_smooth else '否'}")
+        if rep_violations:
+            lines.append(f"    违规: {len(rep_violations)} 处")
+            for v in rep_violations[:5]:
+                if v['type'] == 'non_monotonic':
+                    lines.append(f"      样本 {v['index']}: 位移非单调 ({v['prev']:.6f} -> {v['curr']:.6f})")
+                else:
+                    lines.append(f"      样本 {v['index']}: 突变比例 {v['ratio']:.2f}x (delta {v['delta_prev']:.6f} -> {v['delta_curr']:.6f})")
+        lines.append("")
+        meets_expectation = rep_monotonic and rep_smooth
+        conclusion = "符合预期（单调且平滑）" if meets_expectation else "不符合预期（存在非单调或突变）"
+        lines.append(f"  → 结论: {conclusion}")
+        lines.append("=" * 60)
+        report_text = "\n".join(lines)
+        print(report_text)
+        if output_dir:
+            report_path = os.path.join(output_dir, "reproduction_report.txt")
+            with open(report_path, "w") as f:
+                f.write(report_text)
+                f.write("\n\n--- 原始结果文件 ---\n")
+                f.write(original_info.get('raw_text', ''))
+                f.write("\n\n--- 复现详情 ---\n")
+                f.write(json.dumps(replay_result, indent=2, default=str))
+            print(f"\n报告已保存: {report_path}")
+        return meets_expectation
+
+    # ===== 通用比较逻辑 =====
+    # 获取原始测试中的两组关键位置（Determinism 优先用 Run 1 / Run 2）
     orig_pos_pairs = []  # [(label, orig_pos)]
-    for key, label in [('pos_f1f2', 'F1+F2'), ('pos_ftotal', 'F_total'),
-                       ('pos_rtf1', 'RTF1'), ('pos_rtf2', 'RTF2'),
-                       ('pos_run_a', 'Run A'), ('pos_run_b', 'Run B'),
-                       ('final_pos', 'Final')]:
-        if key in original_info:
-            orig_pos_pairs.append((label, original_info[key]))
+    if 'pos_run1' in original_info and 'pos_run2' in original_info:
+        orig_pos_pairs.append(('Run 1', original_info['pos_run1']))
+        orig_pos_pairs.append(('Run 2', original_info['pos_run2']))
+    else:
+        for key, label in [('pos_f1f2', 'F1+F2'), ('pos_ftotal', 'F_total'),
+                           ('pos_rtf1', 'RTF1'), ('pos_rtf2', 'RTF2'),
+                           ('pos_run_a', 'Run A'), ('pos_run_b', 'Run B'),
+                           ('final_pos', 'Final')]:
+            if key in original_info:
+                orig_pos_pairs.append((label, original_info[key]))
 
     # 获取复现中捕获的位置（按顺序）
     captured_list = list(captured.values())
@@ -416,6 +834,16 @@ def compare_and_report(original_info, replay_result, output_dir=None):
 
         lines.append("")
         lines.append(f"  最大位置偏差: {max_deviation:.6f} m")
+
+        # Determinism：额外报告复现时 Run 1 vs Run 2 的差异（是否仍非确定）
+        if 'pos_run1' in original_info and len(captured_list) >= 2:
+            r1, r2 = captured_list[0], captured_list[1]
+            det_dx = abs(r1[0] - r2[0])
+            det_dy = abs(r1[1] - r2[1])
+            det_dz = abs(r1[2] - r2[2])
+            det_dev = math.sqrt(det_dx**2 + det_dy**2 + det_dz**2)
+            lines.append(f"  复现时 Run1 vs Run2 位置差: {det_dev:.6f} m (非确定性复现)" if det_dev >= 0.001 else "  复现时 Run1 vs Run2 一致（未复现非确定性）")
+            lines.append("")
 
         # 判断是否一致（偏差小于 1m 认为基本一致）
         REPRODUCE_THRESHOLD = 1.0
