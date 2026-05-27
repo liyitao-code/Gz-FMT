@@ -144,6 +144,99 @@ def get_model_pose_from_topic(world_name, model_name, timeout_sec=3.0):
     return None
 
 
+def trigger_step_then_get_all_poses(world_name, timeout_sec=4.0):
+    """
+    发送 multi_step: 1 触发仿真发布位姿，再从 pose/info 读取所有实体（模型+link）位置。
+    用于关节约束稳定性复现时获取两 link 的位置以计算距离。
+    返回 dict: { entity_name: (x, y, z), ... } 或 None。
+    """
+    step_cmd = (f"gz service -s /world/{world_name}/control "
+                f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                f"--timeout 10000 --req 'multi_step: 1'")
+    ok, _ = exec_command(step_cmd)
+    if not ok:
+        return None
+    time.sleep(0.15)
+
+    # 方法1：Python gz transport API
+    try:
+        from gz.transport14 import Node
+        from gz.msgs11.pose_v_pb2 import Pose_V
+
+        node = Node()
+        result = [None]
+
+        def cb(msg):
+            out = {}
+            for pose in msg.pose:
+                out[pose.name] = (pose.position.x, pose.position.y, pose.position.z)
+            result[0] = out
+
+        for topic in [f"/world/{world_name}/dynamic_pose/info",
+                      f"/world/{world_name}/pose/info"]:
+            result[0] = None
+            sub = node.subscribe(Pose_V, topic, cb)
+            if not sub:
+                continue
+            t0 = time.time()
+            while result[0] is None and (time.time() - t0) < timeout_sec:
+                time.sleep(0.01)
+            if result[0] is not None and len(result[0]) > 0:
+                return result[0]
+        return None
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"  [WARN] get_all_poses Python API error: {e}")
+
+    # 方法2：gz topic 命令行
+    for topic in [f"/world/{world_name}/dynamic_pose/info",
+                  f"/world/{world_name}/pose/info"]:
+        try:
+            r = subprocess.run(
+                f"gz topic -e -t {topic} -n 1",
+                shell=True, timeout=timeout_sec + 5,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            if r.returncode != 0:
+                continue
+            output = r.stdout.decode('utf-8', errors='replace')
+            poses = {}
+            blocks = re.split(r'(?=pose\s*\{)', output)
+            for block in blocks:
+                name_m = re.search(r'name:\s*"([^"]*)"', block)
+                if not name_m:
+                    continue
+                pos_block = re.search(r'position\s*\{([^}]*)\}', block, re.DOTALL)
+                if not pos_block:
+                    continue
+                px = re.search(r'x:\s*([-\d.e+]+)', pos_block.group(1))
+                py = re.search(r'y:\s*([-\d.e+]+)', pos_block.group(1))
+                pz = re.search(r'z:\s*([-\d.e+]+)', pos_block.group(1))
+                if px and py and pz:
+                    try:
+                        poses[name_m.group(1)] = (float(px.group(1)), float(py.group(1)), float(pz.group(1)))
+                    except (ValueError, OverflowError):
+                        pass
+            if poses:
+                return poses
+        except subprocess.TimeoutExpired:
+            continue
+        except Exception as e:
+            print(f"  [WARN] gz topic -e (all poses) error: {e}")
+    return None
+
+
+def _resolve_link_key(poses_dict, scoped_name):
+    """pose/info 可能用 model::link 或仅 link，尝试两种格式（与 randomsmith_meta 一致）。"""
+    if not poses_dict:
+        return None
+    if scoped_name in poses_dict:
+        return scoped_name
+    local = scoped_name.split("::")[-1] if "::" in scoped_name else scoped_name
+    return local if local in poses_dict else None
+
+
 # ============================================================
 # 核心：按日志回放实验
 # ============================================================
@@ -334,6 +427,7 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
         'world_name': None,
         'steps_executed': 0,
         'positions_captured': {},
+        'joint_constraint_pose_snapshots': [],  # 关节约束：每步后的全实体位姿 [{name:(x,y,z),...}, ...]
         'errors': [],
     }
 
@@ -364,6 +458,10 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
     is_monotonicity = _is_temporal_monotonicity_log(log_data)
     is_force_isolation = any(
         e.get('type') == 'test_info' and e.get('test_type') == 'force_isolation'
+        for e in log_data
+    )
+    is_joint_constraint = any(
+        e.get('type') == 'test_info' and (e.get('test_type') or '').strip().lower() == 'joint_constraint_stability'
         for e in log_data
     )
 
@@ -473,6 +571,19 @@ def replay_from_log(sdf_path, log_data, output_dir=None):
                         label = f"monotonicity sample {monotonicity_sample_idx}: {desc[:40]}"
                         result['positions_captured'][label] = pos
                         print(f"         → 单调性采样 {monotonicity_sample_idx}: ({pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f})")
+
+                # Joint Constraint Stability：每次“Wait for force”后采 d0，每次 Stepping 后采一次全实体位姿
+                if is_joint_constraint and world_name:
+                    if 'Wait for force (joint constraint)' in desc:
+                        snap = trigger_step_then_get_all_poses(world_name)
+                        if snap:
+                            result['joint_constraint_pose_snapshots'].append(snap)
+                            print(f"         → 关节约束 d0 快照: {len(snap)} 个实体")
+                    elif 'Stepping' in desc:
+                        snap = trigger_step_then_get_all_poses(world_name)
+                        if snap:
+                            result['joint_constraint_pose_snapshots'].append(snap)
+                            print(f"         → 关节约束采样 {len(result['joint_constraint_pose_snapshots'])}: {len(snap)} 个实体")
 
                 # Force Isolation：记录 target / bystander 初始与最终位置
                 if is_force_isolation and world_name and result.get('force_iso_target'):
@@ -656,6 +767,47 @@ def parse_original_result(result_path):
             except (ValueError, OverflowError):
                 pass
 
+    # Joint Constraint Stability：提取 Links 与 Samples (t, distance)
+    if 'Joint Constraint' in info.get('test_type', '') or 'joint_constraint' in info.get('test_type', '').lower():
+        m = re.search(r'^Links:\s*(.+)$', text, re.MULTILINE)
+        if m:
+            links_str = m.group(1).strip()
+            # 格式 "vehicle::chassis, vehicle::front_left_wheel" 或 "cylinder::cylinder_link, cylinder::cylinder_link2"
+            parts = [p.strip() for p in re.split(r',\s*', links_str)]
+            if len(parts) >= 2:
+                info['joint_constraint_links'] = (parts[0], parts[1])
+        # 从 Error Info 中解析 resolved 名（可选，用于复现时查找）
+        m = re.search(r'\(resolved:\s*([^,]+),\s*([^)]+)\)', text)
+        if m:
+            info['joint_constraint_links_resolved'] = (m.group(1).strip(), m.group(2).strip())
+        # Samples (t, distance): t=0.00s: d=0.963685m
+        samples = []
+        for mm in re.finditer(r't=([\d.]+)s:\s*d=([-\d.e+]+)m', text):
+            try:
+                samples.append((float(mm.group(1)), float(mm.group(2))))
+            except (ValueError, OverflowError):
+                pass
+        if samples:
+            info['joint_constraint_samples'] = samples
+        m = re.search(r'Initial distance d0:\s*([-\d.e+]+)m', text)
+        if m:
+            try:
+                info['joint_constraint_d0'] = float(m.group(1))
+            except (ValueError, OverflowError):
+                pass
+        m = re.search(r'Drift tolerance:\s*([-\d.e+]+)m', text)
+        if m:
+            try:
+                info['joint_constraint_drift_tol'] = float(m.group(1))
+            except (ValueError, OverflowError):
+                pass
+        m = re.search(r'Jump tolerance:\s*([-\d.e+]+)m', text)
+        if m:
+            try:
+                info['joint_constraint_jump_tol'] = float(m.group(1))
+            except (ValueError, OverflowError):
+                pass
+
     return info
 
 
@@ -684,12 +836,15 @@ def compare_and_report(original_info, replay_result, output_dir=None):
 
     # 复现中捕获的位置
     captured = replay_result.get('positions_captured', {})
+    snapshots = replay_result.get('joint_constraint_pose_snapshots', [])
     if captured:
         lines.append("  复现捕获的位置:")
         for label, pos in captured.items():
             lines.append(f"    {label}:")
             lines.append(f"      ({pos[0]:.6f}, {pos[1]:.6f}, {pos[2]:.6f})")
-    else:
+    if snapshots:
+        lines.append(f"  复现关节约束快照数: {len(snapshots)}（每步全实体位姿）")
+    if not captured and not snapshots:
         lines.append("  复现中未捕获到位置（可能 Gazebo 未正常启动或模型名不匹配）")
 
     # Determinism：施力前初态 Q1/Q2 及初态差（用于判断实验误差）
@@ -706,6 +861,94 @@ def compare_and_report(original_info, replay_result, output_dir=None):
             lines.append("    → 初态不一致，部分 P1−P2 差可能来自实验误差（激活阶段未控制）")
 
     lines.append("")
+
+    # ===== Joint Constraint Stability 专用比较 =====
+    orig_jc_samples = original_info.get('joint_constraint_samples')
+    orig_jc_links = original_info.get('joint_constraint_links') or original_info.get('joint_constraint_links_resolved')
+    if orig_jc_samples and orig_jc_links:
+        if not snapshots:
+            lines.append("  [Joint Constraint] 原始结果含约束距离样本，但复现未捕获到位姿快照（pose/info 或 multi_step 可能失败）。")
+            lines.append("  → 结论: 无法比较（复现未捕获关节约束快照）")
+            lines.append("=" * 60)
+            report_text = "\n".join(lines)
+            print(report_text)
+            if output_dir:
+                report_path = os.path.join(output_dir, "reproduction_report.txt")
+                with open(report_path, "w") as f:
+                    f.write(report_text)
+                    f.write("\n\n--- 原始结果文件 ---\n")
+                    f.write(original_info.get('raw_text', ''))
+                    f.write("\n\n--- 复现详情 ---\n")
+                    f.write(json.dumps(replay_result, indent=2, default=str))
+                print(f"\n报告已保存: {report_path}")
+            return None
+    if orig_jc_samples and orig_jc_links and snapshots:
+        link1_scoped, link2_scoped = orig_jc_links[0], orig_jc_links[1]
+        first_snap = snapshots[0]
+        link1_key = _resolve_link_key(first_snap, link1_scoped)
+        link2_key = _resolve_link_key(first_snap, link2_scoped)
+        if link1_key is None or link2_key is None:
+            lines.append("  [Joint Constraint] 复现快照中未找到原始 link 名，无法比较。")
+            lines.append(f"    原始 Links: {link1_scoped}, {link2_scoped}")
+            lines.append(f"    快照中实体示例: " + ", ".join(list(first_snap.keys())[:15]))
+        else:
+            def _dist(p1, p2):
+                return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
+            rep_distances = []
+            for s in snapshots:
+                if link1_key in s and link2_key in s:
+                    rep_distances.append(_dist(s[link1_key], s[link2_key]))
+                else:
+                    rep_distances.append(float('nan'))
+            n_compare = min(len(orig_jc_samples), len(rep_distances))
+            lines.append("  [Joint Constraint Stability] 约束距离 (两 link) 序列对比:")
+            lines.append(f"    Links: {link1_scoped}, {link2_scoped} (解析: {link1_key}, {link2_key})")
+            max_dev = 0
+            for i in range(n_compare):
+                t_orig, d_orig = orig_jc_samples[i][0], orig_jc_samples[i][1]
+                d_rep = rep_distances[i] if i < len(rep_distances) else float('nan')
+                dev = abs(d_orig - d_rep) if not math.isnan(d_rep) else float('nan')
+                if not math.isnan(dev):
+                    max_dev = max(max_dev, dev)
+                lines.append(f"    t={t_orig:.2f}s: 原始 d={d_orig:.6f}m, 复现 d={d_rep:.6f}m, 偏差={dev:.6f}m")
+            lines.append(f"  约束距离最大偏差: {max_dev:.6f} m")
+            d0_orig = original_info.get('joint_constraint_d0')
+            drift_tol = original_info.get('joint_constraint_drift_tol', 0.05)
+            jump_tol = original_info.get('joint_constraint_jump_tol', 0.1)
+            if d0_orig is not None and rep_distances:
+                rep_d0 = rep_distances[0]
+                rep_drift_ok = all(abs(d - rep_d0) <= drift_tol for d in rep_distances if not math.isnan(d))
+                rep_jump_ok = True
+                for i in range(1, len(rep_distances)):
+                    if not math.isnan(rep_distances[i]) and not math.isnan(rep_distances[i-1]):
+                        if abs(rep_distances[i] - rep_distances[i-1]) > jump_tol:
+                            rep_jump_ok = False
+                            break
+                lines.append("  复现结果是否满足约束稳定性:")
+                lines.append(f"    无漂移 (|d-d0|<{drift_tol}m): {'是' if rep_drift_ok else '否'}")
+                lines.append(f"    无跳变 (相邻采样差<{jump_tol}m): {'是' if rep_jump_ok else '否'}")
+            lines.append("")
+            JC_THRESHOLD = 0.05
+            if max_dev <= JC_THRESHOLD:
+                conclusion = f"一致（约束距离最大偏差 {max_dev:.4f}m <= {JC_THRESHOLD}m）"
+                match = True
+            else:
+                conclusion = f"不一致（约束距离最大偏差 {max_dev:.4f}m > {JC_THRESHOLD}m）"
+                match = False
+            lines.append(f"  → 结论: {conclusion}")
+            lines.append("=" * 60)
+            report_text = "\n".join(lines)
+            print(report_text)
+            if output_dir:
+                report_path = os.path.join(output_dir, "reproduction_report.txt")
+                with open(report_path, "w") as f:
+                    f.write(report_text)
+                    f.write("\n\n--- 原始结果文件 ---\n")
+                    f.write(original_info.get('raw_text', ''))
+                    f.write("\n\n--- 复现详情 ---\n")
+                    f.write(json.dumps(replay_result, indent=2, default=str))
+                print(f"\n报告已保存: {report_path}")
+            return match
 
     # ===== Temporal Monotonicity 专用比较 =====
     orig_traj = original_info.get('monotonicity_trajectory')

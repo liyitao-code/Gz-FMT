@@ -1063,7 +1063,9 @@ class SmithUnit:
         print("DEBUG: starting metamorphic test")
         
         # 随机选择一种蜕变测试关系
-        test_type = random.choice(['determinism', 'zero_input_stability', 'force_isolation', 'force_removal', 'temporal_monotonicity'])  # 新范式蜕变关系
+        # 当前仅保留三个最新蜕变关系（实验阶段）
+        test_type = random.choice(['joint_constraint_stability', 'mass_scaling_no_reset', 'environment_perturbation_robustness'])
+        # test_type = random.choice(['determinism', 'zero_input_stability', 'force_isolation', 'force_removal', 'temporal_monotonicity', 'joint_constraint_stability', 'mass_scaling_no_reset', 'environment_perturbation_robustness'])  # 完整新范式蜕变关系
         # test_type = random.choice(['motion', 'force_additivity', 'time_scaling', 'mass_scaling', 'determinism', 'symmetry'])  # 旧蜕变关系（reset-compare 范式）
         print(f"DEBUG: Selected metamorphic test type: {test_type}")
         # test_type = 'time_scaling'  # 临时固定测试类型（用于调试）
@@ -1386,6 +1388,49 @@ class SmithUnit:
                 traceback.print_exc()
                 test_result = None
         
+        elif test_type == 'joint_constraint_stability':
+            # 范式 B：关节约束稳定性测试 — 两 link 间约束量无漂移、无突变
+            test_duration = random.uniform(3.0, 5.0)
+            num_samples = random.choice([8, 10, 12])
+            
+            try:
+                test_result = self.metamorphic_test_joint_constraint_stability(
+                    test_duration=test_duration, num_samples=num_samples)
+            except Exception as e:
+                print(f"DEBUG: Exception during joint constraint stability test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'mass_scaling_no_reset':
+            # 范式 D：质量缩放单次运行变体 — 同运行内改质量+力，d1≈d2
+            phase_duration = random.uniform(1.5, 3.0)
+            
+            try:
+                test_result = self.metamorphic_test_mass_scaling_no_reset(
+                    phase_duration=phase_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during mass scaling no-reset test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
+        elif test_type == 'environment_perturbation_robustness':
+            # 环境扰动鲁棒性 — Phase A 原环境 vs Phase B 插入远处静态模型
+            test_duration = random.uniform(2.0, 4.0)
+            
+            try:
+                test_result = self.metamorphic_test_environment_perturbation_robustness(
+                    test_duration=test_duration)
+            except Exception as e:
+                print(f"DEBUG: Exception during environment perturbation test: {e}")
+                print(f"DEBUG: Exception type: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                test_result = None
+        
         # 记录测试结果
         test_passed = False
         if test_result:
@@ -1604,6 +1649,58 @@ class SmithUnit:
                     f.write(f"Monotonic: {'Yes' if monotonic else 'No'}\n")
                     f.write(f"Smooth: {'Yes' if smooth else 'No'}\n")
                     f.write(f"Violations: {len(violations)}\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+            
+            elif test_type == 'joint_constraint_stability':
+                # 关节约束稳定性测试结果格式: (model_name, link1_name, link2_name, samples,
+                #                            no_drift, no_jump, violations, success, error_info)
+                (model_name, link1_name, link2_name, samples,
+                 no_drift, no_jump, violations, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Joint Constraint Stability Test (Paradigm B)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Links: {link1_name}, {link2_name}\n")
+                    f.write(f"No Drift: {'Yes' if no_drift else 'No'}\n")
+                    f.write(f"No Jump: {'Yes' if no_jump else 'No'}\n")
+                    f.write(f"Violations: {len(violations)}\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+            
+            elif test_type == 'mass_scaling_no_reset':
+                # 质量缩放单次运行变体结果格式: (model_name, initial_pos, pos_A, pos_B,
+                #       initial_mass, k, d1, d2, d1_mag, d2_mag, success, error_info)
+                (model_name, initial_pos, pos_A, pos_B, initial_mass, k, d1, d2,
+                 d1_mag, d2_mag, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Mass-Scaling No-Reset Test (Paradigm D)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Initial Position: ({initial_pos[0]:.6f}, {initial_pos[1]:.6f}, {initial_pos[2]:.6f})\n")
+                    f.write(f"Position after Phase A: ({pos_A[0]:.6f}, {pos_A[1]:.6f}, {pos_A[2]:.6f})\n")
+                    f.write(f"Position after Phase B: ({pos_B[0]:.6f}, {pos_B[1]:.6f}, {pos_B[2]:.6f})\n")
+                    f.write(f"Initial Mass: {initial_mass:.6f} kg, k: {k:.3f}\n")
+                    f.write(f"d1: {d1:.6f} m, d2: {d2:.6f} m\n")
+                    f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
+                    f.write(f"\nError Info:\n{error_info}\n")
+            
+            elif test_type == 'environment_perturbation_robustness':
+                # 环境扰动鲁棒性结果格式: (model_name, pos_A, pos_B, d_A, d_B, d_A_mag, d_B_mag,
+                #       decor_model_name, success, error_info)
+                (model_name, pos_A, pos_B, d_A, d_B, d_A_mag, d_B_mag,
+                 decor_model_name, success, error_info) = test_result
+                test_passed = success
+                
+                with open(f"{self.directory}/metamorphic_test_result.txt", "w") as f:
+                    f.write(f"Test Type: Environment Perturbation Robustness Test (Reset-Compare)\n")
+                    f.write(f"Model: {model_name}\n")
+                    f.write(f"Decorative model: {decor_model_name}\n")
+                    f.write(f"Position after Phase A: ({pos_A[0]:.6f}, {pos_A[1]:.6f}, {pos_A[2]:.6f})\n")
+                    f.write(f"Position after Phase B: ({pos_B[0]:.6f}, {pos_B[1]:.6f}, {pos_B[2]:.6f})\n")
+                    f.write(f"|d_A|: {d_A_mag:.6f} m, |d_B|: {d_B_mag:.6f} m\n")
                     f.write(f"Result: {'PASSED' if success else 'FAILED'}\n")
                     f.write(f"\nError Info:\n{error_info}\n")
         else:
@@ -2075,6 +2172,52 @@ class SmithUnit:
         # return cmd_txt, result, response
 
 # 
+    def spawn_static_decorative_model_at(self, x, y, z, name_prefix="env_perturb_decor"):
+        """
+        在指定位置生成一个远处静态装饰模型（小立方体），用于环境扰动鲁棒性测试。
+        该模型应为静态、与目标模型无物理接触。
+        
+        Args:
+            x, y, z: 世界坐标位置
+            name_prefix: 模型名称前缀，会附加随机后缀避免冲突
+        
+        Returns:
+            (success: bool, model_name: str) 或 (False, None)
+        """
+        try:
+            import uuid
+            model_name = f"{name_prefix}_{uuid.uuid4().hex[:8]}"
+            sdf_str = f'''<sdf version="1.6">
+<model name="{model_name}">
+  <static>true</static>
+  <pose>{x} {y} {z} 0 0 0</pose>
+  <link name="link">
+    <collision name="collision">
+      <geometry><box><size>0.3 0.3 0.3</size></box></geometry>
+    </collision>
+    <visual name="visual">
+      <geometry><box><size>0.3 0.3 0.3</size></box></geometry>
+      <material><ambient>0.6 0.6 0.6 1</ambient><diffuse>0.6 0.6 0.6 1</diffuse></material>
+    </visual>
+  </link>
+</model>
+</sdf>'''
+            request_sdf = sdf_str.replace('\n', '\\n').replace('"', '\\"')
+            service_name = f"/world/{self.world_name}/create"
+            cmd_txt = (f"gz service -s {service_name} --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean "
+                      f"--timeout {self.timeout} --req 'sdf: \"{request_sdf}\", allow_renaming: false'")
+            cmd = GzCommand(GzCommandType.SERVICE, [cmd_txt], True)
+            cmd.execute(self.experiment_log if hasattr(self, 'experiment_log') else None)
+            self.log_sleep(0.5, "Wait after spawning static decorative model")
+            time.sleep(0.5)
+            print(f"DEBUG: Spawned static decorative model '{model_name}' at ({x:.1f}, {y:.1f}, {z:.1f})")
+            return (True, model_name)
+        except Exception as e:
+            print(f"DEBUG: Exception in spawn_static_decorative_model_at: {e}")
+            import traceback
+            traceback.print_exc()
+            return (False, None)
+
     def get_scene(self):
         # gz service -s /world/gravity/scene/info --reqtype gz.msgs.Empty --reptype gz.msgs.Scene --timeout 300 --req ''
         try:
@@ -2219,6 +2362,87 @@ class SmithUnit:
             import traceback
             traceback.print_exc()
             return None
+
+    def get_all_entity_poses_from_scene(self):
+        """
+        获取所有实体（模型 + link）的实时位姿。
+        用于关节约束稳定性测试，需要读取 link 级位置。
+        
+        Returns:
+            dict: {entity_name: (x, y, z)}，entity_name 可为 model 或 model::link。
+            失败返回 None。
+        """
+        try:
+            import time as time_module
+            
+            if not hasattr(self, 'world_name') or not self.world_name:
+                result, response = self.get_world()
+                if not result:
+                    return None
+                self.world_name = response.data[0]
+            
+            topic_name = f"/world/{self.world_name}/pose/info"
+            node = Node()
+            received_msg = None
+            received = False
+            
+            def pose_callback(msg):
+                nonlocal received_msg, received
+                received_msg = msg
+                received = True
+            
+            subscriber = node.subscribe(Pose_V, topic_name, pose_callback)
+            if not subscriber:
+                return None
+            
+            if self.use_text:
+                step_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'multi_step: 1'")
+                step_cmd = GzCommand(GzCommandType.SERVICE, [step_txt], True)
+                step_cmd.execute(None)
+            else:
+                service_name = f"/world/{self.world_name}/control"
+                request = WorldControl()
+                request.multi_step = 1
+                self.node.request(service_name, request, WorldControl, Boolean, self.timeout)
+            
+            start_time = time_module.time()
+            while not received and (time_module.time() - start_time) < 5.0:
+                time_module.sleep(0.01)
+            
+            if not received or received_msg is None:
+                return None
+            
+            poses = {}
+            for pose in received_msg.pose:
+                poses[pose.name] = (pose.position.x, pose.position.y, pose.position.z)
+            return poses
+        except Exception as e:
+            print(f"DEBUG: Exception in get_all_entity_poses_from_scene: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def get_models_with_multiple_links(self, scene):
+        """
+        从场景中筛选出至少有两个 link 的模型。
+        
+        Args:
+            scene: 场景对象（来自 get_scene）
+        
+        Returns:
+            list: [(model_name, [link1_full_name, link2_full_name, ...]), ...]
+                  link_full_name 格式为 "model_name::link_name"，用于 pose 消息查找
+        """
+        if scene is None:
+            return []
+        result = []
+        for model in scene.model:
+            if len(model.link) >= 2:
+                link_names = [f"{model.name}::{link.name}" for link in model.link]
+                result.append((model.name, link_names))
+        return result
 
     def record_all_models_state_from_scene(self):
         """
@@ -4406,6 +4630,56 @@ class SmithUnit:
         
         return force_x, force_y, force_z
 
+    def _get_model_mass_from_sdf(self, model_name):
+        """
+        从 SDF 文件解析模型质量（当 scene/info 未包含 inertial 时的回退）。
+        优先读取实验目录下的 a.sdf，若失败则尝试 dump_sdf 获取当前世界 SDF。
+        
+        Returns:
+            float: 总质量（kg），解析失败返回 0.0
+        """
+        try:
+            import xml.etree.ElementTree as ET
+            
+            sdf_content = None
+            sdf_path = os.path.join(self.directory, "a.sdf") if hasattr(self, 'directory') else None
+            if sdf_path and os.path.exists(sdf_path):
+                with open(sdf_path, 'r') as f:
+                    sdf_content = f.read()
+            if not sdf_content and hasattr(self, 'world_name') and self.world_name:
+                sdf_content = self.dump_sdf(self.world_name)
+                if sdf_content:
+                    sdf_content = sdf_content.decode('utf-8') if isinstance(sdf_content, bytes) else sdf_content
+            
+            if not sdf_content:
+                return 0.0
+            
+            root = ET.fromstring(sdf_content)
+            world = root if root.tag == 'world' else root.find('world')
+            if world is None:
+                return 0.0
+            
+            for model_elem in world.findall('model'):
+                if model_elem.get('name') != model_name:
+                    continue
+                total = 0.0
+                for link in model_elem.findall('link'):
+                    inertial = link.find('inertial')
+                    if inertial is not None:
+                        mass_elem = inertial.find('mass')
+                        if mass_elem is not None and mass_elem.text:
+                            try:
+                                total += float(mass_elem.text)
+                            except ValueError:
+                                pass
+                if total > 0:
+                    return total
+                break
+            return 0.0
+        except Exception as e:
+            print(f"DEBUG: _get_model_mass_from_sdf failed: {e}")
+            return 0.0
+
     def get_model_mass(self, model_name):
         """
         获取模型的总质量（所有link的质量之和）
@@ -4440,6 +4714,10 @@ class SmithUnit:
             for link in target_model.link:
                 if link.HasField('inertial') and link.inertial.mass > 0:
                     total_mass += link.inertial.mass
+            
+            # scene/info 可能不包含 inertial，回退到从 SDF 文件解析质量
+            if total_mass <= 0:
+                total_mass = self._get_model_mass_from_sdf(model_name)
             
             if total_mass <= 0:
                 print(f"DEBUG: Model {model_name} has invalid mass: {total_mass}")
@@ -4864,6 +5142,388 @@ class SmithUnit:
             
         except Exception as e:
             print(f"DEBUG: Exception in metamorphic_test_mass_scaling: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 质量缩放单次运行变体 (Mass-Scaling Invariant, No Reset)
+    # 范式 D: Sequential No-Reset — 同一运行中两阶段，不 reset world
+    # ===================================================================
+    def metamorphic_test_mass_scaling_no_reset(self, phase_duration=2.0, mass_scale_factor=None,
+                                                rel_tolerance=0.25, instability_ratio_bounds=(0.3, 3.3)):
+        """
+        蜕变测试：质量缩放的单次运行变体（无 Reset）
+        
+        测试原理：在同一运行中，Phase A 用质量 m 施力 F 得位移 d1；
+        Phase B 将质量改为 k*m、力改为 k*F（保持 a=F/m 不变），得位移 d2。
+        d1 与 d2 应在容差内接近。
+        
+        蜕变关系（范式 D - Sequential No-Reset）：
+          Phase A: mass=m, force=F, run T -> d1
+          Phase B: mass=k*m, force=k*F, run T -> d2
+          => d1 ≈ d2 （|d1-d2|/max(d1,d2) < tolerance）
+        
+        目标 bug：质量参与 F=ma 实现错误、质量修改后求解器异常、插件写死质量。
+        
+        Returns:
+            (model_name, initial_pos, pos_A, pos_B, initial_mass, k, d1, d2,
+             d1_mag, d2_mag, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Mass-Scaling No-Reset (Paradigm D)")
+            print("=" * 60)
+            
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in mass scaling no-reset test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            models_with_mass = []
+            for model in available_models:
+                mass = self.get_model_mass(model.name)
+                if mass is not None and mass > 0:
+                    models_with_mass.append((model, mass))
+            
+            if not models_with_mass:
+                print("DEBUG: No models with valid mass for mass scaling no-reset test")
+                return None
+            
+            target_model, initial_mass = random.choice(models_with_mass)
+            model_name = target_model.name
+            
+            if mass_scale_factor is None:
+                mass_scale_factor = random.choice([0.5, 0.75, 1.5, 2.0])
+            new_mass = initial_mass * mass_scale_factor
+            k = mass_scale_factor
+            
+            print(f"Selected model: {model_name}, mass m={initial_mass:.6f} kg, k={k:.3f}")
+            
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print("DEBUG: Failed to get initial position")
+                return None
+            
+            min_acc = 5.0
+            max_acc = 25.0
+            acc = random.uniform(min_acc, max_acc)
+            force_mag = max(initial_mass * acc, 50.0)
+            force_x, force_y, force_z = force_mag, 0.0, 0.0
+            
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (mass scaling no-reset)")
+            time_module.sleep(0.3)
+            
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if not force_cmd:
+                print("DEBUG: Failed to apply force in Phase A")
+                return None
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force (Phase A)")
+            time_module.sleep(0.1)
+            
+            num_steps = int(phase_duration / 0.001)
+            self.step_simulation(num_steps)
+            
+            pos_A = self.get_model_pose_from_scene(model_name)
+            if pos_A is None:
+                print("DEBUG: Failed to get position after Phase A")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            d1_x = pos_A[0] - initial_pos[0]
+            d1_mag = abs(d1_x)
+            
+            if d1_mag > 50.0 or pos_A[2] < -10.0:
+                print(f"DEBUG: Phase A displacement/position anomaly (|d1|={d1_mag:.1f}m or z={pos_A[2]:.1f}m), skip")
+                return None
+            min_disp = 0.02
+            if d1_mag < min_disp:
+                print(f"DEBUG: Model barely moved in Phase A (d1={d1_mag:.6f}m), likely constrained")
+                self.clear_model_wrench(model_name)
+                return None
+            
+            print(f"Phase A: d1 (x-disp) = {d1_x:.6f} m")
+            
+            self.clear_model_wrench(model_name)
+            self.log_sleep(0.2, "Wait before mass modification")
+            time_module.sleep(0.2)
+            
+            modify_ok = self.modify_model_mass(model_name, new_mass, mass_scale_factor)
+            if not modify_ok:
+                print("DEBUG: Failed to modify model mass")
+                return None
+            
+            self.log_sleep(0.5, "Wait after mass modification")
+            time_module.sleep(0.5)
+            
+            k_force_x = k * force_x
+            k_force_y = k * force_y
+            k_force_z = k * force_z
+            
+            force_cmd_B = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=k_force_x, force_y=k_force_y, force_z=k_force_z,
+                persistent=True
+            )
+            if not force_cmd_B:
+                print("DEBUG: Failed to apply force in Phase B")
+                return None
+            force_cmd_B.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force (Phase B)")
+            time_module.sleep(0.1)
+            
+            self.step_simulation(num_steps)
+            
+            pos_B = self.get_model_pose_from_scene(model_name)
+            self.clear_model_wrench(model_name)
+            if pos_B is None:
+                print("DEBUG: Failed to get position after Phase B")
+                return None
+            
+            d2_x = pos_B[0] - pos_A[0]
+            d2_mag = abs(d2_x)
+            
+            if d2_mag > 50.0 or pos_B[2] < -10.0:
+                print(f"DEBUG: Phase B displacement/position anomaly (|d2|={d2_mag:.1f}m or z={pos_B[2]:.1f}m), skip")
+                return None
+            print(f"Phase B: d2 (x-disp) = {d2_x:.6f} m")
+            
+            denom = max(d1_mag, d2_mag, 1e-9)
+            rel_error = abs(d1_mag - d2_mag) / denom
+            
+            ratio_d2_d1 = d2_mag / d1_mag if d1_mag > 1e-9 else 0.0
+            low_bound, high_bound = instability_ratio_bounds
+            no_instability = low_bound <= ratio_d2_d1 <= high_bound
+            
+            success = rel_error < rel_tolerance and no_instability
+            
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Initial mass m: {initial_mass:.6f} kg\n"
+            error_info += f"New mass k*m: {new_mass:.6f} kg (k={k:.3f})\n"
+            error_info += f"Force F: ({force_x:.2f}, 0, 0) N\n"
+            error_info += f"Force k*F: ({k_force_x:.2f}, 0, 0) N\n"
+            error_info += f"Phase duration: {phase_duration:.2f} s\n"
+            error_info += f"Position after Phase A: ({pos_A[0]:.6f}, {pos_A[1]:.6f}, {pos_A[2]:.6f})\n"
+            error_info += f"Position after Phase B: ({pos_B[0]:.6f}, {pos_B[1]:.6f}, {pos_B[2]:.6f})\n"
+            error_info += f"Displacement d1: {d1_x:.6f} m (|d1|={d1_mag:.6f})\n"
+            error_info += f"Displacement d2: {d2_x:.6f} m (|d2|={d2_mag:.6f})\n"
+            error_info += f"Relative error |d1-d2|/max: {rel_error*100:.2f}%\n"
+            error_info += f"Ratio d2/d1: {ratio_d2_d1:.3f}\n"
+            error_info += f"Rel tolerance: {rel_tolerance*100:.0f}%\n"
+            error_info += f"Instability check (d2/d1 in [{low_bound}, {high_bound}]): {'Pass' if no_instability else 'Fail'}\n"
+            error_info += "\nNote: With a=F/m constant, displacement in each phase should match.\n"
+            error_info += "      Large error or extreme d2/d1 indicates mass/dynamics bug."
+            
+            print(f"Rel error: {rel_error*100:.2f}%, d2/d1: {ratio_d2_d1:.3f}, "
+                  f"Instability OK: {no_instability}, Test {'PASSED' if success else 'FAILED'}")
+            
+            return (model_name, initial_pos, pos_A, pos_B, initial_mass, k, d1_x, d2_x,
+                    d1_mag, d2_mag, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_mass_scaling_no_reset: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 环境扰动鲁棒性测试 (Environment Perturbation Robustness)
+    # Reset-Compare：Phase A 原环境 vs Phase B 插入远处静态模型
+    # ===================================================================
+    def metamorphic_test_environment_perturbation_robustness(self, test_duration=3.0, rel_tolerance=0.15,
+                                                              decor_offset_xy=15.0):
+        """
+        蜕变测试：环境扰动鲁棒性测试
+        
+        测试原理：仅改变“与目标模型物理上无直接关系”的环境（远处静态物体）时，
+        目标模型在同一力输入下的行为不应发生显著变化。
+        
+        蜕变关系（Reset-Compare）：
+          Phase A：当前 world，施力 F 跑 T 秒，记录位移 d_A
+          Phase B：插入远处静态装饰模型，相同条件施力 F 跑 T 秒，记录 d_B
+          => |d_A - d_B| / max(|d_A|, |d_B|) < tolerance
+        
+        目标 bug：全局力/广义力错误、插件使用全局状态、实体遍历漏过滤。
+        
+        Returns:
+            (model_name, pos_A, pos_B, d_A, d_B, d_A_mag, d_B_mag,
+             decor_model_name, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Environment Perturbation Robustness (Reset-Compare)")
+            print("=" * 60)
+            
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in environment perturbation test")
+                return None
+            
+            has_ground = any(m.name in reserved_models for m in scene.model)
+            if not has_ground:
+                print("DEBUG: World has no ground plane (buoyancy/underwater), skip env perturbation test")
+                return None
+            
+            available_models = self.get_testable_models(scene, reserved_models)
+            if not available_models:
+                print("DEBUG: No available models for environment perturbation test")
+                return None
+            
+            target_model = random.choice(available_models)
+            model_name = target_model.name
+            
+            initial_pos = self.get_model_pose_from_scene(model_name)
+            if initial_pos is None:
+                print("DEBUG: Failed to get initial position")
+                return None
+            
+            model_mass = self.get_model_mass(model_name)
+            if model_mass is None or model_mass <= 0:
+                model_mass = 1.0
+            
+            min_acc = 5.0
+            max_acc = 25.0
+            acc = random.uniform(min_acc, max_acc)
+            force_mag = max(model_mass * acc, 50.0)
+            force_x, force_y, force_z = force_mag, 0.0, 0.0
+            
+            num_steps = int(test_duration / 0.001)
+            
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (env pert Phase A)")
+            time_module.sleep(0.3)
+            
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name, force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if not force_cmd:
+                print("DEBUG: Failed to apply force in Phase A")
+                return None
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force (Phase A)")
+            time_module.sleep(0.1)
+            
+            self.step_simulation(num_steps)
+            
+            pos_A = self.get_model_pose_from_scene(model_name)
+            self.clear_model_wrench(model_name)
+            if pos_A is None:
+                print("DEBUG: Failed to get position after Phase A")
+                return None
+            
+            d_A = (pos_A[0] - initial_pos[0], pos_A[1] - initial_pos[1], pos_A[2] - initial_pos[2])
+            d_A_mag = (d_A[0]**2 + d_A[1]**2 + d_A[2]**2) ** 0.5
+            
+            if d_A_mag < 0.02:
+                print("DEBUG: Model barely moved in Phase A, likely constrained")
+                return None
+            if d_A_mag > 50.0 or pos_A[2] < -10.0:
+                print(f"DEBUG: Phase A displacement/position anomaly (|d_A|={d_A_mag:.1f}m or z={pos_A[2]:.1f}m), world may be unsuitable")
+                return None
+            
+            print(f"Phase A: d_A = ({d_A[0]:.6f}, {d_A[1]:.6f}, {d_A[2]:.6f}), |d_A|={d_A_mag:.6f}m")
+            
+            reset_ok = self.reset_simulation()
+            if not reset_ok:
+                print("DEBUG: Failed to reset simulation")
+                return None
+            self.log_sleep(1.0, "Wait for reset (env pert)")
+            time_module.sleep(1.0)
+            
+            spawn_x = initial_pos[0] + decor_offset_xy
+            spawn_y = initial_pos[1] + decor_offset_xy
+            spawn_z = max(initial_pos[2] + 1.0, 1.0)
+            spawn_ok, decor_model_name = self.spawn_static_decorative_model_at(spawn_x, spawn_y, spawn_z)
+            if not spawn_ok:
+                print("DEBUG: Failed to spawn decorative model")
+                return None
+            
+            self.log_sleep(0.5, "Wait before Phase B")
+            time_module.sleep(0.5)
+            
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (env pert Phase B)")
+            time_module.sleep(0.3)
+            
+            self.clear_model_wrench(model_name)
+            force_cmd_b = self.func_apply_model_force(
+                model_name=model_name, force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if not force_cmd_b:
+                print("DEBUG: Failed to apply force in Phase B")
+                return None
+            force_cmd_b.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force (Phase B)")
+            time_module.sleep(0.1)
+            
+            self.step_simulation(num_steps)
+            
+            pos_B = self.get_model_pose_from_scene(model_name)
+            self.clear_model_wrench(model_name)
+            if pos_B is None:
+                print("DEBUG: Failed to get position after Phase B")
+                return None
+            
+            d_B_x = pos_B[0] - initial_pos[0]
+            d_B_y = pos_B[1] - initial_pos[1]
+            d_B_z = pos_B[2] - initial_pos[2]
+            d_B = (d_B_x, d_B_y, d_B_z)
+            d_B_mag = (d_B[0]**2 + d_B[1]**2 + d_B[2]**2) ** 0.5
+            
+            if d_B_mag > 50.0 or pos_B[2] < -10.0:
+                print(f"DEBUG: Phase B displacement/position anomaly (|d_B|={d_B_mag:.1f}m or z={pos_B[2]:.1f}m), world may be unsuitable")
+                return None
+            
+            print(f"Phase B: d_B = ({d_B[0]:.6f}, {d_B[1]:.6f}, {d_B[2]:.6f}), |d_B|={d_B_mag:.6f}m")
+            
+            denom = max(d_A_mag, d_B_mag, 1e-9)
+            rel_error = ((d_A[0]-d_B[0])**2 + (d_A[1]-d_B[1])**2 + (d_A[2]-d_B[2])**2) ** 0.5 / denom
+            
+            success = rel_error < rel_tolerance
+            
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Force: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N\n"
+            error_info += f"Test duration: {test_duration:.2f} s\n"
+            error_info += f"Decorative model: {decor_model_name} at ({spawn_x:.1f}, {spawn_y:.1f}, {spawn_z:.1f})\n"
+            error_info += f"Position after Phase A: ({pos_A[0]:.6f}, {pos_A[1]:.6f}, {pos_A[2]:.6f})\n"
+            error_info += f"Position after Phase B: ({pos_B[0]:.6f}, {pos_B[1]:.6f}, {pos_B[2]:.6f})\n"
+            error_info += f"Displacement d_A: ({d_A[0]:.6f}, {d_A[1]:.6f}, {d_A[2]:.6f}), |d_A|={d_A_mag:.6f}m\n"
+            error_info += f"Displacement d_B: ({d_B[0]:.6f}, {d_B[1]:.6f}, {d_B[2]:.6f}), |d_B|={d_B_mag:.6f}m\n"
+            error_info += f"Relative error (|d_A-d_B|/max): {rel_error*100:.2f}%\n"
+            error_info += f"Tolerance: {rel_tolerance*100:.0f}%\n"
+            error_info += "\nNote: Adding distant static model should not affect target behavior.\n"
+            error_info += "      Large error indicates global state/force leakage bug."
+            
+            print(f"Rel error: {rel_error*100:.2f}%, Test {'PASSED' if success else 'FAILED'}")
+            
+            return (model_name, pos_A, pos_B, d_A, d_B, d_A_mag, d_B_mag,
+                    decor_model_name, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_environment_perturbation_robustness: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -6023,6 +6683,204 @@ class SmithUnit:
         
         except Exception as e:
             print(f"DEBUG: Exception in metamorphic_test_temporal_monotonicity: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    # ===================================================================
+    # 关节约束稳定性测试 (Joint Constraint Stability Test)
+    # 范式 B: Single-Run Invariant — 约束量在仿真中保持稳定
+    # ===================================================================
+    def metamorphic_test_joint_constraint_stability(self, test_duration=5.0, num_samples=10,
+                                                     drift_tolerance=0.05, jump_tolerance=0.1):
+        """
+        蜕变测试：关节约束稳定性测试
+        
+        测试原理：通过关节连接的两个 link 之间约束量（如质心距离）在仿真过程中
+        应保持在小容差内，不应出现线性漂移或突然跳变。
+        
+        蜕变关系：
+          对于含关节的模型，两 link 间的约束量（距离等）在 t1..tK 采样点
+          应满足 |d_i - d_0| < drift_tolerance，且相邻 |d_i - d_{i-1}| < jump_tolerance
+        
+        范式：B — Single-Run Invariant
+        
+        Returns:
+            (model_name, link1_name, link2_name, samples, no_drift, no_jump,
+             violations, success, error_info) 或 None
+        """
+        try:
+            import time as time_module
+            import math
+            
+            print("=" * 60)
+            print("METAMORPHIC TEST: Joint Constraint Stability (Paradigm B)")
+            print("=" * 60)
+            
+            scene, reserved_models = self.get_scene()
+            if scene is None or not reserved_models:
+                print("DEBUG: get_scene() failed in joint constraint stability test")
+                return None
+            
+            poses_preview = self.get_all_entity_poses_from_scene()
+            if poses_preview is None:
+                print("DEBUG: Failed to get poses for link resolution")
+                return None
+            
+            multi_link_models = self.get_models_with_multiple_links(scene)
+            testable = []
+            for m, links in multi_link_models:
+                if m in reserved_models:
+                    continue
+                model_obj = next((x for x in scene.model if x.name == m), None)
+                if model_obj is None or not self.is_model_testable(model_obj):
+                    continue
+                l1 = links[0]
+                l2 = links[1]
+                k1 = l1 if l1 in poses_preview else (l1.split("::")[-1] if "::" in l1 else l1)
+                k2 = l2 if l2 in poses_preview else (l2.split("::")[-1] if "::" in l2 else l2)
+                if k1 in poses_preview and k2 in poses_preview:
+                    if k1 == k2:
+                        continue
+                    testable.append((m, links))
+            if not testable:
+                print("DEBUG: No multi-link testable models for joint constraint stability")
+                return None
+            
+            model_name, link_names = random.choice(testable)
+            link1_scoped = link_names[0]
+            link2_scoped = link_names[1]
+            print(f"Selected model: {model_name}, links: {link1_scoped}, {link2_scoped}")
+            
+            def resolve_link_key(poses_dict, scoped_name):
+                """pose/info 可能用 model::link 或仅 link，尝试两种格式"""
+                if scoped_name in poses_dict:
+                    return scoped_name
+                local = scoped_name.split("::")[-1] if "::" in scoped_name else scoped_name
+                return local if local in poses_dict else None
+            
+            link1_key = resolve_link_key(poses_preview, link1_scoped)
+            link2_key = resolve_link_key(poses_preview, link2_scoped)
+            if link1_key is None or link2_key is None:
+                print(f"DEBUG: Link poses not found (tried scoped and local). Available: {list(poses_preview.keys())[:20]}...")
+                return None
+            poses = poses_preview
+            
+            def dist(p1, p2):
+                return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
+            
+            d0 = dist(poses[link1_key], poses[link2_key])
+            if d0 > 50.0 or d0 < 1e-6:
+                print(f"DEBUG: Initial link distance d0={d0:.6f}m out of range (possible wrong link resolution)")
+                return None
+            print(f"Initial constraint distance d0: {d0:.6f}m")
+            
+            model_mass = self.get_model_mass(model_name)
+            if model_mass is None or model_mass <= 0:
+                model_mass = 1.0
+            
+            min_acceleration = 3.0
+            max_acceleration = 15.0
+            min_force = max(model_mass * min_acceleration, 30.0)
+            max_force = model_mass * max_acceleration
+            force_magnitude = random.uniform(min_force, max_force)
+            force_x = force_magnitude * (random.choice([-1, 1]))
+            force_y = force_magnitude * 0.3 * (random.choice([-1, 1]))
+            force_z = 0.0
+            
+            pause_cmd_txt = (f"gz service -s /world/{self.world_name}/control "
+                           f"--reqtype gz.msgs.WorldControl --reptype gz.msgs.Boolean "
+                           f"--timeout {self.timeout} --req 'pause: true'")
+            pause_cmd = GzCommand(GzCommandType.SERVICE, [pause_cmd_txt], True)
+            pause_cmd.execute(self.experiment_log)
+            self.log_sleep(0.3, "Wait for pause (joint constraint)")
+            time_module.sleep(0.3)
+            
+            self.clear_model_wrench(model_name)
+            force_cmd = self.func_apply_model_force(
+                model_name=model_name,
+                force_x=force_x, force_y=force_y, force_z=force_z,
+                persistent=True
+            )
+            if not force_cmd:
+                print("DEBUG: Failed to apply force in joint constraint stability test")
+                return None
+            force_cmd.execute(self.experiment_log)
+            self.log_sleep(0.1, "Wait for force (joint constraint)")
+            time_module.sleep(0.1)
+            
+            steps_per_sample = max(1, int(test_duration / (num_samples * 0.001)))
+            samples = []  # [(t, d), ...]
+            samples.append((0.0, d0))
+            
+            for i in range(num_samples):
+                self.step_simulation(steps_per_sample)
+                poses = self.get_all_entity_poses_from_scene()
+                if poses is None or link1_key not in poses or link2_key not in poses:
+                    print(f"DEBUG: Failed to get link poses at sample {i+1}")
+                    self.clear_model_wrench(model_name)
+                    return None
+                d = dist(poses[link1_key], poses[link2_key])
+                t = test_duration * (i + 1) / num_samples
+                samples.append((t, d))
+                print(f"  t={t:.2f}s: d={d:.6f}m, |d-d0|={abs(d-d0):.6f}m")
+            
+            self.clear_model_wrench(model_name)
+            
+            no_drift = True
+            no_jump = True
+            violations = []
+            
+            for i in range(1, len(samples)):
+                t, d = samples[i]
+                drift = abs(d - d0)
+                if drift > drift_tolerance:
+                    no_drift = False
+                    violations.append({
+                        'index': i, 'time': t, 'd': d, 'd0': d0, 'drift': drift,
+                        'type': 'drift'
+                    })
+                if i >= 2:
+                    jump = abs(samples[i][1] - samples[i-1][1])
+                    if jump > jump_tolerance:
+                        no_jump = False
+                        violations.append({
+                            'index': i, 'time': t, 'd_prev': samples[i-1][1],
+                            'd_curr': d, 'jump': jump, 'type': 'jump'
+                        })
+            
+            success = no_drift and no_jump
+            
+            error_info = f"Model: {model_name}\n"
+            error_info += f"Links: {link1_scoped}, {link2_scoped} (resolved: {link1_key}, {link2_key})\n"
+            error_info += f"Force: ({force_x:.2f}, {force_y:.2f}, {force_z:.2f}) N\n"
+            error_info += f"Initial distance d0: {d0:.6f}m\n"
+            error_info += f"Drift tolerance: {drift_tolerance}m, Jump tolerance: {jump_tolerance}m\n"
+            error_info += f"No drift: {'Yes' if no_drift else 'No'}\n"
+            error_info += f"No jump: {'Yes' if no_jump else 'No'}\n"
+            if violations:
+                error_info += f"Violations ({len(violations)}):\n"
+                for v in violations:
+                    if v['type'] == 'drift':
+                        error_info += (f"  t={v['time']:.2f}s: drift={v['drift']:.6f}m "
+                                     f"(d={v['d']:.6f}, d0={v['d0']:.6f})\n")
+                    else:
+                        error_info += (f"  t={v['time']:.2f}s: jump={v['jump']:.6f}m "
+                                     f"(d_prev={v['d_prev']:.6f} -> d_curr={v['d_curr']:.6f})\n")
+            error_info += f"\nSamples (t, distance):\n"
+            for t, d in samples:
+                error_info += f"  t={t:.2f}s: d={d:.6f}m\n"
+            error_info += "\nNote: Joint constraint (link distance) should stay stable during simulation.\n"
+            error_info += "      Linear drift or sudden jumps indicate solver/constraint bugs."
+            
+            print(f"\nNo drift: {'Yes' if no_drift else 'No'}, No jump: {'Yes' if no_jump else 'No'}")
+            print(f"Violations: {len(violations)}, Test {'PASSED' if success else 'FAILED'}")
+            
+            return (model_name, link1_scoped, link2_scoped, samples, no_drift, no_jump,
+                    violations, success, error_info)
+        
+        except Exception as e:
+            print(f"DEBUG: Exception in metamorphic_test_joint_constraint_stability: {e}")
             import traceback
             traceback.print_exc()
             return None

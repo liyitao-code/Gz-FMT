@@ -1,6 +1,95 @@
-__pycache__
+# Python cache / tooling
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editor / OS files
+.vscode/
+.idea/
 *.swp
-world*.sdf
+*.swo
+.DS_Store
+Thumbs.db
+
+# Local Gazebo source checkout and coverage artifacts
+src/
+gcov/
+*.gcda
+*.gcno
+*.gcov
+lcov.info
+coverage.info
+
+# Experiment outputs
+exp/
+exp_*/
+test_exp/
+agent_meta_*/
+exp_agent*/
+exp_meta*/
+*_meta_training_metrics.csv
+cov_time.txt
+cov_turn.txt
+expcov_time.txt
+expcov_turn.txt
+seed
+terminate
+
+# Bug / submission bundles generated from experiments
+bug/
+tosubmit/
+
+# Gazebo and replay outputs
 gz.log
-exp
+gz.out
+gz.err
+*.replay
+cmd_*.sh
+world*.sdf
+world_*.sdf
+metamorphic_test_result.txt
+playback_test_result.txt
+experiment_log.json
+METAMORPHIC_TEST_FAILED
+PLAYBACK_TEST_FAILED
+BOTH_CRASH_AND_METAMORPHIC_FAIL
+
+# Root-level temporary SDF / generated cases
+/a.sdf
+/b.sdf
+/empty0.sdf
+/buggy*.sdf
+/demo.sdf
+
+# Logs and runtime dumps
+*.log
+log
+logg
+nohup.out
+*.out
+valgrind*.log
+valgrind-*.log
+
+# Large archives / generated reports
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.xz
 *.json.gz
+code.tar.xz
+
+# Scratch visual/debug artifacts in repo root
+/*.png
+/*.html
+/a.html
+/a1.html
+
+# Local scratch files with extensionless names
+/2
+/a.out
