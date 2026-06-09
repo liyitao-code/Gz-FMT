@@ -1,4 +1,4 @@
-# Rezilla ModelSmith Sim9
+# Gz-FMT
 
 这是一个面向 Gazebo / gz-sim 的自动化测试项目。项目主要围绕 SDF 世界文件生成、Gazebo 服务 / Topic 调用、模型与插件组合、覆盖率收集、崩溃检测、实验复现，以及蜕变测试展开。
 
